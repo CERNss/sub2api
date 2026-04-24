@@ -1,0 +1,26 @@
+{
+  "client_templates": {
+    "codex": {
+      "files": [
+        {
+          "path": "${configDir}/config.toml",
+          "content": "model_provider = \"OpenAI\"\nmodel = \"gpt-5.5\"\nreview_model = \"gpt-5.4\"\nmodel_reasoning_effort = \"high\"\nplan_mode_reasoning_effort = \"high\"\ndisable_response_storage = true\nnetwork_access = \"enabled\"\nweb_search = \"live\"\nwindows_wsl_setup_acknowledged = true\n\n[model_providers.OpenAI]\nname = \"OpenAI\"\nbase_url = \"${baseUrl}\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
+        },
+        {
+          "path": "${configDir}/auth.json",
+          "content": "{\n  \"OPENAI_API_KEY\": \"${apiKey}\"\n}"
+        }
+      ],
+      "websocket_files": [
+        {
+          "path": "${configDir}/config.toml",
+          "content": "model_provider = \"OpenAI\"\nmodel = \"gpt-5.5\"\nreview_model = \"gpt-5.4\"\nmodel_reasoning_effort = \"high\"\nplan_mode_reasoning_effort = \"high\"\ndisable_response_storage = true\nnetwork_access = \"enabled\"\nweb_search = \"live\"\nwindows_wsl_setup_acknowledged = true\n\n[model_providers.OpenAI]\nname = \"OpenAI\"\nbase_url = \"${baseUrl}\"\nwire_api = \"responses\"\nsupports_websockets = true\nrequires_openai_auth = true\n\n[features]\nresponses_websockets_v2 = true"
+        },
+        {
+          "path": "${configDir}/auth.json",
+          "content": "{\n  \"OPENAI_API_KEY\": \"${apiKey}\"\n}"
+        }
+      ]
+    }
+  }
+}

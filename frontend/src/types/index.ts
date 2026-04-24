@@ -151,6 +151,32 @@ export interface CustomEndpoint {
   description: string
 }
 
+export interface ClientTemplateFile {
+  path: string
+  content: string
+  hint?: string
+}
+
+export interface CodexClientTemplateConfig {
+  files?: ClientTemplateFile[]
+  websocket_files?: ClientTemplateFile[]
+}
+
+export interface OpenCodeClientTemplateConfig {
+  files?: ClientTemplateFile[]
+}
+
+export interface CcsImportTemplateConfig {
+  base?: string
+  params?: Record<string, string>
+}
+
+export interface ClientTemplatesConfig {
+  codex?: CodexClientTemplateConfig
+  opencode?: OpenCodeClientTemplateConfig
+  ccs_import?: CcsImportTemplateConfig
+}
+
 export interface PublicSettings {
   registration_enabled: boolean
   email_verify_enabled: boolean
@@ -174,6 +200,7 @@ export interface PublicSettings {
   table_page_size_options: number[]
   custom_menu_items: CustomMenuItem[]
   custom_endpoints: CustomEndpoint[]
+  client_templates?: ClientTemplatesConfig
   linuxdo_oauth_enabled: boolean
   wechat_oauth_enabled: boolean
   wechat_oauth_open_enabled?: boolean
