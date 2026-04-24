@@ -31,6 +31,10 @@ services:
       # Optional: Mount custom config.yaml (uncomment and create the file first)
       # Copy config.example.yaml to config.yaml, modify it, then uncomment:
       # - ./config.yaml:/app/data/config.yaml
+      # Optional: Mount the whole template directory for frontend client templates.
+      # The frontend will read /client-templates.json from /app/data/public.
+      # Requires ../template/client-templates.json to exist.
+      # - ../template:/app/data/public:ro
       # Optional: Mount a custom Codex instructions template file, then point
       # gateway.forced_codex_instructions_template_file at /app/data/codex-instructions.md.tmpl
       # in config.yaml.

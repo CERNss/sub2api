@@ -139,7 +139,8 @@ import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useClipboard } from '@/composables/useClipboard'
-import type { GroupPlatform } from '@/types'
+import type { ClientTemplateFile, ClientTemplatesConfig, GroupPlatform } from '@/types'
+import { renderTemplateFiles, resolveBaseUrls, type TemplateContext } from '@/utils/clientTemplates'
 
 interface Props {
   show: boolean
@@ -147,6 +148,7 @@ interface Props {
   baseUrl: string
   platform: GroupPlatform | null
   allowMessagesDispatch?: boolean
+  clientTemplates?: ClientTemplatesConfig | null
 }
 
 interface Emits {
@@ -159,10 +161,10 @@ interface TabConfig {
   icon: Component
 }
 
-interface FileConfig {
+interface FileConfig extends ClientTemplateFile {
   path: string
   content: string
-  hint?: string  // Optional hint message for this file
+  hint?: string
   highlighted?: string
 }
 
@@ -373,26 +375,47 @@ const operator = (value: string) => wrapToken('text-slate-400', value)
 const string = (value: string) => wrapToken('text-amber-200', value)
 const comment = (value: string) => wrapToken('text-slate-500', value)
 
+function buildTemplateContext(
+  clientType: string,
+  tab: string,
+  overrides: Partial<TemplateContext> = {}
+): TemplateContext {
+  const { baseUrl, baseRoot, apiBase, geminiBase, antigravityBase, antigravityGeminiBase } = resolveBaseUrls(props.baseUrl)
+
+  return {
+    apiKey: props.apiKey,
+    baseUrl,
+    baseRoot,
+    apiBase,
+    geminiBase,
+    antigravityBase,
+    antigravityGeminiBase,
+    platform: props.platform || '',
+    clientType,
+    tab,
+    ...overrides
+  }
+}
+
 // Syntax highlighting helpers
 // Generate file configs based on platform and active tab
 const currentFiles = computed((): FileConfig[] => {
-  const baseUrl = props.baseUrl || window.location.origin
+  const { baseUrl, apiBase, antigravityBase, antigravityGeminiBase, geminiBase } = resolveBaseUrls(props.baseUrl)
   const apiKey = props.apiKey
-  const baseRoot = baseUrl.replace(/\/v1\/?$/, '').replace(/\/+$/, '')
-  const ensureV1 = (value: string) => {
-    const trimmed = value.replace(/\/+$/, '')
-    return trimmed.endsWith('/v1') ? trimmed : `${trimmed}/v1`
+
+  if (activeClientTab.value === 'opencode' && props.clientTemplates?.opencode?.files?.length) {
+    const endpoint =
+      props.platform === 'gemini'
+        ? geminiBase
+        : props.platform === 'antigravity'
+          ? antigravityBase
+          : apiBase
+
+    return renderTemplateFiles(
+      props.clientTemplates.opencode.files,
+      buildTemplateContext(activeClientTab.value, activeTab.value, { endpoint })
+    )
   }
-  const apiBase = ensureV1(baseRoot)
-  const antigravityBase = ensureV1(`${baseRoot}/antigravity`)
-  const antigravityGeminiBase = (() => {
-    const trimmed = `${baseRoot}/antigravity`.replace(/\/+$/, '')
-    return trimmed.endsWith('/v1beta') ? trimmed : `${trimmed}/v1beta`
-  })()
-  const geminiBase = (() => {
-    const trimmed = baseRoot.replace(/\/+$/, '')
-    return trimmed.endsWith('/v1beta') ? trimmed : `${trimmed}/v1beta`
-  })()
 
   if (activeClientTab.value === 'opencode') {
     switch (props.platform) {
@@ -416,6 +439,24 @@ const currentFiles = computed((): FileConfig[] => {
     case 'openai':
       if (activeClientTab.value === 'claude') {
         return generateAnthropicFiles(baseUrl, apiKey)
+      }
+      if (activeClientTab.value === 'codex-ws' && props.clientTemplates?.codex?.websocket_files?.length) {
+        return renderTemplateFiles(
+          props.clientTemplates.codex.websocket_files,
+          buildTemplateContext(activeClientTab.value, activeTab.value, {
+            configDir: activeTab.value === 'windows' ? '%userprofile%\\.codex' : '~/.codex',
+            endpoint: baseUrl
+          })
+        )
+      }
+      if (activeClientTab.value === 'codex' && props.clientTemplates?.codex?.files?.length) {
+        return renderTemplateFiles(
+          props.clientTemplates.codex.files,
+          buildTemplateContext(activeClientTab.value, activeTab.value, {
+            configDir: activeTab.value === 'windows' ? '%userprofile%\\.codex' : '~/.codex',
+            endpoint: baseUrl
+          })
+        )
       }
       if (activeClientTab.value === 'codex-ws') {
         return generateOpenAIWsFiles(baseUrl, apiKey)
