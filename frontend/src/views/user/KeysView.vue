@@ -927,6 +927,7 @@
       :base-url="publicSettings?.api_base_url || ''"
       :platform="selectedKey?.group?.platform || null"
       :allow-messages-dispatch="selectedKey?.group?.allow_messages_dispatch || false"
+      :client-templates="clientTemplates"
       @close="closeUseKeyModal"
     />
 
@@ -1068,9 +1069,10 @@ import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 	import EndpointPopover from '@/components/keys/EndpointPopover.vue'
 	import GroupBadge from '@/components/common/GroupBadge.vue'
 	import GroupOptionItem from '@/components/common/GroupOptionItem.vue'
-	import type { ApiKey, Group, PublicSettings, SubscriptionType, GroupPlatform } from '@/types'
+	import type { ApiKey, ClientTemplatesConfig, Group, PublicSettings, SubscriptionType, GroupPlatform } from '@/types'
 import type { Column } from '@/components/common/types'
 import type { BatchApiKeyUsageStats } from '@/api/usage'
+import { buildCcsImportDeeplink, loadStaticClientTemplatesConfig, resolveBaseUrls } from '@/utils/clientTemplates'
 import { formatDateTime } from '@/utils/format'
 
 // Helper to format date for datetime-local input
@@ -1144,6 +1146,14 @@ const selectedKey = ref<ApiKey | null>(null)
 const copiedKeyId = ref<number | null>(null)
 const groupSelectorKeyId = ref<number | null>(null)
 const publicSettings = ref<PublicSettings | null>(null)
+const staticClientTemplates = ref<ClientTemplatesConfig | null>(null)
+const clientTemplates = computed<ClientTemplatesConfig | null>(() =>
+  publicSettings.value?.client_templates ||
+  appStore.cachedPublicSettings?.client_templates ||
+  window.__APP_CONFIG__?.client_templates ||
+  staticClientTemplates.value ||
+  null
+)
 const dropdownRef = ref<HTMLElement | null>(null)
 const dropdownPosition = ref<{ top?: number; bottom?: number; left: number } | null>(null)
 const groupButtonRefs = ref<Map<number, HTMLElement>>(new Map())
@@ -1357,6 +1367,10 @@ const loadPublicSettings = async () => {
   } catch (error) {
     console.error('Failed to load public settings:', error)
   }
+}
+
+const loadStaticClientTemplates = async () => {
+  staticClientTemplates.value = await loadStaticClientTemplatesConfig()
 }
 
 const openUseKeyModal = (key: ApiKey) => {
@@ -1705,7 +1719,9 @@ const importToCcswitch = (row: ApiKey) => {
 }
 
 const executeCcsImport = (row: ApiKey, clientType: 'claude' | 'gemini') => {
-  const baseUrl = publicSettings.value?.api_base_url || window.location.origin
+  const { baseUrl, baseRoot, apiBase, geminiBase, antigravityBase, antigravityGeminiBase } = resolveBaseUrls(
+    publicSettings.value?.api_base_url || window.location.origin
+  )
   const platform = row.group?.platform || 'anthropic'
 
   // Determine app name and endpoint based on platform and client type
@@ -1734,9 +1750,9 @@ const executeCcsImport = (row: ApiKey, clientType: 'claude' | 'gemini') => {
 
   const usageScript = `({
     request: {
-      url: "{{baseUrl}}/v1/usage",
+      url: "${baseUrl}/v1/usage",
       method: "GET",
-      headers: { "Authorization": "Bearer {{apiKey}}" }
+      headers: { "Authorization": "Bearer ${row.key}" }
     },
     extractor: function(response) {
       const remaining = response?.remaining ?? response?.quota?.remaining ?? response?.balance;
@@ -1749,20 +1765,35 @@ const executeCcsImport = (row: ApiKey, clientType: 'claude' | 'gemini') => {
     }
   })`
   const providerName = (publicSettings.value?.site_name || 'sub2api').trim() || 'sub2api'
-
-  const params = new URLSearchParams({
-    resource: 'provider',
-    app: app,
-    name: providerName,
-    homepage: baseUrl,
-    endpoint: endpoint,
-    apiKey: row.key,
-    configFormat: 'json',
-    usageEnabled: 'true',
-    usageScript: btoa(usageScript),
-    usageAutoInterval: '30'
-  })
-  const deeplink = `ccswitch://v1/import?${params.toString()}`
+  const deeplink = buildCcsImportDeeplink(
+    clientTemplates.value?.ccs_import,
+    {
+      resource: 'provider',
+      app,
+      name: providerName,
+      homepage: baseUrl,
+      endpoint,
+      apiKey: row.key,
+      configFormat: 'json',
+      usageEnabled: 'true',
+      usageScript,
+      usageAutoInterval: '30'
+    },
+    {
+      apiKey: row.key,
+      app,
+      apiBase,
+      antigravityBase,
+      antigravityGeminiBase,
+      baseUrl,
+      baseRoot,
+      clientType,
+      endpoint,
+      geminiBase,
+      platform,
+      providerName
+    }
+  )
 
   try {
     window.open(deeplink, '_self')
@@ -1809,6 +1840,7 @@ onMounted(() => {
   loadGroups()
   loadUserGroupRates()
   loadPublicSettings()
+  loadStaticClientTemplates()
   document.addEventListener('click', closeGroupSelector)
   resetTimer = setInterval(() => { now.value = new Date() }, 60000)
 })
