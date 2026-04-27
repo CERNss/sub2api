@@ -329,6 +329,7 @@ watch(errorMessage, value => {
 type LinuxDoPendingActionResponse = PendingOAuthExchangeResponse & {
   step?: string
   intent?: string
+  compat_email?: string
   email?: string
   resolved_email?: string
   pending_email?: string
@@ -434,10 +435,15 @@ function normalizedPendingState(value: string | null | undefined): string {
   return value?.trim().toLowerCase() || ''
 }
 
+function shouldCreateAccountFromChoice(completion: LinuxDoPendingActionResponse): boolean {
+  return completion.existing_account_bindable === false && completion.create_account_allowed !== false
+}
+
 function extractPendingAccountEmail(completion: LinuxDoPendingActionResponse): string {
   return (
     completion.pending_email ||
     completion.existing_account_email ||
+    completion.compat_email ||
     completion.email ||
     completion.resolved_email ||
     completion.suggested_email ||
@@ -456,6 +462,9 @@ function resolvePendingAccountAction(
     raw === 'choose_account' ||
     raw === 'choose'
   ) {
+    if (shouldCreateAccountFromChoice(completion)) {
+      return 'create_account'
+    }
     return 'choose_account_action'
   }
   if (raw === 'email_required' || raw === 'create_account_required' || raw === 'create_account') {

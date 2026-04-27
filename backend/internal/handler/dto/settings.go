@@ -68,28 +68,29 @@ type SystemSettings struct {
 	WeChatConnectRedirectURL               string `json:"wechat_connect_redirect_url"`
 	WeChatConnectFrontendRedirectURL       string `json:"wechat_connect_frontend_redirect_url"`
 
-	OIDCConnectEnabled                bool   `json:"oidc_connect_enabled"`
-	OIDCConnectProviderName           string `json:"oidc_connect_provider_name"`
-	OIDCConnectClientID               string `json:"oidc_connect_client_id"`
-	OIDCConnectClientSecretConfigured bool   `json:"oidc_connect_client_secret_configured"`
-	OIDCConnectIssuerURL              string `json:"oidc_connect_issuer_url"`
-	OIDCConnectDiscoveryURL           string `json:"oidc_connect_discovery_url"`
-	OIDCConnectAuthorizeURL           string `json:"oidc_connect_authorize_url"`
-	OIDCConnectTokenURL               string `json:"oidc_connect_token_url"`
-	OIDCConnectUserInfoURL            string `json:"oidc_connect_userinfo_url"`
-	OIDCConnectJWKSURL                string `json:"oidc_connect_jwks_url"`
-	OIDCConnectScopes                 string `json:"oidc_connect_scopes"`
-	OIDCConnectRedirectURL            string `json:"oidc_connect_redirect_url"`
-	OIDCConnectFrontendRedirectURL    string `json:"oidc_connect_frontend_redirect_url"`
-	OIDCConnectTokenAuthMethod        string `json:"oidc_connect_token_auth_method"`
-	OIDCConnectUsePKCE                bool   `json:"oidc_connect_use_pkce"`
-	OIDCConnectValidateIDToken        bool   `json:"oidc_connect_validate_id_token"`
-	OIDCConnectAllowedSigningAlgs     string `json:"oidc_connect_allowed_signing_algs"`
-	OIDCConnectClockSkewSeconds       int    `json:"oidc_connect_clock_skew_seconds"`
-	OIDCConnectRequireEmailVerified   bool   `json:"oidc_connect_require_email_verified"`
-	OIDCConnectUserInfoEmailPath      string `json:"oidc_connect_userinfo_email_path"`
-	OIDCConnectUserInfoIDPath         string `json:"oidc_connect_userinfo_id_path"`
-	OIDCConnectUserInfoUsernamePath   string `json:"oidc_connect_userinfo_username_path"`
+	OIDCConnectEnabled                       bool   `json:"oidc_connect_enabled"`
+	OIDCConnectProviderName                  string `json:"oidc_connect_provider_name"`
+	OIDCConnectClientID                      string `json:"oidc_connect_client_id"`
+	OIDCConnectClientSecretConfigured        bool   `json:"oidc_connect_client_secret_configured"`
+	OIDCConnectIssuerURL                     string `json:"oidc_connect_issuer_url"`
+	OIDCConnectDiscoveryURL                  string `json:"oidc_connect_discovery_url"`
+	OIDCConnectAuthorizeURL                  string `json:"oidc_connect_authorize_url"`
+	OIDCConnectTokenURL                      string `json:"oidc_connect_token_url"`
+	OIDCConnectUserInfoURL                   string `json:"oidc_connect_userinfo_url"`
+	OIDCConnectJWKSURL                       string `json:"oidc_connect_jwks_url"`
+	OIDCConnectScopes                        string `json:"oidc_connect_scopes"`
+	OIDCConnectRedirectURL                   string `json:"oidc_connect_redirect_url"`
+	OIDCConnectFrontendRedirectURL           string `json:"oidc_connect_frontend_redirect_url"`
+	OIDCConnectTokenAuthMethod               string `json:"oidc_connect_token_auth_method"`
+	OIDCConnectUsePKCE                       bool   `json:"oidc_connect_use_pkce"`
+	OIDCConnectValidateIDToken               bool   `json:"oidc_connect_validate_id_token"`
+	OIDCConnectAllowedSigningAlgs            string `json:"oidc_connect_allowed_signing_algs"`
+	OIDCConnectClockSkewSeconds              int    `json:"oidc_connect_clock_skew_seconds"`
+	OIDCConnectRequireEmailVerified          bool   `json:"oidc_connect_require_email_verified"`
+	OIDCConnectRequireLocalEmailVerification bool   `json:"oidc_connect_require_local_email_verification"`
+	OIDCConnectUserInfoEmailPath             string `json:"oidc_connect_userinfo_email_path"`
+	OIDCConnectUserInfoIDPath                string `json:"oidc_connect_userinfo_id_path"`
+	OIDCConnectUserInfoUsernamePath          string `json:"oidc_connect_userinfo_username_path"`
 
 	SiteName                    string           `json:"site_name"`
 	SiteLogo                    string           `json:"site_logo"`

@@ -197,6 +197,10 @@ export interface PendingOAuthBindLoginResponse extends Partial<OAuthTokenRespons
   auth_result?: string
   redirect?: string
   error?: string
+  compat_email?: string
+  local_email_verification_required?: boolean
+  existing_account_bindable?: boolean
+  create_account_allowed?: boolean
   requires_2fa?: boolean
   temp_token?: string
   user_email_masked?: string

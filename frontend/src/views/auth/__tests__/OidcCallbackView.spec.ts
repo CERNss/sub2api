@@ -400,6 +400,8 @@ describe('OidcCallbackView', () => {
       redirect: '/dashboard',
       email: 'fresh@example.com',
       resolved_email: 'fresh@example.com',
+      existing_account_bindable: true,
+      create_account_allowed: true,
       force_email_on_signup: true,
       adoption_required: true
     })
@@ -428,6 +430,38 @@ describe('OidcCallbackView', () => {
     expect(replace).not.toHaveBeenCalled()
     expect(wrapper.text()).toContain('auth.oauthFlow.bindExistingAccount')
     expect(wrapper.text()).toContain('auth.oauthFlow.createNewAccount')
+  })
+
+  it('skips account chooser when the pending session has no existing account to bind', async () => {
+    exchangePendingOAuthCompletion.mockResolvedValue({
+      auth_result: 'pending_session',
+      step: 'choose_account_action_required',
+      redirect: '/dashboard',
+      email: 'b9b45cc3aa1e5e0edab4556727540@oidc-connect.invalid',
+      resolved_email: 'b9b45cc3aa1e5e0edab4556727540@oidc-connect.invalid',
+      compat_email: 'fresh@example.com',
+      existing_account_bindable: false,
+      create_account_allowed: true,
+      adoption_required: true
+    })
+
+    const wrapper = mount(OidcCallbackView, {
+      global: {
+        stubs: {
+          AuthLayout: { template: '<div><slot /></div>' },
+          Icon: true,
+          RouterLink: { template: '<a><slot /></a>' },
+          transition: false
+        }
+      }
+    })
+
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('auth.oauthFlow.bindExistingAccount')
+    expect((wrapper.get('[data-testid="oidc-create-account-email"]').element as HTMLInputElement).value).toBe(
+      'fresh@example.com'
+    )
   })
 
   it('collects email, password, and verify code for pending oauth account creation and submits adoption decisions', async () => {

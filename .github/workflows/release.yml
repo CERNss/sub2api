@@ -534,7 +534,10 @@ jobs:
         with:
           go-version-file: backend/go.mod
           check-latest: false
-          cache-dependency-path: backend/go.sum
+          # Self-hosted release runners keep a persistent module cache.
+          # Restoring setup-go's tar cache over read-only pkg/mod files can fail
+          # with "Can't unlink already-existing object: Permission denied".
+          cache: false
 
       - name: Pin setup-go toolchain
         shell: bash
@@ -782,7 +785,10 @@ jobs:
         with:
           go-version-file: backend/go.mod
           check-latest: false
-          cache-dependency-path: backend/go.sum
+          # Self-hosted release runners keep a persistent module cache.
+          # Restoring setup-go's tar cache over read-only pkg/mod files can fail
+          # with "Can't unlink already-existing object: Permission denied".
+          cache: false
 
       - name: Pin setup-go toolchain
         shell: bash

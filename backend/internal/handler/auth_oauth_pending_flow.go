@@ -262,6 +262,64 @@ func pendingSessionStringValue(values map[string]any, key string) string {
 	return strings.TrimSpace(value)
 }
 
+func pendingSessionBoolValue(values map[string]any, key string) bool {
+	if len(values) == 0 {
+		return false
+	}
+	raw, ok := values[key]
+	if !ok {
+		return false
+	}
+	switch value := raw.(type) {
+	case bool:
+		return value
+	case string:
+		return strings.EqualFold(strings.TrimSpace(value), "true")
+	default:
+		return false
+	}
+}
+
+func pendingOIDCTrustedEmail(upstream map[string]any) string {
+	email := strings.TrimSpace(strings.ToLower(pendingSessionStringValue(upstream, "compat_email")))
+	if email == "" || strings.HasSuffix(email, service.OIDCConnectSyntheticEmailDomain) {
+		return ""
+	}
+	return email
+}
+
+func (h *AuthHandler) pendingOIDCLocalEmailVerificationRequired(
+	ctx context.Context,
+	upstream map[string]any,
+	email string,
+) bool {
+	if h == nil || h.settingSvc == nil || h.settingSvc.IsOIDCConnectLocalEmailVerificationRequired(ctx) {
+		return true
+	}
+	if !pendingSessionBoolValue(upstream, "email_verified") {
+		return true
+	}
+	trustedEmail := pendingOIDCTrustedEmail(upstream)
+	if trustedEmail == "" {
+		return true
+	}
+	if strings.TrimSpace(email) == "" {
+		return false
+	}
+	return !strings.EqualFold(strings.TrimSpace(email), trustedEmail)
+}
+
+func (h *AuthHandler) pendingOAuthLocalEmailVerificationRequired(
+	ctx context.Context,
+	session *dbent.PendingAuthSession,
+	email string,
+) bool {
+	if session == nil || !strings.EqualFold(strings.TrimSpace(session.ProviderType), "oidc") {
+		return true
+	}
+	return h.pendingOIDCLocalEmailVerificationRequired(ctx, session.UpstreamIdentityClaims, email)
+}
+
 func pendingSessionWantsInvitation(payload map[string]any) bool {
 	return strings.EqualFold(strings.TrimSpace(pendingSessionStringValue(payload, "error")), "invitation_required")
 }
@@ -303,12 +361,14 @@ func buildLegacyCompleteRegistrationPendingResponse(
 	session *dbent.PendingAuthSession,
 	forceEmailOnSignup bool,
 	emailVerificationRequired bool,
+	localEmailVerificationRequired bool,
 ) map[string]any {
 	completionResponse := normalizePendingOAuthCompletionResponse(mergePendingCompletionResponse(session, map[string]any{
-		"step":                   oauthPendingChoiceStep,
-		"adoption_required":      true,
-		"create_account_allowed": true,
-		"force_email_on_signup":  forceEmailOnSignup,
+		"step":                              oauthPendingChoiceStep,
+		"adoption_required":                 true,
+		"create_account_allowed":            true,
+		"force_email_on_signup":             forceEmailOnSignup,
+		"local_email_verification_required": localEmailVerificationRequired,
 	}))
 
 	if email := strings.TrimSpace(session.ResolvedEmail); email != "" {
@@ -350,6 +410,7 @@ func (h *AuthHandler) legacyCompleteRegistrationSessionStatus(
 	if !emailVerificationRequired && !forceEmailOnSignup {
 		return session, false, nil
 	}
+	localEmailVerificationRequired := h.pendingOAuthLocalEmailVerificationRequired(c.Request.Context(), session, "")
 
 	client := h.entClient()
 	if client == nil {
@@ -363,7 +424,12 @@ func (h *AuthHandler) legacyCompleteRegistrationSessionStatus(
 		strings.TrimSpace(session.Intent),
 		strings.TrimSpace(session.ResolvedEmail),
 		nil,
-		buildLegacyCompleteRegistrationPendingResponse(session, forceEmailOnSignup, emailVerificationRequired),
+		buildLegacyCompleteRegistrationPendingResponse(
+			session,
+			forceEmailOnSignup,
+			emailVerificationRequired,
+			localEmailVerificationRequired,
+		),
 	)
 	if err != nil {
 		return nil, false, infraerrors.InternalServer("PENDING_AUTH_SESSION_UPDATE_FAILED", "failed to update pending oauth session").WithCause(err)
@@ -1671,6 +1737,11 @@ func (h *AuthHandler) createPendingOAuthAccount(c *gin.Context, provider string)
 		response.ErrorFrom(c, err)
 		return
 	}
+	requireLocalEmailVerification := h.pendingOAuthLocalEmailVerificationRequired(
+		c.Request.Context(),
+		session,
+		email,
+	)
 
 	tokenPair, user, err := h.authService.RegisterOAuthEmailAccount(
 		c.Request.Context(),
@@ -1679,6 +1750,7 @@ func (h *AuthHandler) createPendingOAuthAccount(c *gin.Context, provider string)
 		strings.TrimSpace(req.VerifyCode),
 		strings.TrimSpace(req.InvitationCode),
 		strings.TrimSpace(session.ProviderType),
+		requireLocalEmailVerification,
 	)
 	if err != nil {
 		if errors.Is(err, service.ErrEmailExists) {
