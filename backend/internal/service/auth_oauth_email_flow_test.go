@@ -180,6 +180,7 @@ func TestRegisterOAuthEmailAccountRollsBackCreatedUserWhenTokenPairGenerationFai
 		"246810",
 		"INVITE123",
 		"oidc",
+		true,
 	)
 
 	require.Nil(t, tokenPair)
@@ -220,6 +221,7 @@ func TestRegisterOAuthEmailAccountSetsNormalizedSignupSourceOnCreatedUser(t *tes
 		"246810",
 		"",
 		" OIDC ",
+		true,
 	)
 
 	require.NoError(t, err)
@@ -257,6 +259,7 @@ func TestRegisterOAuthEmailAccountFallsBackUnknownSignupSourceToEmail(t *testing
 		"246810",
 		"",
 		"github",
+		true,
 	)
 
 	require.NoError(t, err)

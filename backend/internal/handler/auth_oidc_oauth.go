@@ -535,16 +535,17 @@ func (h *AuthHandler) createOIDCOAuthChoicePendingSession(
 	}
 
 	completionResponse := map[string]any{
-		"step":                      oauthPendingChoiceStep,
-		"adoption_required":         true,
-		"redirect":                  strings.TrimSpace(redirectTo),
-		"email":                     suggestionEmail,
-		"resolved_email":            canonicalEmail,
-		"existing_account_email":    "",
-		"existing_account_bindable": false,
-		"create_account_allowed":    true,
-		"force_email_on_signup":     forceEmailOnSignup,
-		"choice_reason":             "third_party_signup",
+		"step":                              oauthPendingChoiceStep,
+		"adoption_required":                 true,
+		"redirect":                          strings.TrimSpace(redirectTo),
+		"email":                             suggestionEmail,
+		"resolved_email":                    canonicalEmail,
+		"existing_account_email":            "",
+		"existing_account_bindable":         false,
+		"create_account_allowed":            true,
+		"force_email_on_signup":             forceEmailOnSignup,
+		"choice_reason":                     "third_party_signup",
+		"local_email_verification_required": h.pendingOIDCLocalEmailVerificationRequired(c.Request.Context(), upstreamClaims, ""),
 	}
 	if strings.TrimSpace(compatEmail) != "" {
 		completionResponse["compat_email"] = strings.TrimSpace(compatEmail)

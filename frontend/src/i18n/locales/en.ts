@@ -4944,6 +4944,7 @@ export default {
         usePkce: 'Use PKCE',
         validateIdToken: 'Validate ID Token',
         requireEmailVerified: 'Require Email Verified',
+        requireLocalEmailVerification: 'Require Local Email Verification',
         userinfoEmailPath: 'UserInfo Email Path',
         userinfoEmailPathPlaceholder: 'for example data.email',
         userinfoIdPath: 'UserInfo ID Path',

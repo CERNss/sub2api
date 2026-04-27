@@ -342,6 +342,7 @@ const baseSettingsResponse = {
   oidc_connect_allowed_signing_algs: "RS256,ES256,PS256",
   oidc_connect_clock_skew_seconds: 120,
   oidc_connect_require_email_verified: false,
+  oidc_connect_require_local_email_verification: true,
   oidc_connect_userinfo_email_path: "",
   oidc_connect_userinfo_id_path: "",
   oidc_connect_userinfo_username_path: "",
@@ -863,6 +864,7 @@ describe("admin SettingsView wechat connect controls", () => {
       oidc_connect_enabled: true,
       oidc_connect_use_pkce: false,
       oidc_connect_validate_id_token: false,
+      oidc_connect_require_local_email_verification: false,
     });
 
     const wrapper = mountView();
@@ -877,6 +879,7 @@ describe("admin SettingsView wechat connect controls", () => {
       expect.objectContaining({
         oidc_connect_use_pkce: false,
         oidc_connect_validate_id_token: false,
+        oidc_connect_require_local_email_verification: false,
       }),
     );
   });

@@ -5107,6 +5107,7 @@ export default {
         usePkce: '启用 PKCE',
         validateIdToken: '校验 ID Token',
         requireEmailVerified: '要求邮箱已验证',
+        requireLocalEmailVerification: '要求本地邮箱验证',
         userinfoEmailPath: 'UserInfo 邮箱字段路径',
         userinfoEmailPathPlaceholder: '例如 data.email',
         userinfoIdPath: 'UserInfo ID 字段路径',

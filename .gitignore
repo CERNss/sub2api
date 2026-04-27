@@ -136,3 +136,10 @@ docs/*
 frontend/coverage/
 aicodex
 output/
+
+# 前端测试与本地工具产物
+coverage/
+playwright-report/
+test-results/
+.nyc_output/
+.eslintcache
