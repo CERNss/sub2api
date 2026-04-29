@@ -180,6 +180,7 @@ func TestRegisterOAuthEmailAccountRollsBackCreatedUserWhenTokenPairGenerationFai
 		"246810",
 		"INVITE123",
 		"oidc",
+		true,
 	)
 
 	require.Nil(t, tokenPair)
@@ -220,6 +221,7 @@ func TestRegisterOAuthEmailAccountSetsNormalizedSignupSourceOnCreatedUser(t *tes
 		"246810",
 		"",
 		" OIDC ",
+		true,
 	)
 
 	require.NoError(t, err)
@@ -227,6 +229,68 @@ func TestRegisterOAuthEmailAccountSetsNormalizedSignupSourceOnCreatedUser(t *tes
 	require.NotNil(t, user)
 	require.Len(t, userRepo.created, 1)
 	require.Equal(t, "oidc", userRepo.created[0].SignupSource)
+}
+
+func TestRegisterOAuthEmailAccountKeepsGitHubAndGoogleSignupSource(t *testing.T) {
+	tests := []struct {
+		name         string
+		email        string
+		signupSource string
+		want         string
+	}{
+		{
+			name:         "github",
+			email:        "github@example.com",
+			signupSource: " GitHub ",
+			want:         "github",
+		},
+		{
+			name:         "google",
+			email:        "google@example.com",
+			signupSource: " Google ",
+			want:         "google",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			userRepo := &userRepoStub{nextID: 43}
+			emailCache := &emailCacheStub{
+				data: &VerificationCodeData{
+					Code:      "246810",
+					Attempts:  0,
+					CreatedAt: time.Now().UTC(),
+					ExpiresAt: time.Now().UTC().Add(15 * time.Minute),
+				},
+			}
+			authService := newOAuthEmailFlowAuthService(
+				userRepo,
+				&redeemCodeRepoStub{},
+				&refreshTokenCacheStub{},
+				map[string]string{
+					SettingKeyRegistrationEnabled: "true",
+					SettingKeyEmailVerifyEnabled:  "true",
+				},
+				emailCache,
+			)
+
+			tokenPair, user, err := authService.RegisterOAuthEmailAccount(
+				context.Background(),
+				tt.email,
+				"secret-123",
+				"246810",
+				"",
+				tt.signupSource,
+				true,
+			)
+
+			require.NoError(t, err)
+			require.NotNil(t, tokenPair)
+			require.NotNil(t, user)
+			require.Len(t, userRepo.created, 1)
+			require.Equal(t, tt.want, userRepo.created[0].SignupSource)
+		})
+	}
 }
 
 func TestRegisterOAuthEmailAccountFallsBackUnknownSignupSourceToEmail(t *testing.T) {
@@ -256,7 +320,8 @@ func TestRegisterOAuthEmailAccountFallsBackUnknownSignupSourceToEmail(t *testing
 		"secret-123",
 		"246810",
 		"",
-		"github",
+		"unknown-provider",
+		true,
 	)
 
 	require.NoError(t, err)

@@ -407,6 +407,7 @@ export interface SystemSettings {
   oidc_connect_allowed_signing_algs: string;
   oidc_connect_clock_skew_seconds: number;
   oidc_connect_require_email_verified: boolean;
+  oidc_connect_require_local_email_verification: boolean;
   oidc_connect_userinfo_email_path: string;
   oidc_connect_userinfo_id_path: string;
   oidc_connect_userinfo_username_path: string;
@@ -439,7 +440,6 @@ export interface SystemSettings {
   enable_fingerprint_unification: boolean;
   enable_metadata_passthrough: boolean;
   enable_cch_signing: boolean;
-  enable_anthropic_cache_ttl_1h_injection: boolean;
   web_search_emulation_enabled?: boolean;
 
   // Payment configuration
@@ -590,6 +590,7 @@ export interface UpdateSettingsRequest {
   oidc_connect_allowed_signing_algs?: string;
   oidc_connect_clock_skew_seconds?: number;
   oidc_connect_require_email_verified?: boolean;
+  oidc_connect_require_local_email_verification?: boolean;
   oidc_connect_userinfo_email_path?: string;
   oidc_connect_userinfo_id_path?: string;
   oidc_connect_userinfo_username_path?: string;
@@ -610,7 +611,6 @@ export interface UpdateSettingsRequest {
   enable_fingerprint_unification?: boolean;
   enable_metadata_passthrough?: boolean;
   enable_cch_signing?: boolean;
-  enable_anthropic_cache_ttl_1h_injection?: boolean;
   // Payment configuration
   payment_enabled?: boolean;
   payment_min_amount?: number;

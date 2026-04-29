@@ -342,6 +342,7 @@ const baseSettingsResponse = {
   oidc_connect_allowed_signing_algs: "RS256,ES256,PS256",
   oidc_connect_clock_skew_seconds: 120,
   oidc_connect_require_email_verified: false,
+  oidc_connect_require_local_email_verification: true,
   oidc_connect_userinfo_email_path: "",
   oidc_connect_userinfo_id_path: "",
   oidc_connect_userinfo_username_path: "",
@@ -362,7 +363,6 @@ const baseSettingsResponse = {
   enable_fingerprint_unification: true,
   enable_metadata_passthrough: false,
   enable_cch_signing: false,
-  enable_anthropic_cache_ttl_1h_injection: false,
   payment_enabled: true,
   payment_min_amount: 1,
   payment_max_amount: 10000,
@@ -566,26 +566,6 @@ describe("admin SettingsView payment visible method controls", () => {
     expect(payload).not.toHaveProperty("payment_visible_method_wxpay_source");
     expect(payload).not.toHaveProperty("payment_visible_method_alipay_enabled");
     expect(payload).not.toHaveProperty("payment_visible_method_wxpay_enabled");
-  });
-
-  it("submits Anthropic cache TTL injection gateway setting", async () => {
-    getSettings.mockResolvedValueOnce({
-      ...baseSettingsResponse,
-      enable_anthropic_cache_ttl_1h_injection: true,
-    });
-
-    const wrapper = mountView();
-
-    await flushPromises();
-    await wrapper.find("form").trigger("submit.prevent");
-    await flushPromises();
-
-    expect(updateSettings).toHaveBeenCalledTimes(1);
-    expect(updateSettings).toHaveBeenCalledWith(
-      expect.objectContaining({
-        enable_anthropic_cache_ttl_1h_injection: true,
-      }),
-    );
   });
 
   it("updates provider enablement immediately and reloads providers", async () => {
@@ -884,6 +864,7 @@ describe("admin SettingsView wechat connect controls", () => {
       oidc_connect_enabled: true,
       oidc_connect_use_pkce: false,
       oidc_connect_validate_id_token: false,
+      oidc_connect_require_local_email_verification: false,
     });
 
     const wrapper = mountView();
@@ -898,6 +879,7 @@ describe("admin SettingsView wechat connect controls", () => {
       expect.objectContaining({
         oidc_connect_use_pkce: false,
         oidc_connect_validate_id_token: false,
+        oidc_connect_require_local_email_verification: false,
       }),
     );
   });
