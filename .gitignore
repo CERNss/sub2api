@@ -143,3 +143,6 @@ playwright-report/
 test-results/
 .nyc_output/
 .eslintcache
+
+# GitHub Action 镜像打包产物
+.github/action-bundles/*.tar.gz
