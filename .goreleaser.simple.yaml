@@ -1,4 +1,4 @@
-# 简化版 GoReleaser 配置 - 仅发布 x86_64 容器镜像
+# 简化版 GoReleaser 配置 - 仅发布容器镜像
 version: 2
 
 project_name: sub2api
@@ -20,6 +20,7 @@ builds:
       - linux
     goarch:
       - amd64
+      - arm64
     ldflags:
       - -s -w
       - -X main.Commit={{.Commit}}
@@ -36,7 +37,7 @@ checksum:
 changelog:
   disable: true
 
-# 仅 x86_64 容器镜像
+# 仅发布容器镜像
 dockers:
   - id: dockerhub-amd64
     goos: linux
@@ -52,6 +53,22 @@ dockers:
       - deploy/docker-entrypoint.sh
     build_flag_templates:
       - "--platform=linux/amd64"
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+      - "--label=org.opencontainers.image.revision={{ .Commit }}"
+      - "--label=org.opencontainers.image.source=https://github.com/{{ .Env.GITHUB_REPO_OWNER }}/{{ .Env.GITHUB_REPO_NAME }}"
+
+  - id: dockerhub-arm64
+    goos: linux
+    goarch: arm64
+    skip_push: '{{ if eq .Env.DOCKERHUB_REPOSITORY "skip" }}true{{ else }}false{{ end }}'
+    image_templates:
+      - "{{ .Env.DOCKERHUB_REPOSITORY }}:{{ .Version }}-arm64"
+    dockerfile: Dockerfile.goreleaser
+    use: buildx
+    extra_files:
+      - deploy/docker-entrypoint.sh
+    build_flag_templates:
+      - "--platform=linux/arm64"
       - "--label=org.opencontainers.image.version={{ .Version }}"
       - "--label=org.opencontainers.image.revision={{ .Commit }}"
       - "--label=org.opencontainers.image.source=https://github.com/{{ .Env.GITHUB_REPO_OWNER }}/{{ .Env.GITHUB_REPO_NAME }}"
@@ -73,8 +90,43 @@ dockers:
       - "--label=org.opencontainers.image.revision={{ .Commit }}"
       - "--label=org.opencontainers.image.source=https://github.com/{{ .Env.GITHUB_REPO_OWNER }}/{{ .Env.GITHUB_REPO_NAME }}"
 
-# 跳过 manifests（单架构不需要）
-docker_manifests: []
+  - id: ghcr-arm64
+    goos: linux
+    goarch: arm64
+    image_templates:
+      - "{{ .Env.GHCR_REPOSITORY }}:{{ .Version }}-arm64"
+    dockerfile: Dockerfile.goreleaser
+    use: buildx
+    extra_files:
+      - deploy/docker-entrypoint.sh
+    build_flag_templates:
+      - "--platform=linux/arm64"
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+      - "--label=org.opencontainers.image.revision={{ .Commit }}"
+      - "--label=org.opencontainers.image.source=https://github.com/{{ .Env.GITHUB_REPO_OWNER }}/{{ .Env.GITHUB_REPO_NAME }}"
+
+docker_manifests:
+  - name_template: "{{ .Env.DOCKERHUB_REPOSITORY }}:{{ .Version }}"
+    skip_push: '{{ if eq .Env.DOCKERHUB_REPOSITORY "skip" }}true{{ else }}false{{ end }}'
+    image_templates:
+      - "{{ .Env.DOCKERHUB_REPOSITORY }}:{{ .Version }}-amd64"
+      - "{{ .Env.DOCKERHUB_REPOSITORY }}:{{ .Version }}-arm64"
+
+  - name_template: "{{ .Env.DOCKERHUB_REPOSITORY }}:latest"
+    skip_push: '{{ if eq .Env.DOCKERHUB_REPOSITORY "skip" }}true{{ else }}false{{ end }}'
+    image_templates:
+      - "{{ .Env.DOCKERHUB_REPOSITORY }}:{{ .Version }}-amd64"
+      - "{{ .Env.DOCKERHUB_REPOSITORY }}:{{ .Version }}-arm64"
+
+  - name_template: "{{ .Env.GHCR_REPOSITORY }}:{{ .Version }}"
+    image_templates:
+      - "{{ .Env.GHCR_REPOSITORY }}:{{ .Version }}-amd64"
+      - "{{ .Env.GHCR_REPOSITORY }}:{{ .Version }}-arm64"
+
+  - name_template: "{{ .Env.GHCR_REPOSITORY }}:latest"
+    image_templates:
+      - "{{ .Env.GHCR_REPOSITORY }}:{{ .Version }}-amd64"
+      - "{{ .Env.GHCR_REPOSITORY }}:{{ .Version }}-arm64"
 
 release:
   github:
@@ -87,7 +139,7 @@ release:
   skip_upload: true
   header: |
     > AI API Gateway Platform - 将 AI 订阅配额分发和管理
-    > ⚡ Simple Release: 仅包含 x86_64 容器镜像
+    > ⚡ Simple Release: 仅包含 amd64/arm64 容器镜像
 
     {{ .Env.TAG_MESSAGE }}
 
@@ -96,7 +148,7 @@ release:
 
     ## 📥 Installation
 
-    **Docker (x86_64 only):**
+    **Docker (amd64/arm64):**
     ```bash
     {{ if ne .Env.DOCKERHUB_REPOSITORY "skip" -}}
     # Docker Hub

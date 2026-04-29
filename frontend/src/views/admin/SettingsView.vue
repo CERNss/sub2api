@@ -2330,12 +2330,15 @@
                   </div>
 
                   <div
-                    class="flex items-center justify-between rounded border border-gray-200 px-4 py-3 dark:border-dark-700"
+                    class="flex items-start justify-between gap-4 rounded border border-gray-200 px-4 py-3 dark:border-dark-700"
                   >
-                    <div>
+                    <div class="min-w-0">
                       <label class="font-medium text-gray-900 dark:text-white">
                         {{ t("admin.settings.oidc.requireEmailVerified") }}
                       </label>
+                      <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                        {{ t("admin.settings.oidc.requireEmailVerifiedHint") }}
+                      </p>
                     </div>
                     <Toggle
                       v-model="form.oidc_connect_require_email_verified"
@@ -2343,12 +2346,15 @@
                   </div>
 
                   <div
-                    class="flex items-center justify-between rounded border border-gray-200 px-4 py-3 dark:border-dark-700"
+                    class="flex items-start justify-between gap-4 rounded border border-gray-200 px-4 py-3 dark:border-dark-700"
                   >
-                    <div>
+                    <div class="min-w-0">
                       <label class="font-medium text-gray-900 dark:text-white">
                         {{ t("admin.settings.oidc.requireLocalEmailVerification") }}
                       </label>
+                      <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                        {{ t("admin.settings.oidc.requireLocalEmailVerificationHint") }}
+                      </p>
                     </div>
                     <Toggle
                       v-model="form.oidc_connect_require_local_email_verification"
