@@ -241,6 +241,7 @@ jobs:
           DEFAULT_GHCR_USERNAME: ${{ github.repository_owner }}
           RAW_DOCKERHUB_IMAGE: ${{ vars.DOCKERHUB_IMAGE || secrets.DOCKERHUB_IMAGE }}
           RAW_DOCKERHUB_NAMESPACE: ${{ vars.DOCKERHUB_NAMESPACE || secrets.DOCKERHUB_NAMESPACE }}
+          RAW_DOCKERHUB_ENABLED: ${{ vars.DOCKERHUB_ENABLED || secrets.DOCKERHUB_ENABLED }}
           RAW_DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME || vars.DOCKERHUB_USERNAME }}
           RAW_DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN || vars.DOCKERHUB_TOKEN }}
         run: |
@@ -267,23 +268,29 @@ jobs:
           fi
           GHCR_REGISTRY="${GHCR_REPOSITORY%%/*}"
 
+          DOCKERHUB_ENABLED="$(lower "${RAW_DOCKERHUB_ENABLED:-false}")"
           DOCKERHUB_USERNAME="${RAW_DOCKERHUB_USERNAME:-}"
-          if [ -n "${RAW_DOCKERHUB_IMAGE:-}" ]; then
-            DOCKERHUB_REPOSITORY="${RAW_DOCKERHUB_IMAGE#docker.io/}"
-            DOCKERHUB_REPOSITORY="$(lower "$DOCKERHUB_REPOSITORY")"
+          if [ "${DOCKERHUB_ENABLED}" != "true" ]; then
+            echo "DockerHub publish disabled; skip DockerHub publish."
+            DOCKERHUB_REPOSITORY="skip"
           else
-            DOCKERHUB_NAMESPACE="${RAW_DOCKERHUB_NAMESPACE:-$DOCKERHUB_USERNAME}"
-            if [ -n "$DOCKERHUB_NAMESPACE" ]; then
-              DOCKERHUB_NAMESPACE="$(lower "$DOCKERHUB_NAMESPACE")"
-              DOCKERHUB_REPOSITORY="${DOCKERHUB_NAMESPACE}/${IMAGE_NAME}"
+            if [ -n "${RAW_DOCKERHUB_IMAGE:-}" ]; then
+              DOCKERHUB_REPOSITORY="${RAW_DOCKERHUB_IMAGE#docker.io/}"
+              DOCKERHUB_REPOSITORY="$(lower "$DOCKERHUB_REPOSITORY")"
             else
+              DOCKERHUB_NAMESPACE="${RAW_DOCKERHUB_NAMESPACE:-$DOCKERHUB_USERNAME}"
+              if [ -n "$DOCKERHUB_NAMESPACE" ]; then
+                DOCKERHUB_NAMESPACE="$(lower "$DOCKERHUB_NAMESPACE")"
+                DOCKERHUB_REPOSITORY="${DOCKERHUB_NAMESPACE}/${IMAGE_NAME}"
+              else
+                DOCKERHUB_REPOSITORY="skip"
+              fi
+            fi
+
+            if [ "$DOCKERHUB_REPOSITORY" != "skip" ] && { [ -z "$DOCKERHUB_USERNAME" ] || [ -z "${RAW_DOCKERHUB_TOKEN:-}" ]; }; then
+              echo "DockerHub credentials incomplete; skip DockerHub publish."
               DOCKERHUB_REPOSITORY="skip"
             fi
-          fi
-
-          if [ "$DOCKERHUB_REPOSITORY" != "skip" ] && { [ -z "$DOCKERHUB_USERNAME" ] || [ -z "${RAW_DOCKERHUB_TOKEN:-}" ]; }; then
-            echo "DockerHub credentials incomplete; skip DockerHub publish."
-            DOCKERHUB_REPOSITORY="skip"
           fi
 
           echo "image_name=${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
