@@ -122,7 +122,7 @@ scripts
 .code-review-state
 #openspec/
 code-reviews/
-AGENTS.md
+#AGENTS.md
 backend/cmd/server/server
 deploy/docker-compose.override.yml
 .gocache/
@@ -136,3 +136,13 @@ docs/*
 frontend/coverage/
 aicodex
 output/
+
+# 前端测试与本地工具产物
+coverage/
+playwright-report/
+test-results/
+.nyc_output/
+.eslintcache
+
+# GitHub Action 镜像打包产物
+.github/action-bundles/*.tar.gz

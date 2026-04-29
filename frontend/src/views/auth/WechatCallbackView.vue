@@ -417,6 +417,7 @@ type PendingWeChatCompletion = PendingOAuthExchangeResponse & {
   step?: string
   status?: string
   state?: string
+  compat_email?: string
   pending_email?: string
   resolved_email?: string
   existing_account_email?: string
@@ -669,10 +670,15 @@ function normalizedPendingState(value: string | null | undefined): string {
   return value?.trim().toLowerCase() || ''
 }
 
+function shouldCreateAccountFromChoice(completion: PendingWeChatCompletion): boolean {
+  return completion.existing_account_bindable === false && completion.create_account_allowed !== false
+}
+
 function extractPendingAccountEmail(completion: PendingWeChatCompletion): string {
   return (
     completion.pending_email ||
     completion.existing_account_email ||
+    completion.compat_email ||
     completion.resolved_email ||
     completion.email ||
     resolveResumeEmail() ||
@@ -693,6 +699,9 @@ function resolvePendingAccountAction(
     raw === 'choose_account' ||
     raw === 'choose'
   ) {
+    if (shouldCreateAccountFromChoice(completion)) {
+      return 'create_account'
+    }
     return 'choice'
   }
   if (raw === 'email_required' || raw === 'create_account_required' || raw === 'create_account') {

@@ -77,8 +77,7 @@ func (s *AuthService) validateOAuthRegistrationInvitation(ctx context.Context, i
 }
 
 // VerifyOAuthEmailCode verifies the locally entered email verification code for
-// third-party signup and binding flows. This is intentionally independent from
-// the global registration email verification toggle.
+// third-party signup and binding flows.
 func (s *AuthService) VerifyOAuthEmailCode(ctx context.Context, email, verifyCode string) error {
 	email = strings.TrimSpace(strings.ToLower(email))
 	verifyCode = strings.TrimSpace(verifyCode)
@@ -96,7 +95,7 @@ func (s *AuthService) VerifyOAuthEmailCode(ctx context.Context, email, verifyCod
 }
 
 // RegisterOAuthEmailAccount creates a local account from a third-party first
-// login after the user has verified a local email address.
+// login after any required local email verification has completed.
 func (s *AuthService) RegisterOAuthEmailAccount(
 	ctx context.Context,
 	email string,
@@ -104,6 +103,7 @@ func (s *AuthService) RegisterOAuthEmailAccount(
 	verifyCode string,
 	invitationCode string,
 	signupSource string,
+	requireLocalEmailVerification bool,
 ) (*TokenPair, *User, error) {
 	if s == nil {
 		return nil, nil, ErrServiceUnavailable
@@ -119,8 +119,10 @@ func (s *AuthService) RegisterOAuthEmailAccount(
 	if err := s.validateRegistrationEmailPolicy(ctx, email); err != nil {
 		return nil, nil, err
 	}
-	if err := s.VerifyOAuthEmailCode(ctx, email, verifyCode); err != nil {
-		return nil, nil, err
+	if requireLocalEmailVerification {
+		if err := s.VerifyOAuthEmailCode(ctx, email, verifyCode); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	if _, err := s.validateOAuthRegistrationInvitation(ctx, invitationCode); err != nil {

@@ -65,29 +65,30 @@ type SystemSettings struct {
 	WeChatConnectFrontendRedirectURL       string
 
 	// Generic OIDC OAuth 登录
-	OIDCConnectEnabled                bool
-	OIDCConnectProviderName           string
-	OIDCConnectClientID               string
-	OIDCConnectClientSecret           string
-	OIDCConnectClientSecretConfigured bool
-	OIDCConnectIssuerURL              string
-	OIDCConnectDiscoveryURL           string
-	OIDCConnectAuthorizeURL           string
-	OIDCConnectTokenURL               string
-	OIDCConnectUserInfoURL            string
-	OIDCConnectJWKSURL                string
-	OIDCConnectScopes                 string
-	OIDCConnectRedirectURL            string
-	OIDCConnectFrontendRedirectURL    string
-	OIDCConnectTokenAuthMethod        string
-	OIDCConnectUsePKCE                bool
-	OIDCConnectValidateIDToken        bool
-	OIDCConnectAllowedSigningAlgs     string
-	OIDCConnectClockSkewSeconds       int
-	OIDCConnectRequireEmailVerified   bool
-	OIDCConnectUserInfoEmailPath      string
-	OIDCConnectUserInfoIDPath         string
-	OIDCConnectUserInfoUsernamePath   string
+	OIDCConnectEnabled                       bool
+	OIDCConnectProviderName                  string
+	OIDCConnectClientID                      string
+	OIDCConnectClientSecret                  string
+	OIDCConnectClientSecretConfigured        bool
+	OIDCConnectIssuerURL                     string
+	OIDCConnectDiscoveryURL                  string
+	OIDCConnectAuthorizeURL                  string
+	OIDCConnectTokenURL                      string
+	OIDCConnectUserInfoURL                   string
+	OIDCConnectJWKSURL                       string
+	OIDCConnectScopes                        string
+	OIDCConnectRedirectURL                   string
+	OIDCConnectFrontendRedirectURL           string
+	OIDCConnectTokenAuthMethod               string
+	OIDCConnectUsePKCE                       bool
+	OIDCConnectValidateIDToken               bool
+	OIDCConnectAllowedSigningAlgs            string
+	OIDCConnectClockSkewSeconds              int
+	OIDCConnectRequireEmailVerified          bool
+	OIDCConnectRequireLocalEmailVerification bool
+	OIDCConnectUserInfoEmailPath             string
+	OIDCConnectUserInfoIDPath                string
+	OIDCConnectUserInfoUsernamePath          string
 
 	SiteName                    string
 	SiteLogo                    string
@@ -149,10 +150,9 @@ type SystemSettings struct {
 	BackendModeEnabled bool
 
 	// Gateway forwarding behavior
-	EnableFingerprintUnification       bool // 是否统一 OAuth 账号的指纹头（默认 true）
-	EnableMetadataPassthrough          bool // 是否透传客户端原始 metadata（默认 false）
-	EnableCCHSigning                   bool // 是否对 billing header cch 进行签名（默认 false）
-	EnableAnthropicCacheTTL1hInjection bool // 是否对 Anthropic OAuth/SetupToken 请求体注入 1h cache_control ttl（默认 false）
+	EnableFingerprintUnification bool // 是否统一 OAuth 账号的指纹头（默认 true）
+	EnableMetadataPassthrough    bool // 是否透传客户端原始 metadata（默认 false）
+	EnableCCHSigning             bool // 是否对 billing header cch 进行签名（默认 false）
 
 	// Web Search Emulation
 	WebSearchEmulationEnabled bool // 是否启用 web search 模拟

@@ -2300,7 +2300,7 @@
                   </div>
                 </div>
 
-                <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                <div class="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-4">
                   <div
                     class="flex items-center justify-between rounded border border-gray-200 px-4 py-3 dark:border-dark-700"
                   >
@@ -2330,15 +2330,35 @@
                   </div>
 
                   <div
-                    class="flex items-center justify-between rounded border border-gray-200 px-4 py-3 dark:border-dark-700"
+                    class="flex items-start justify-between gap-4 rounded border border-gray-200 px-4 py-3 dark:border-dark-700"
                   >
-                    <div>
+                    <div class="min-w-0">
                       <label class="font-medium text-gray-900 dark:text-white">
                         {{ t("admin.settings.oidc.requireEmailVerified") }}
                       </label>
+                      <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                        {{ t("admin.settings.oidc.requireEmailVerifiedHint") }}
+                      </p>
                     </div>
                     <Toggle
                       v-model="form.oidc_connect_require_email_verified"
+                    />
+                  </div>
+
+                  <div
+                    class="flex items-start justify-between gap-4 rounded border border-gray-200 px-4 py-3 dark:border-dark-700"
+                  >
+                    <div class="min-w-0">
+                      <label class="font-medium text-gray-900 dark:text-white">
+                        {{ t("admin.settings.oidc.requireLocalEmailVerification") }}
+                      </label>
+                      <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                        {{ t("admin.settings.oidc.requireLocalEmailVerificationHint") }}
+                      </p>
+                    </div>
+                    <Toggle
+                      v-model="form.oidc_connect_require_local_email_verification"
+                      data-testid="oidc-connect-require-local-email-verification"
                     />
                   </div>
                 </div>
@@ -3056,31 +3076,6 @@
                   </p>
                 </div>
                 <Toggle v-model="form.enable_cch_signing" />
-              </div>
-
-              <!-- Anthropic Cache TTL 1h Injection -->
-              <div class="flex items-center justify-between">
-                <div>
-                  <label
-                    class="text-sm font-medium text-gray-700 dark:text-gray-300"
-                  >
-                    {{
-                      t(
-                        "admin.settings.gatewayForwarding.anthropicCacheTTL1hInjection",
-                      )
-                    }}
-                  </label>
-                  <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                    {{
-                      t(
-                        "admin.settings.gatewayForwarding.anthropicCacheTTL1hInjectionHint",
-                      )
-                    }}
-                  </p>
-                </div>
-                <Toggle
-                  v-model="form.enable_anthropic_cache_ttl_1h_injection"
-                />
               </div>
             </div>
           </div>
@@ -5808,6 +5803,7 @@ const form = reactive<SettingsForm>({
   oidc_connect_allowed_signing_algs: "RS256,ES256,PS256",
   oidc_connect_clock_skew_seconds: 120,
   oidc_connect_require_email_verified: false,
+  oidc_connect_require_local_email_verification: true,
   oidc_connect_userinfo_email_path: "",
   oidc_connect_userinfo_id_path: "",
   oidc_connect_userinfo_username_path: "",
@@ -5835,7 +5831,6 @@ const form = reactive<SettingsForm>({
   enable_fingerprint_unification: true,
   enable_metadata_passthrough: false,
   enable_cch_signing: false,
-  enable_anthropic_cache_ttl_1h_injection: false,
   // Balance & quota notification
   balance_low_notify_enabled: false,
   balance_low_notify_threshold: 0,
@@ -6727,6 +6722,8 @@ async function saveSettings() {
       oidc_connect_clock_skew_seconds: form.oidc_connect_clock_skew_seconds,
       oidc_connect_require_email_verified:
         form.oidc_connect_require_email_verified,
+      oidc_connect_require_local_email_verification:
+        form.oidc_connect_require_local_email_verification,
       oidc_connect_userinfo_email_path: form.oidc_connect_userinfo_email_path,
       oidc_connect_userinfo_id_path: form.oidc_connect_userinfo_id_path,
       oidc_connect_userinfo_username_path:
@@ -6744,8 +6741,6 @@ async function saveSettings() {
       enable_fingerprint_unification: form.enable_fingerprint_unification,
       enable_metadata_passthrough: form.enable_metadata_passthrough,
       enable_cch_signing: form.enable_cch_signing,
-      enable_anthropic_cache_ttl_1h_injection:
-        form.enable_anthropic_cache_ttl_1h_injection,
       // Payment configuration
       payment_enabled: form.payment_enabled,
       payment_min_amount: Number(form.payment_min_amount) || 0,
