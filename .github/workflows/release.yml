@@ -48,6 +48,10 @@ env:
   NEXUS_ARTIFACT_PREFIX: ${{ vars.NEXUS_ARTIFACT_PREFIX || secrets.NEXUS_ARTIFACT_PREFIX }}
   NEXUS_USERNAME: ${{ vars.NEXUS_USERNAME || secrets.NEXUS_USERNAME }}
   NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD || vars.NEXUS_PASSWORD }}
+  GORELEASER_VERSION: ${{ vars.GORELEASER_VERSION || secrets.GORELEASER_VERSION || 'v2.15.4' }}
+  GORELEASER_BASE_URL: ${{ vars.GORELEASER_BASE_URL || secrets.GORELEASER_BASE_URL }}
+  GORELEASER_USERNAME: ${{ vars.GORELEASER_USERNAME || secrets.GORELEASER_USERNAME }}
+  GORELEASER_PASSWORD: ${{ secrets.GORELEASER_PASSWORD || vars.GORELEASER_PASSWORD }}
 
 permissions:
   contents: write
@@ -636,11 +640,19 @@ jobs:
           echo "$TAG_MESSAGE" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
+      - name: Install GoReleaser
+        id: install_goreleaser
+        shell: bash
+        run: |
+          set -euo pipefail
+          GORELEASER_BIN="$(bash tools/install-goreleaser.sh)"
+          echo "goreleaser_bin=${GORELEASER_BIN}" >> "$GITHUB_OUTPUT"
+
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v7
-        with:
-          version: '~> v2'
-          args: release --clean --skip=validate ${{ env.SIMPLE_RELEASE == 'true' && '--config=.goreleaser.simple.yaml' || '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          "${{ steps.install_goreleaser.outputs.goreleaser_bin }}" release --clean --skip=validate ${{ env.SIMPLE_RELEASE == 'true' && '--config=.goreleaser.simple.yaml' || '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG_MESSAGE: ${{ steps.tag_message.outputs.message }}
@@ -881,11 +893,19 @@ jobs:
           echo "$TAG_MESSAGE" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
+      - name: Install GoReleaser
+        id: install_goreleaser
+        shell: bash
+        run: |
+          set -euo pipefail
+          GORELEASER_BIN="$(bash tools/install-goreleaser.sh)"
+          echo "goreleaser_bin=${GORELEASER_BIN}" >> "$GITHUB_OUTPUT"
+
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v7
-        with:
-          version: '~> v2'
-          args: release --clean --skip=validate ${{ env.SIMPLE_RELEASE == 'true' && '--config=.goreleaser.simple.yaml' || '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          "${{ steps.install_goreleaser.outputs.goreleaser_bin }}" release --clean --skip=validate ${{ env.SIMPLE_RELEASE == 'true' && '--config=.goreleaser.simple.yaml' || '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG_MESSAGE: ${{ steps.tag_message.outputs.message }}

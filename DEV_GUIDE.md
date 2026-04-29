@@ -72,6 +72,30 @@ cd backend && golangci-lint run ./...
 cd frontend && pnpm install
 ```
 
+### GitHub Action 镜像同步
+
+- 本地镜像目录：`.github/action-mirrors/`
+- 打包文件：`.github/action-bundles/github-actions-mirror.tar.gz`
+- Nexus 基础地址：`NEXUS_URL`
+- Action 镜像仓库名：`NEXUS_MIRROR_REPOSITORY`
+- 认证沿用：`NEXUS_USERNAME`、`NEXUS_PASSWORD`
+
+```bash
+# 本地已有镜像就复用；没有就先尝试从 Nexus 下载，不够再回源 GitHub 补齐；
+# 结束后会把最新 bundle 上传回 NEXUS_URL + NEXUS_MIRROR_REPOSITORY 指向的仓库
+NEXUS_URL="https://nexus.example.com" \
+NEXUS_MIRROR_REPOSITORY="raw-hosted" \
+NEXUS_USERNAME="username" \
+NEXUS_PASSWORD="password" \
+bash tools/sync-action-mirrors.sh sync
+
+# 只从 Nexus 下载并恢复本地镜像
+bash tools/sync-action-mirrors.sh download
+
+# 只把当前本地镜像重新打包并上传到同一个 Nexus 仓库
+bash tools/sync-action-mirrors.sh upload
+```
+
 ## 四、常见坑点 & 解决方案
 
 ### 坑 1：pnpm-lock.yaml 必须同步提交
