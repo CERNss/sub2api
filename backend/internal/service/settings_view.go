@@ -2,6 +2,23 @@ package service
 
 import "strings"
 
+const (
+	EmailDeliveryChannelSMTP    = "smtp"
+	EmailDeliveryChannelWebhook = "webhook"
+
+	WebhookPayloadFormatGeneric = "generic"
+	WebhookPayloadFormatFeishu  = "feishu"
+
+	WebhookAuthModeNone            = "none"
+	WebhookAuthModeBearer          = "bearer"
+	WebhookAuthModeHeader          = "header"
+	WebhookAuthModeSignature       = "signature"
+	WebhookAuthModeFeishuSignature = "feishu_signature"
+
+	defaultWebhookTimeoutSeconds = 10
+	maxWebhookTimeoutSeconds     = 60
+)
+
 func firstNonEmpty(values ...string) string {
 	for _, value := range values {
 		if trimmed := strings.TrimSpace(value); trimmed != "" {
@@ -9,6 +26,49 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func normalizeEmailDeliveryChannel(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case EmailDeliveryChannelWebhook:
+		return EmailDeliveryChannelWebhook
+	default:
+		return EmailDeliveryChannelSMTP
+	}
+}
+
+func normalizeWebhookPayloadFormat(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case WebhookPayloadFormatFeishu:
+		return WebhookPayloadFormatFeishu
+	default:
+		return WebhookPayloadFormatGeneric
+	}
+}
+
+func normalizeWebhookAuthMode(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case WebhookAuthModeBearer:
+		return WebhookAuthModeBearer
+	case WebhookAuthModeHeader:
+		return WebhookAuthModeHeader
+	case WebhookAuthModeSignature:
+		return WebhookAuthModeSignature
+	case WebhookAuthModeFeishuSignature:
+		return WebhookAuthModeFeishuSignature
+	default:
+		return WebhookAuthModeNone
+	}
+}
+
+func normalizeWebhookTimeoutSeconds(value int) int {
+	if value <= 0 {
+		return defaultWebhookTimeoutSeconds
+	}
+	if value > maxWebhookTimeoutSeconds {
+		return maxWebhookTimeoutSeconds
+	}
+	return value
 }
 
 type SystemSettings struct {
@@ -33,6 +93,15 @@ type SystemSettings struct {
 	SMTPFrom               string
 	SMTPFromName           string
 	SMTPUseTLS             bool
+
+	EmailDeliveryChannel    string
+	WebhookPayloadFormat    string
+	WebhookURL              string
+	WebhookAuthMode         string
+	WebhookAuthHeader       string
+	WebhookSecret           string
+	WebhookSecretConfigured bool
+	WebhookTimeoutSeconds   int
 
 	TurnstileEnabled             bool
 	TurnstileSiteKey             string

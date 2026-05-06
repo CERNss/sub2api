@@ -206,6 +206,132 @@ func TestSettingHandler_UpdateSettings_PreservesOmittedAuthSourceDefaults(t *tes
 	require.Equal(t, true, data["force_email_on_third_party_signup"])
 }
 
+func TestSettingHandler_UpdateSettings_PersistsWebhookSettings(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repo := &settingHandlerRepoStub{
+		values: map[string]string{
+			service.SettingKeyWebhookSecret: "stored-secret",
+		},
+	}
+	svc := service.NewSettingService(repo, &config.Config{Default: config.DefaultConfig{UserConcurrency: 5}})
+	handler := NewSettingHandler(svc, nil, nil, nil, nil, nil)
+
+	body := map[string]any{
+		"email_delivery_channel":      "webhook",
+		"webhook_payload_format":      "generic",
+		"webhook_url":                 "http://localhost:9000/webhook",
+		"webhook_auth_mode":           "bearer",
+		"webhook_timeout_seconds":     10,
+		"email_verify_enabled":        false,
+		"promo_code_enabled":          true,
+		"default_concurrency":         1,
+		"smtp_port":                   587,
+		"table_default_page_size":     20,
+		"table_page_size_options":     []int{20, 50, 100},
+		"payment_enabled_types":       []string{},
+		"account_quota_notify_emails": []string{},
+	}
+	rawBody, err := json.Marshal(body)
+	require.NoError(t, err)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPut, "/api/v1/admin/settings", bytes.NewReader(rawBody))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.UpdateSettings(c)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, service.EmailDeliveryChannelWebhook, repo.values[service.SettingKeyEmailDeliveryChannel])
+	require.Equal(t, service.WebhookPayloadFormatGeneric, repo.values[service.SettingKeyWebhookPayloadFormat])
+	require.Equal(t, "http://localhost:9000/webhook", repo.values[service.SettingKeyWebhookURL])
+	require.Equal(t, service.WebhookAuthModeBearer, repo.values[service.SettingKeyWebhookAuthMode])
+	require.Equal(t, "stored-secret", repo.values[service.SettingKeyWebhookSecret])
+
+	var resp response.Response
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	data, ok := resp.Data.(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, true, data["webhook_secret_configured"])
+}
+
+func TestSettingHandler_SendTestWebhook_UsesSavedSecret(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	var gotAuth string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	repo := &settingHandlerRepoStub{
+		values: map[string]string{
+			service.SettingKeySiteName:             "Sub2API",
+			service.SettingKeyWebhookPayloadFormat: service.WebhookPayloadFormatGeneric,
+			service.SettingKeyWebhookURL:           server.URL,
+			service.SettingKeyWebhookAuthMode:      service.WebhookAuthModeBearer,
+			service.SettingKeyWebhookSecret:        "stored-secret",
+			service.SettingKeyWebhookTimeoutSec:    "10",
+		},
+	}
+	svc := service.NewSettingService(repo, &config.Config{Default: config.DefaultConfig{UserConcurrency: 5}})
+	handler := NewSettingHandler(svc, nil, nil, nil, nil, nil)
+
+	rawBody, err := json.Marshal(map[string]any{
+		"webhook_url":       server.URL,
+		"webhook_auth_mode": service.WebhookAuthModeBearer,
+	})
+	require.NoError(t, err)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/admin/settings/send-test-webhook", bytes.NewReader(rawBody))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.SendTestWebhook(c)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, "Bearer stored-secret", gotAuth)
+}
+
+func TestSettingHandler_UpdateSettings_RejectsInvalidWebhookURL(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repo := &settingHandlerRepoStub{
+		values: map[string]string{
+			service.SettingKeyPromoCodeEnabled: "true",
+		},
+	}
+	svc := service.NewSettingService(repo, &config.Config{Default: config.DefaultConfig{UserConcurrency: 5}})
+	handler := NewSettingHandler(svc, nil, nil, nil, nil, nil)
+
+	body := map[string]any{
+		"email_delivery_channel":      "webhook",
+		"webhook_payload_format":      "generic",
+		"webhook_url":                 "ftp://example.com/webhook",
+		"webhook_auth_mode":           "none",
+		"webhook_timeout_seconds":     10,
+		"promo_code_enabled":          true,
+		"default_concurrency":         1,
+		"smtp_port":                   587,
+		"table_default_page_size":     20,
+		"table_page_size_options":     []int{20, 50, 100},
+		"payment_enabled_types":       []string{},
+		"account_quota_notify_emails": []string{},
+	}
+	rawBody, err := json.Marshal(body)
+	require.NoError(t, err)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPut, "/api/v1/admin/settings", bytes.NewReader(rawBody))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.UpdateSettings(c)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.NotEqual(t, "ftp://example.com/webhook", repo.values[service.SettingKeyWebhookURL])
+}
+
 func TestSettingHandler_UpdateSettings_PersistsPaymentVisibleMethodsAndAdvancedScheduler(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	repo := &settingHandlerRepoStub{

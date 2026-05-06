@@ -5074,7 +5074,7 @@ export default {
         },
       },
       emailTabDisabledTitle: '邮箱验证未启用',
-      emailTabDisabledHint: '请在「安全与认证」选项卡中启用邮箱验证后，再配置 SMTP 设置。',
+      emailTabDisabledHint: '仍可配置投递通道。邮箱验证只控制验证码相关业务流程。',
       registration: {
         title: '注册设置',
         description: '控制用户注册和验证',
@@ -5524,6 +5524,10 @@ export default {
         addEmail: '添加邮箱',
         emailPlaceholder: '输入邮箱地址',
       },
+      delivery: {
+        title: '投递通道',
+        description: '选择业务流程发出消息时使用的投递方式',
+      },
       smtp: {
         title: 'SMTP 设置',
         description: '配置用于发送验证码的邮件服务',
@@ -5555,6 +5559,23 @@ export default {
         sendTestEmail: '发送测试邮件',
         sending: '发送中...',
         enterRecipientHint: '请输入收件人邮箱地址'
+      },
+      webhook: {
+        title: 'Webhook 设置',
+        description: '通过 Webhook 端点投递所有共享邮件消息',
+        url: 'Webhook URL',
+        payloadFormat: 'Payload 格式',
+        authMode: '鉴权方式',
+        authHeader: '请求头名称',
+        secret: '密钥',
+        secretPlaceholder: '输入 Webhook 密钥',
+        secretConfiguredPlaceholder: '密钥已配置',
+        timeout: '超时时间（秒）',
+        hint: 'HTTP 仅允许用于 localhost 本地测试，非本地 Webhook URL 必须使用 HTTPS。',
+        test: '测试 Webhook',
+        testing: '测试中...',
+        sent: '测试 Webhook 发送成功',
+        failed: '测试 Webhook 发送失败',
       },
       opsMonitoring: {
         title: '运维监控',

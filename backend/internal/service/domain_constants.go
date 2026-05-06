@@ -123,6 +123,17 @@ const (
 	SettingKeySMTPFromName = "smtp_from_name" // 发件人名称
 	SettingKeySMTPUseTLS   = "smtp_use_tls"   // 是否使用TLS
 
+	// 邮件投递设置
+	SettingKeyEmailDeliveryChannel = "email_delivery_channel" // smtp | webhook
+
+	// Webhook 投递设置
+	SettingKeyWebhookPayloadFormat = "webhook_payload_format" // generic | feishu
+	SettingKeyWebhookURL           = "webhook_url"
+	SettingKeyWebhookAuthMode      = "webhook_auth_mode"        // none | bearer | header | signature | feishu_signature
+	SettingKeyWebhookAuthHeader    = "webhook_auth_header_name" // custom header auth mode only
+	SettingKeyWebhookSecret        = "webhook_secret"
+	SettingKeyWebhookTimeoutSec    = "webhook_timeout_seconds"
+
 	// Cloudflare Turnstile 设置
 	SettingKeyTurnstileEnabled   = "turnstile_enabled"    // 是否启用 Turnstile 验证
 	SettingKeyTurnstileSiteKey   = "turnstile_site_key"   // Turnstile Site Key

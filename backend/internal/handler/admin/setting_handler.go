@@ -128,6 +128,13 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		SMTPFrom:                                 settings.SMTPFrom,
 		SMTPFromName:                             settings.SMTPFromName,
 		SMTPUseTLS:                               settings.SMTPUseTLS,
+		EmailDeliveryChannel:                     settings.EmailDeliveryChannel,
+		WebhookPayloadFormat:                     settings.WebhookPayloadFormat,
+		WebhookURL:                               settings.WebhookURL,
+		WebhookAuthMode:                          settings.WebhookAuthMode,
+		WebhookAuthHeader:                        settings.WebhookAuthHeader,
+		WebhookSecretConfigured:                  settings.WebhookSecretConfigured,
+		WebhookTimeoutSeconds:                    settings.WebhookTimeoutSeconds,
 		TurnstileEnabled:                         settings.TurnstileEnabled,
 		TurnstileSiteKey:                         settings.TurnstileSiteKey,
 		TurnstileSecretKeyConfigured:             settings.TurnstileSecretKeyConfigured,
@@ -362,6 +369,14 @@ type UpdateSettingsRequest struct {
 	SMTPFrom     string `json:"smtp_from_email"`
 	SMTPFromName string `json:"smtp_from_name"`
 	SMTPUseTLS   bool   `json:"smtp_use_tls"`
+
+	EmailDeliveryChannel  string `json:"email_delivery_channel"`
+	WebhookPayloadFormat  string `json:"webhook_payload_format"`
+	WebhookURL            string `json:"webhook_url"`
+	WebhookAuthMode       string `json:"webhook_auth_mode"`
+	WebhookAuthHeader     string `json:"webhook_auth_header_name"`
+	WebhookSecret         string `json:"webhook_secret"`
+	WebhookTimeoutSeconds int    `json:"webhook_timeout_seconds"`
 
 	// Cloudflare Turnstile 设置
 	TurnstileEnabled   bool   `json:"turnstile_enabled"`
@@ -649,6 +664,12 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 	req.SMTPPassword = strings.TrimSpace(req.SMTPPassword)
 	req.SMTPFrom = strings.TrimSpace(req.SMTPFrom)
 	req.SMTPFromName = strings.TrimSpace(req.SMTPFromName)
+	req.EmailDeliveryChannel = strings.TrimSpace(req.EmailDeliveryChannel)
+	req.WebhookPayloadFormat = strings.TrimSpace(req.WebhookPayloadFormat)
+	req.WebhookURL = strings.TrimSpace(req.WebhookURL)
+	req.WebhookAuthMode = strings.TrimSpace(req.WebhookAuthMode)
+	req.WebhookAuthHeader = strings.TrimSpace(req.WebhookAuthHeader)
+	req.WebhookSecret = strings.TrimSpace(req.WebhookSecret)
 	if req.SMTPPort <= 0 {
 		req.SMTPPort = 587
 	}
@@ -1279,6 +1300,13 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		SMTPFrom:                                 req.SMTPFrom,
 		SMTPFromName:                             req.SMTPFromName,
 		SMTPUseTLS:                               req.SMTPUseTLS,
+		EmailDeliveryChannel:                     req.EmailDeliveryChannel,
+		WebhookPayloadFormat:                     req.WebhookPayloadFormat,
+		WebhookURL:                               req.WebhookURL,
+		WebhookAuthMode:                          req.WebhookAuthMode,
+		WebhookAuthHeader:                        req.WebhookAuthHeader,
+		WebhookSecret:                            req.WebhookSecret,
+		WebhookTimeoutSeconds:                    req.WebhookTimeoutSeconds,
 		TurnstileEnabled:                         req.TurnstileEnabled,
 		TurnstileSiteKey:                         req.TurnstileSiteKey,
 		TurnstileSecretKey:                       req.TurnstileSecretKey,
@@ -1646,6 +1674,13 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		SMTPFrom:                                 updatedSettings.SMTPFrom,
 		SMTPFromName:                             updatedSettings.SMTPFromName,
 		SMTPUseTLS:                               updatedSettings.SMTPUseTLS,
+		EmailDeliveryChannel:                     updatedSettings.EmailDeliveryChannel,
+		WebhookPayloadFormat:                     updatedSettings.WebhookPayloadFormat,
+		WebhookURL:                               updatedSettings.WebhookURL,
+		WebhookAuthMode:                          updatedSettings.WebhookAuthMode,
+		WebhookAuthHeader:                        updatedSettings.WebhookAuthHeader,
+		WebhookSecretConfigured:                  updatedSettings.WebhookSecretConfigured,
+		WebhookTimeoutSeconds:                    updatedSettings.WebhookTimeoutSeconds,
 		TurnstileEnabled:                         updatedSettings.TurnstileEnabled,
 		TurnstileSiteKey:                         updatedSettings.TurnstileSiteKey,
 		TurnstileSecretKeyConfigured:             updatedSettings.TurnstileSecretKeyConfigured,
@@ -1882,6 +1917,27 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	}
 	if before.SMTPUseTLS != after.SMTPUseTLS {
 		changed = append(changed, "smtp_use_tls")
+	}
+	if before.EmailDeliveryChannel != after.EmailDeliveryChannel {
+		changed = append(changed, "email_delivery_channel")
+	}
+	if before.WebhookPayloadFormat != after.WebhookPayloadFormat {
+		changed = append(changed, "webhook_payload_format")
+	}
+	if before.WebhookURL != after.WebhookURL {
+		changed = append(changed, "webhook_url")
+	}
+	if before.WebhookAuthMode != after.WebhookAuthMode {
+		changed = append(changed, "webhook_auth_mode")
+	}
+	if before.WebhookAuthHeader != after.WebhookAuthHeader {
+		changed = append(changed, "webhook_auth_header_name")
+	}
+	if req.WebhookSecret != "" {
+		changed = append(changed, "webhook_secret")
+	}
+	if before.WebhookTimeoutSeconds != after.WebhookTimeoutSeconds {
+		changed = append(changed, "webhook_timeout_seconds")
 	}
 	if before.TurnstileEnabled != after.TurnstileEnabled {
 		changed = append(changed, "turnstile_enabled")
@@ -2475,6 +2531,15 @@ type SendTestEmailRequest struct {
 	SMTPUseTLS   bool   `json:"smtp_use_tls"`
 }
 
+type SendTestWebhookRequest struct {
+	WebhookPayloadFormat  string `json:"webhook_payload_format"`
+	WebhookURL            string `json:"webhook_url"`
+	WebhookAuthMode       string `json:"webhook_auth_mode"`
+	WebhookAuthHeader     string `json:"webhook_auth_header_name"`
+	WebhookSecret         string `json:"webhook_secret"`
+	WebhookTimeoutSeconds int    `json:"webhook_timeout_seconds"`
+}
+
 // SendTestEmail 发送测试邮件
 // POST /api/v1/admin/settings/send-test-email
 func (h *SettingHandler) SendTestEmail(c *gin.Context) {
@@ -2572,6 +2637,57 @@ func (h *SettingHandler) SendTestEmail(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{"message": "Test email sent successfully"})
+}
+
+func (h *SettingHandler) SendTestWebhook(c *gin.Context) {
+	var req SendTestWebhookRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	req.WebhookPayloadFormat = strings.TrimSpace(req.WebhookPayloadFormat)
+	req.WebhookURL = strings.TrimSpace(req.WebhookURL)
+	req.WebhookAuthMode = strings.TrimSpace(req.WebhookAuthMode)
+	req.WebhookAuthHeader = strings.TrimSpace(req.WebhookAuthHeader)
+	req.WebhookSecret = strings.TrimSpace(req.WebhookSecret)
+
+	settings, _ := h.settingService.GetAllSettings(c.Request.Context())
+	if req.WebhookURL == "" && settings != nil {
+		req.WebhookURL = settings.WebhookURL
+	}
+	if req.WebhookPayloadFormat == "" && settings != nil {
+		req.WebhookPayloadFormat = settings.WebhookPayloadFormat
+	}
+	if req.WebhookAuthMode == "" && settings != nil {
+		req.WebhookAuthMode = settings.WebhookAuthMode
+	}
+	if req.WebhookAuthHeader == "" && settings != nil {
+		req.WebhookAuthHeader = settings.WebhookAuthHeader
+	}
+	if req.WebhookSecret == "" && settings != nil {
+		req.WebhookSecret = settings.WebhookSecret
+	}
+	if req.WebhookTimeoutSeconds <= 0 && settings != nil {
+		req.WebhookTimeoutSeconds = settings.WebhookTimeoutSeconds
+	}
+
+	cfg := service.WebhookTestConfig{
+		PayloadFormat:  req.WebhookPayloadFormat,
+		URL:            req.WebhookURL,
+		AuthMode:       req.WebhookAuthMode,
+		AuthHeader:     req.WebhookAuthHeader,
+		Secret:         req.WebhookSecret,
+		TimeoutSeconds: req.WebhookTimeoutSeconds,
+	}
+	siteName := h.settingService.GetSiteName(c.Request.Context())
+	subject := "[" + siteName + "] Test Webhook"
+	body := "<p>This is a test message to verify your webhook delivery settings are working correctly.</p>"
+	if err := service.SendTestWebhook(c.Request.Context(), cfg, "webhook-test@example.com", subject, body); err != nil {
+		response.BadRequest(c, "Failed to send test webhook: "+err.Error())
+		return
+	}
+
+	response.Success(c, gin.H{"message": "Test webhook sent successfully"})
 }
 
 // GetAdminAPIKey 获取管理员 API Key 状态

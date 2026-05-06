@@ -14,6 +14,7 @@ const {
   getStreamTimeoutSettings,
   getRectifierSettings,
   getBetaPolicySettings,
+  sendTestWebhook,
   getGroups,
   listProxies,
   getProviders,
@@ -34,6 +35,7 @@ const {
   getStreamTimeoutSettings: vi.fn(),
   getRectifierSettings: vi.fn(),
   getBetaPolicySettings: vi.fn(),
+  sendTestWebhook: vi.fn(),
   getGroups: vi.fn(),
   listProxies: vi.fn(),
   getProviders: vi.fn(),
@@ -60,6 +62,7 @@ vi.mock("@/api", () => ({
       getStreamTimeoutSettings,
       getRectifierSettings,
       getBetaPolicySettings,
+      sendTestWebhook,
     },
     groups: {
       getAll: getGroups,
@@ -393,6 +396,13 @@ const baseSettingsResponse = {
   balance_low_notify_recharge_url: "",
   account_quota_notify_enabled: false,
   account_quota_notify_emails: [],
+  email_delivery_channel: "smtp",
+  webhook_payload_format: "generic",
+  webhook_url: "",
+  webhook_auth_mode: "none",
+  webhook_auth_header_name: "",
+  webhook_secret_configured: false,
+  webhook_timeout_seconds: 10,
 };
 
 function mountView() {
@@ -446,6 +456,16 @@ async function openUsersTab(wrapper: ReturnType<typeof mountView>) {
   await flushPromises();
 }
 
+async function openEmailTab(wrapper: ReturnType<typeof mountView>) {
+  const emailTabButton = wrapper
+    .findAll("button")
+    .find((node) => node.text().includes("admin.settings.tabs.email"));
+
+  expect(emailTabButton).toBeDefined();
+  await emailTabButton?.trigger("click");
+  await flushPromises();
+}
+
 describe("admin SettingsView payment visible method controls", () => {
   beforeEach(() => {
     getSettings.mockReset();
@@ -457,6 +477,7 @@ describe("admin SettingsView payment visible method controls", () => {
     getStreamTimeoutSettings.mockReset();
     getRectifierSettings.mockReset();
     getBetaPolicySettings.mockReset();
+    sendTestWebhook.mockReset();
     getGroups.mockReset();
     listProxies.mockReset();
     getProviders.mockReset();
@@ -506,6 +527,9 @@ describe("admin SettingsView payment visible method controls", () => {
     });
     getBetaPolicySettings.mockResolvedValue({
       rules: [],
+    });
+    sendTestWebhook.mockResolvedValue({
+      message: "Test webhook sent successfully",
     });
     getGroups.mockResolvedValue([]);
     listProxies.mockResolvedValue({
@@ -659,6 +683,87 @@ describe("admin SettingsView payment visible method controls", () => {
     expect(paymentHelpImageUpload).toBeDefined();
     expect(paymentHelpImageUpload?.attributes("data-upload-label")).toBe("上传图片");
     expect(paymentHelpImageUpload?.attributes("data-remove-label")).toBe("移除");
+  });
+
+  it("keeps SMTP delivery settings visible when email verification is disabled", async () => {
+    getSettings.mockResolvedValueOnce({
+      ...baseSettingsResponse,
+      email_verify_enabled: false,
+      email_delivery_channel: "smtp",
+    });
+    const wrapper = mountView();
+
+    await flushPromises();
+    await openEmailTab(wrapper);
+
+    expect(wrapper.text()).toContain("admin.settings.emailTabDisabledHint");
+    expect(wrapper.text()).toContain("admin.settings.smtp.title");
+    expect(wrapper.text()).toContain("admin.settings.testEmail.title");
+  });
+
+  it("renders, saves, and tests webhook delivery settings", async () => {
+    getSettings.mockResolvedValueOnce({
+      ...baseSettingsResponse,
+      email_verify_enabled: false,
+      email_delivery_channel: "webhook",
+      webhook_payload_format: "feishu",
+      webhook_url: "http://localhost:9000/webhook",
+      webhook_auth_mode: "bearer",
+      webhook_secret_configured: true,
+      webhook_timeout_seconds: 10,
+    });
+    const wrapper = mountView();
+
+    await flushPromises();
+    await openEmailTab(wrapper);
+
+    expect(wrapper.text()).toContain("admin.settings.webhook.title");
+    expect(wrapper.text()).not.toContain("admin.settings.smtp.title");
+
+    const inputs = wrapper.findAll("input");
+    const urlInput = inputs.find(
+      (node) => (node.element as HTMLInputElement).value === "http://localhost:9000/webhook",
+    );
+    expect(urlInput).toBeDefined();
+    await urlInput?.setValue("http://localhost:9100/webhook");
+
+    const secretInput = inputs.find(
+      (node) => node.attributes("type") === "password" && node.attributes("placeholder") === "admin.settings.webhook.secretConfiguredPlaceholder",
+    );
+    expect(secretInput).toBeDefined();
+    await secretInput?.setValue("new-webhook-secret");
+    await secretInput?.trigger("keydown");
+
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    expect(updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        email_delivery_channel: "webhook",
+        webhook_payload_format: "feishu",
+        webhook_url: "http://localhost:9100/webhook",
+        webhook_auth_mode: "bearer",
+        webhook_secret: "new-webhook-secret",
+        webhook_timeout_seconds: 10,
+      }),
+    );
+
+    const testButton = wrapper
+      .findAll("button")
+      .find((node) => node.text().includes("admin.settings.webhook.test"));
+    expect(testButton).toBeDefined();
+    await testButton?.trigger("click");
+    await flushPromises();
+
+    expect(sendTestWebhook).toHaveBeenCalledWith(
+      expect.objectContaining({
+        webhook_payload_format: "feishu",
+        webhook_url: "http://localhost:9100/webhook",
+        webhook_auth_mode: "bearer",
+        webhook_secret: "",
+        webhook_timeout_seconds: 10,
+      }),
+    );
   });
 });
 
