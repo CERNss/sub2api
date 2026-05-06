@@ -5016,7 +5016,41 @@
         </div>
 
         <div v-show="activeTab === 'email'" class="space-y-6">
-          <!-- Email disabled hint - show when email_verify_enabled is off -->
+          <div class="card">
+            <div
+              class="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-dark-700"
+            >
+              <div>
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                  {{ t("admin.settings.delivery.title") }}
+                </h2>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  {{ t("admin.settings.delivery.description") }}
+                </p>
+              </div>
+            </div>
+            <div class="p-6">
+              <div class="inline-flex rounded-md border border-gray-200 p-1 dark:border-dark-700">
+                <button
+                  type="button"
+                  class="rounded px-4 py-2 text-sm font-medium"
+                  :class="form.email_delivery_channel === 'smtp' ? 'bg-primary-600 text-white' : 'text-gray-700 dark:text-gray-300'"
+                  @click="form.email_delivery_channel = 'smtp'"
+                >
+                  SMTP
+                </button>
+                <button
+                  type="button"
+                  class="rounded px-4 py-2 text-sm font-medium"
+                  :class="form.email_delivery_channel === 'webhook' ? 'bg-primary-600 text-white' : 'text-gray-700 dark:text-gray-300'"
+                  @click="form.email_delivery_channel = 'webhook'"
+                >
+                  Webhook
+                </button>
+              </div>
+            </div>
+          </div>
+
           <div v-if="!form.email_verify_enabled" class="card">
             <div class="p-6">
               <div class="flex items-start gap-3">
@@ -5037,8 +5071,7 @@
             </div>
           </div>
 
-          <!-- SMTP Settings - Only show when email verification is enabled -->
-          <div v-if="form.email_verify_enabled" class="card">
+          <div v-if="form.email_delivery_channel === 'smtp'" class="card">
             <div
               class="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -5200,8 +5233,7 @@
             </div>
           </div>
 
-          <!-- Send Test Email - Only show when email verification is enabled -->
-          <div v-if="form.email_verify_enabled" class="card">
+          <div v-if="form.email_delivery_channel === 'smtp'" class="card">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -5264,6 +5296,92 @@
                   }}
                 </button>
               </div>
+            </div>
+          </div>
+          <div v-if="form.email_delivery_channel === 'webhook'" class="card">
+            <div
+              class="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-dark-700"
+            >
+              <div>
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                  {{ t("admin.settings.webhook.title") }}
+                </h2>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  {{ t("admin.settings.webhook.description") }}
+                </p>
+              </div>
+              <button
+                type="button"
+                @click="sendTestWebhook"
+                :disabled="sendingTestWebhook || !form.webhook_url || loadFailed"
+                class="btn btn-secondary btn-sm"
+              >
+                {{
+                  sendingTestWebhook
+                    ? t("admin.settings.webhook.testing")
+                    : t("admin.settings.webhook.test")
+                }}
+              </button>
+            </div>
+            <div class="space-y-6 p-6">
+              <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <div class="md:col-span-2">
+                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t("admin.settings.webhook.url") }}
+                  </label>
+                  <input v-model="form.webhook_url" type="url" class="input" placeholder="https://example.com/webhook" />
+                </div>
+                <div>
+                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t("admin.settings.webhook.payloadFormat") }}
+                  </label>
+                  <select v-model="form.webhook_payload_format" class="input">
+                    <option value="generic">Generic</option>
+                    <option value="feishu">Feishu / Lark</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t("admin.settings.webhook.authMode") }}
+                  </label>
+                  <select v-model="form.webhook_auth_mode" class="input">
+                    <option value="none">None</option>
+                    <option value="bearer">Bearer</option>
+                    <option value="header">Header</option>
+                    <option value="signature">Signature</option>
+                    <option value="feishu_signature">Feishu Signature</option>
+                  </select>
+                </div>
+                <div v-if="form.webhook_auth_mode === 'header'">
+                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t("admin.settings.webhook.authHeader") }}
+                  </label>
+                  <input v-model="form.webhook_auth_header_name" type="text" class="input" placeholder="X-Webhook-Token" />
+                </div>
+                <div v-if="form.webhook_auth_mode !== 'none'">
+                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t("admin.settings.webhook.secret") }}
+                  </label>
+                  <input
+                    v-model="form.webhook_secret"
+                    type="password"
+                    class="input"
+                    autocomplete="new-password"
+                    @keydown="webhookSecretManuallyEdited = true"
+                    @paste="webhookSecretManuallyEdited = true"
+                    :placeholder="form.webhook_secret_configured ? t('admin.settings.webhook.secretConfiguredPlaceholder') : t('admin.settings.webhook.secretPlaceholder')"
+                  />
+                </div>
+                <div>
+                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t("admin.settings.webhook.timeout") }}
+                  </label>
+                  <input v-model.number="form.webhook_timeout_seconds" type="number" min="1" max="60" class="input" />
+                </div>
+              </div>
+              <p class="text-xs text-gray-500 dark:text-gray-400">
+                {{ t("admin.settings.webhook.hint") }}
+              </p>
             </div>
           </div>
           <!-- Balance Low Notification -->
@@ -5578,7 +5696,9 @@ const loadFailed = ref(false);
 const saving = ref(false);
 const testingSmtp = ref(false);
 const sendingTestEmail = ref(false);
+const sendingTestWebhook = ref(false);
 const smtpPasswordManuallyEdited = ref(false);
+const webhookSecretManuallyEdited = ref(false);
 const testEmailAddress = ref("");
 const registrationEmailSuffixWhitelistTags = ref<string[]>([]);
 const registrationEmailSuffixWhitelistDraft = ref("");
@@ -5666,6 +5786,7 @@ type SettingsForm = Omit<
   | "wechat_connect_mobile_enabled"
 > & {
   smtp_password: string;
+  webhook_secret: string;
   turnstile_secret_key: string;
   linuxdo_connect_client_secret: string;
   wechat_connect_app_secret: string;
@@ -5751,6 +5872,14 @@ const form = reactive<SettingsForm>({
   smtp_from_email: "",
   smtp_from_name: "",
   smtp_use_tls: true,
+  email_delivery_channel: "smtp",
+  webhook_payload_format: "generic",
+  webhook_url: "",
+  webhook_auth_mode: "none",
+  webhook_auth_header_name: "",
+  webhook_secret: "",
+  webhook_secret_configured: false,
+  webhook_timeout_seconds: 10,
   // Cloudflare Turnstile
   turnstile_enabled: false,
   turnstile_site_key: "",
@@ -6366,6 +6495,8 @@ async function loadSettings() {
     registrationEmailSuffixWhitelistDraft.value = "";
     form.smtp_password = "";
     smtpPasswordManuallyEdited.value = false;
+    form.webhook_secret = "";
+    webhookSecretManuallyEdited.value = false;
     form.turnstile_secret_key = "";
     form.linuxdo_connect_client_secret = "";
     form.wechat_connect_app_secret = "";
@@ -6668,6 +6799,13 @@ async function saveSettings() {
       smtp_from_email: form.smtp_from_email,
       smtp_from_name: form.smtp_from_name,
       smtp_use_tls: form.smtp_use_tls,
+      email_delivery_channel: form.email_delivery_channel,
+      webhook_payload_format: form.webhook_payload_format,
+      webhook_url: form.webhook_url,
+      webhook_auth_mode: form.webhook_auth_mode,
+      webhook_auth_header_name: form.webhook_auth_header_name,
+      webhook_secret: form.webhook_secret || undefined,
+      webhook_timeout_seconds: Number(form.webhook_timeout_seconds) || 10,
       turnstile_enabled: form.turnstile_enabled,
       turnstile_site_key: form.turnstile_site_key,
       turnstile_secret_key: form.turnstile_secret_key || undefined,
@@ -6838,6 +6976,8 @@ async function saveSettings() {
     registrationEmailSuffixWhitelistDraft.value = "";
     form.smtp_password = "";
     smtpPasswordManuallyEdited.value = false;
+    form.webhook_secret = "";
+    webhookSecretManuallyEdited.value = false;
     form.turnstile_secret_key = "";
     form.linuxdo_connect_client_secret = "";
     form.wechat_connect_app_secret = "";
@@ -6950,6 +7090,30 @@ async function sendTestEmail() {
     );
   } finally {
     sendingTestEmail.value = false;
+  }
+}
+
+async function sendTestWebhook() {
+  sendingTestWebhook.value = true;
+  try {
+    const webhookSecretForTest = webhookSecretManuallyEdited.value
+      ? form.webhook_secret
+      : "";
+    const result = await adminAPI.settings.sendTestWebhook({
+      webhook_payload_format: form.webhook_payload_format,
+      webhook_url: form.webhook_url,
+      webhook_auth_mode: form.webhook_auth_mode,
+      webhook_auth_header_name: form.webhook_auth_header_name,
+      webhook_secret: webhookSecretForTest,
+      webhook_timeout_seconds: Number(form.webhook_timeout_seconds) || 10,
+    });
+    appStore.showSuccess(result.message || t("admin.settings.webhook.sent"));
+  } catch (error: unknown) {
+    appStore.showError(
+      extractApiErrorMessage(error, t("admin.settings.webhook.failed")),
+    );
+  } finally {
+    sendingTestWebhook.value = false;
   }
 }
 

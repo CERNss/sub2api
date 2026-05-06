@@ -4911,7 +4911,7 @@ export default {
         },
       },
       emailTabDisabledTitle: 'Email Verification Not Enabled',
-      emailTabDisabledHint: 'Enable email verification in the Security tab to configure SMTP settings.',
+      emailTabDisabledHint: 'Delivery settings are still available. Email verification only controls verification-code business flows.',
       registration: {
         title: 'Registration Settings',
         description: 'Control user registration and verification',
@@ -5363,6 +5363,10 @@ export default {
         addEmail: 'Add Email',
         emailPlaceholder: 'Enter email address',
       },
+      delivery: {
+        title: 'Delivery Channel',
+        description: 'Choose how outbound messages are delivered when a business flow sends one',
+      },
       smtp: {
         title: 'SMTP Settings',
         description: 'Configure email sending for verification codes',
@@ -5394,6 +5398,23 @@ export default {
         sendTestEmail: 'Send Test Email',
         sending: 'Sending...',
         enterRecipientHint: 'Please enter a recipient email address'
+      },
+      webhook: {
+        title: 'Webhook Settings',
+        description: 'Deliver all shared email messages through a webhook endpoint',
+        url: 'Webhook URL',
+        payloadFormat: 'Payload Format',
+        authMode: 'Authentication Mode',
+        authHeader: 'Header Name',
+        secret: 'Secret',
+        secretPlaceholder: 'Enter webhook secret',
+        secretConfiguredPlaceholder: 'Secret configured',
+        timeout: 'Timeout (seconds)',
+        hint: 'HTTP is only allowed for localhost testing. Non-local webhook URLs must use HTTPS.',
+        test: 'Test Webhook',
+        testing: 'Testing...',
+        sent: 'Test webhook sent successfully',
+        failed: 'Failed to send test webhook',
       },
       opsMonitoring: {
         title: 'Ops Monitoring',

@@ -150,6 +150,9 @@ func (s *EmailService) GetSMTPConfig(ctx context.Context) (*SMTPConfig, error) {
 
 // SendEmail 发送邮件（使用数据库中保存的配置）
 func (s *EmailService) SendEmail(ctx context.Context, to, subject, body string) error {
+	if s.getEmailDeliveryChannel(ctx) == EmailDeliveryChannelWebhook {
+		return s.sendViaWebhook(ctx, to, subject, body)
+	}
 	config, err := s.GetSMTPConfig(ctx)
 	if err != nil {
 		return err

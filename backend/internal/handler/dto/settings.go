@@ -42,6 +42,14 @@ type SystemSettings struct {
 	SMTPFromName           string `json:"smtp_from_name"`
 	SMTPUseTLS             bool   `json:"smtp_use_tls"`
 
+	EmailDeliveryChannel    string `json:"email_delivery_channel"`
+	WebhookPayloadFormat    string `json:"webhook_payload_format"`
+	WebhookURL              string `json:"webhook_url"`
+	WebhookAuthMode         string `json:"webhook_auth_mode"`
+	WebhookAuthHeader       string `json:"webhook_auth_header_name"`
+	WebhookSecretConfigured bool   `json:"webhook_secret_configured"`
+	WebhookTimeoutSeconds   int    `json:"webhook_timeout_seconds"`
+
 	TurnstileEnabled             bool   `json:"turnstile_enabled"`
 	TurnstileSiteKey             string `json:"turnstile_site_key"`
 	TurnstileSecretKeyConfigured bool   `json:"turnstile_secret_key_configured"`

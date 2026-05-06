@@ -358,6 +358,13 @@ export interface SystemSettings {
   smtp_from_email: string;
   smtp_from_name: string;
   smtp_use_tls: boolean;
+  email_delivery_channel: "smtp" | "webhook" | string;
+  webhook_payload_format: "generic" | "feishu" | string;
+  webhook_url: string;
+  webhook_auth_mode: "none" | "bearer" | "header" | "signature" | "feishu_signature" | string;
+  webhook_auth_header_name: string;
+  webhook_secret_configured: boolean;
+  webhook_timeout_seconds: number;
   // Cloudflare Turnstile settings
   turnstile_enabled: boolean;
   turnstile_site_key: string;
@@ -548,6 +555,13 @@ export interface UpdateSettingsRequest {
   smtp_from_email?: string;
   smtp_from_name?: string;
   smtp_use_tls?: boolean;
+  email_delivery_channel?: "smtp" | "webhook" | string;
+  webhook_payload_format?: "generic" | "feishu" | string;
+  webhook_url?: string;
+  webhook_auth_mode?: "none" | "bearer" | "header" | "signature" | "feishu_signature" | string;
+  webhook_auth_header_name?: string;
+  webhook_secret?: string;
+  webhook_timeout_seconds?: number;
   turnstile_enabled?: boolean;
   turnstile_site_key?: string;
   turnstile_secret_key?: string;
@@ -732,6 +746,25 @@ export async function sendTestEmail(
 ): Promise<{ message: string }> {
   const { data } = await apiClient.post<{ message: string }>(
     "/admin/settings/send-test-email",
+    request,
+  );
+  return data;
+}
+
+export interface SendTestWebhookRequest {
+  webhook_payload_format: string;
+  webhook_url: string;
+  webhook_auth_mode: string;
+  webhook_auth_header_name: string;
+  webhook_secret: string;
+  webhook_timeout_seconds: number;
+}
+
+export async function sendTestWebhook(
+  request: SendTestWebhookRequest,
+): Promise<{ message: string }> {
+  const { data } = await apiClient.post<{ message: string }>(
+    "/admin/settings/send-test-webhook",
     request,
   );
   return data;
@@ -1019,6 +1052,7 @@ export const settingsAPI = {
   updateSettings,
   testSmtpConnection,
   sendTestEmail,
+  sendTestWebhook,
   getAdminApiKey,
   regenerateAdminApiKey,
   deleteAdminApiKey,

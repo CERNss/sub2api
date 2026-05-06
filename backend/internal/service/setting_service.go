@@ -953,6 +953,9 @@ func oidcCompatibilityWriteDefault(base config.OIDCConnectConfig, configured boo
 
 // UpdateSettings 更新系统设置
 func (s *SettingService) UpdateSettings(ctx context.Context, settings *SystemSettings) error {
+	if err := s.validateWebhookSettingsForUpdate(ctx, settings); err != nil {
+		return err
+	}
 	updates, err := s.buildSystemSettingsUpdates(ctx, settings)
 	if err != nil {
 		return err
@@ -989,6 +992,9 @@ func (s *SettingService) OIDCSecurityWriteDefaults(ctx context.Context) (bool, b
 
 // UpdateSettingsWithAuthSourceDefaults persists system settings and auth-source defaults in a single write.
 func (s *SettingService) UpdateSettingsWithAuthSourceDefaults(ctx context.Context, settings *SystemSettings, authDefaults *AuthSourceDefaultSettings) error {
+	if err := s.validateWebhookSettingsForUpdate(ctx, settings); err != nil {
+		return err
+	}
 	updates, err := s.buildSystemSettingsUpdates(ctx, settings)
 	if err != nil {
 		return err
@@ -1007,6 +1013,26 @@ func (s *SettingService) UpdateSettingsWithAuthSourceDefaults(ctx context.Contex
 		s.refreshCachedSettings(settings)
 	}
 	return err
+}
+
+func (s *SettingService) validateWebhookSettingsForUpdate(ctx context.Context, settings *SystemSettings) error {
+	if settings == nil || normalizeEmailDeliveryChannel(settings.EmailDeliveryChannel) != EmailDeliveryChannelWebhook {
+		return nil
+	}
+	cfg := &emailWebhookConfig{
+		PayloadFormat:  normalizeWebhookPayloadFormat(settings.WebhookPayloadFormat),
+		URL:            strings.TrimSpace(settings.WebhookURL),
+		AuthMode:       normalizeWebhookAuthMode(settings.WebhookAuthMode),
+		AuthHeader:     strings.TrimSpace(settings.WebhookAuthHeader),
+		Secret:         strings.TrimSpace(settings.WebhookSecret),
+		TimeoutSeconds: normalizeWebhookTimeoutSeconds(settings.WebhookTimeoutSeconds),
+	}
+	if cfg.Secret == "" {
+		if current, err := s.settingRepo.GetValue(ctx, SettingKeyWebhookSecret); err == nil {
+			cfg.Secret = strings.TrimSpace(current)
+		}
+	}
+	return validateWebhookConfig(cfg)
 }
 
 func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, settings *SystemSettings) (map[string]string, error) {
@@ -1078,6 +1104,15 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeySMTPFrom] = settings.SMTPFrom
 	updates[SettingKeySMTPFromName] = settings.SMTPFromName
 	updates[SettingKeySMTPUseTLS] = strconv.FormatBool(settings.SMTPUseTLS)
+	updates[SettingKeyEmailDeliveryChannel] = normalizeEmailDeliveryChannel(settings.EmailDeliveryChannel)
+	updates[SettingKeyWebhookPayloadFormat] = normalizeWebhookPayloadFormat(settings.WebhookPayloadFormat)
+	updates[SettingKeyWebhookURL] = strings.TrimSpace(settings.WebhookURL)
+	updates[SettingKeyWebhookAuthMode] = normalizeWebhookAuthMode(settings.WebhookAuthMode)
+	updates[SettingKeyWebhookAuthHeader] = strings.TrimSpace(settings.WebhookAuthHeader)
+	if settings.WebhookSecret != "" {
+		updates[SettingKeyWebhookSecret] = settings.WebhookSecret
+	}
+	updates[SettingKeyWebhookTimeoutSec] = strconv.Itoa(normalizeWebhookTimeoutSeconds(settings.WebhookTimeoutSeconds))
 
 	// Cloudflare Turnstile 设置（只有非空才更新密钥）
 	updates[SettingKeyTurnstileEnabled] = strconv.FormatBool(settings.TurnstileEnabled)
@@ -1861,6 +1896,11 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyForceEmailOnThirdPartySignup:             "false",
 		SettingKeySMTPPort:                                 "587",
 		SettingKeySMTPUseTLS:                               "false",
+		SettingKeyEmailDeliveryChannel:                     "smtp",
+		SettingKeyWebhookPayloadFormat:                     "generic",
+		SettingKeyWebhookAuthMode:                          "none",
+		SettingKeyWebhookAuthHeader:                        "",
+		SettingKeyWebhookTimeoutSec:                        "10",
 		// Model fallback defaults
 		SettingKeyEnableModelFallback:      "false",
 		SettingKeyFallbackModelAnthropic:   "claude-3-5-sonnet-20241022",
@@ -1921,6 +1961,12 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 		SMTPFromName:                     settings[SettingKeySMTPFromName],
 		SMTPUseTLS:                       settings[SettingKeySMTPUseTLS] == "true",
 		SMTPPasswordConfigured:           settings[SettingKeySMTPPassword] != "",
+		EmailDeliveryChannel:             normalizeEmailDeliveryChannel(settings[SettingKeyEmailDeliveryChannel]),
+		WebhookPayloadFormat:             normalizeWebhookPayloadFormat(settings[SettingKeyWebhookPayloadFormat]),
+		WebhookURL:                       strings.TrimSpace(settings[SettingKeyWebhookURL]),
+		WebhookAuthMode:                  normalizeWebhookAuthMode(settings[SettingKeyWebhookAuthMode]),
+		WebhookAuthHeader:                strings.TrimSpace(settings[SettingKeyWebhookAuthHeader]),
+		WebhookSecretConfigured:          strings.TrimSpace(settings[SettingKeyWebhookSecret]) != "",
 		TurnstileEnabled:                 settings[SettingKeyTurnstileEnabled] == "true",
 		TurnstileSiteKey:                 settings[SettingKeyTurnstileSiteKey],
 		TurnstileSecretKeyConfigured:     settings[SettingKeyTurnstileSecretKey] != "",
@@ -1948,6 +1994,11 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 		result.SMTPPort = port
 	} else {
 		result.SMTPPort = 587
+	}
+	if timeout, err := strconv.Atoi(strings.TrimSpace(settings[SettingKeyWebhookTimeoutSec])); err == nil {
+		result.WebhookTimeoutSeconds = normalizeWebhookTimeoutSeconds(timeout)
+	} else {
+		result.WebhookTimeoutSeconds = defaultWebhookTimeoutSeconds
 	}
 
 	if concurrency, err := strconv.Atoi(settings[SettingKeyDefaultConcurrency]); err == nil {
@@ -1990,6 +2041,7 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 
 	// 敏感信息直接返回，方便测试连接时使用
 	result.SMTPPassword = settings[SettingKeySMTPPassword]
+	result.WebhookSecret = settings[SettingKeyWebhookSecret]
 	result.TurnstileSecretKey = settings[SettingKeyTurnstileSecretKey]
 
 	// LinuxDo Connect 设置：

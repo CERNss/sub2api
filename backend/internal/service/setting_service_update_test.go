@@ -243,6 +243,64 @@ func TestSettingService_UpdateSettings_PaymentVisibleMethodsAndAdvancedScheduler
 	require.Equal(t, "true", repo.updates[openAIAdvancedSchedulerSettingKey])
 }
 
+func TestSettingService_UpdateSettings_WebhookSettingsAndSecretMasking(t *testing.T) {
+	repo := newMockSettingRepo()
+	repo.data[SettingKeyWebhookSecret] = "stored-secret"
+	svc := NewSettingService(repo, &config.Config{})
+
+	err := svc.UpdateSettings(context.Background(), &SystemSettings{
+		EmailDeliveryChannel:  EmailDeliveryChannelWebhook,
+		WebhookPayloadFormat:  WebhookPayloadFormatGeneric,
+		WebhookURL:            "http://localhost:9000/webhook",
+		WebhookAuthMode:       WebhookAuthModeBearer,
+		WebhookTimeoutSeconds: 15,
+	})
+	require.NoError(t, err)
+	require.Equal(t, EmailDeliveryChannelWebhook, repo.data[SettingKeyEmailDeliveryChannel])
+	require.Equal(t, WebhookPayloadFormatGeneric, repo.data[SettingKeyWebhookPayloadFormat])
+	require.Equal(t, "http://localhost:9000/webhook", repo.data[SettingKeyWebhookURL])
+	require.Equal(t, WebhookAuthModeBearer, repo.data[SettingKeyWebhookAuthMode])
+	require.Equal(t, "15", repo.data[SettingKeyWebhookTimeoutSec])
+	require.Equal(t, "stored-secret", repo.data[SettingKeyWebhookSecret])
+
+	settings, err := svc.GetAllSettings(context.Background())
+	require.NoError(t, err)
+	require.True(t, settings.WebhookSecretConfigured)
+	require.Equal(t, "stored-secret", settings.WebhookSecret)
+}
+
+func TestSettingService_UpdateSettings_WebhookRejectsInvalidURLBeforeSaving(t *testing.T) {
+	repo := newMockSettingRepo()
+	svc := NewSettingService(repo, &config.Config{})
+
+	err := svc.UpdateSettings(context.Background(), &SystemSettings{
+		EmailDeliveryChannel:  EmailDeliveryChannelWebhook,
+		WebhookURL:            "ftp://example.com/webhook",
+		WebhookAuthMode:       WebhookAuthModeNone,
+		WebhookTimeoutSeconds: 10,
+	})
+
+	require.Error(t, err)
+	require.Equal(t, "WEBHOOK_URL_INVALID_SCHEME", infraerrors.Reason(err))
+	require.Empty(t, repo.data)
+}
+
+func TestSettingService_UpdateSettingsWithAuthSourceDefaults_WebhookRejectsNonLocalHTTPBeforeSaving(t *testing.T) {
+	repo := newMockSettingRepo()
+	svc := NewSettingService(repo, &config.Config{})
+
+	err := svc.UpdateSettingsWithAuthSourceDefaults(context.Background(), &SystemSettings{
+		EmailDeliveryChannel:  EmailDeliveryChannelWebhook,
+		WebhookURL:            "http://example.com/webhook",
+		WebhookAuthMode:       WebhookAuthModeNone,
+		WebhookTimeoutSeconds: 10,
+	}, &AuthSourceDefaultSettings{})
+
+	require.Error(t, err)
+	require.Equal(t, "WEBHOOK_URL_REQUIRES_HTTPS", infraerrors.Reason(err))
+	require.Empty(t, repo.data)
+}
+
 func TestSettingService_UpdateSettings_RejectsInvalidPaymentVisibleMethodSource(t *testing.T) {
 	repo := &settingUpdateRepoStub{}
 	svc := NewSettingService(repo, &config.Config{})
