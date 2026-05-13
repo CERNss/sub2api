@@ -1596,10 +1596,8 @@ func parseCustomMenuItemURLs(raw string) []string {
 	}
 	urls := make([]string, 0, len(items))
 	for _, item := range items {
-		if strings.TrimSpace(item.OpenMode) == "external" {
-			continue
-		}
-		if item.URL != "" {
+		openMode := strings.TrimSpace(item.OpenMode)
+		if (openMode == "" || openMode == "iframe") && strings.TrimSpace(item.URL) != "" {
 			urls = append(urls, item.URL)
 		}
 	}
