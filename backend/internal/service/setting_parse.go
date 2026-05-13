@@ -120,6 +120,7 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyOIDCConnectAllowedSigningAlgs:             "RS256,ES256,PS256",
 		SettingKeyOIDCConnectClockSkewSeconds:               "120",
 		SettingKeyOIDCConnectRequireEmailVerified:           "false",
+		SettingKeyOIDCConnectRequireLocalEmailVerification:  "true",
 		SettingKeyOIDCConnectUserInfoEmailPath:              "",
 		SettingKeyOIDCConnectUserInfoIDPath:                 "",
 		SettingKeyOIDCConnectUserInfoUsernamePath:           "",
@@ -694,6 +695,11 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 		result.OIDCConnectRequireEmailVerified = raw == "true"
 	} else {
 		result.OIDCConnectRequireEmailVerified = oidcBase.RequireEmailVerified
+	}
+	if raw, ok := settings[SettingKeyOIDCConnectRequireLocalEmailVerification]; ok {
+		result.OIDCConnectRequireLocalEmailVerification = raw != "false"
+	} else {
+		result.OIDCConnectRequireLocalEmailVerification = true
 	}
 	if v, ok := settings[SettingKeyOIDCConnectUserInfoEmailPath]; ok {
 		result.OIDCConnectUserInfoEmailPath = strings.TrimSpace(v)
