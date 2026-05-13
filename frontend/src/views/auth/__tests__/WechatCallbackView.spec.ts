@@ -562,6 +562,38 @@ describe('WechatCallbackView', () => {
     expect(wrapper.get('[data-testid="wechat-choice-create-account"]').exists()).toBe(true)
   })
 
+  it('skips account chooser when the pending session has no existing account to bind', async () => {
+    exchangePendingOAuthCompletionMock.mockResolvedValue({
+      auth_result: 'pending_session',
+      step: 'choose_account_action_required',
+      redirect: '/dashboard',
+      email: 'wechat-123@wechat-connect.invalid',
+      resolved_email: 'wechat-123@wechat-connect.invalid',
+      compat_email: 'fresh@example.com',
+      existing_account_bindable: false,
+      create_account_allowed: true,
+      adoption_required: true,
+    })
+
+    const wrapper = mount(WechatCallbackView, {
+      global: {
+        stubs: {
+          AuthLayout: { template: '<div><slot /></div>' },
+          Icon: true,
+          RouterLink: { template: '<a><slot /></a>' },
+          transition: false,
+        },
+      },
+    })
+
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="wechat-choice-bind-existing"]').exists()).toBe(false)
+    expect((wrapper.get('[data-testid="wechat-create-account-email"]').element as HTMLInputElement).value).toBe(
+      'fresh@example.com'
+    )
+  })
+
   it('offers existing-account email collection during invitation flow', async () => {
     exchangePendingOAuthCompletionMock.mockResolvedValue({
       error: 'invitation_required',

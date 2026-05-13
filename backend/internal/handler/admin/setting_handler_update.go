@@ -118,28 +118,29 @@ type UpdateSettingsRequest struct {
 	WeChatConnectFrontendRedirectURL string `json:"wechat_connect_frontend_redirect_url"`
 
 	// Generic OIDC OAuth 登录
-	OIDCConnectEnabled              bool   `json:"oidc_connect_enabled"`
-	OIDCConnectProviderName         string `json:"oidc_connect_provider_name"`
-	OIDCConnectClientID             string `json:"oidc_connect_client_id"`
-	OIDCConnectClientSecret         string `json:"oidc_connect_client_secret"`
-	OIDCConnectIssuerURL            string `json:"oidc_connect_issuer_url"`
-	OIDCConnectDiscoveryURL         string `json:"oidc_connect_discovery_url"`
-	OIDCConnectAuthorizeURL         string `json:"oidc_connect_authorize_url"`
-	OIDCConnectTokenURL             string `json:"oidc_connect_token_url"`
-	OIDCConnectUserInfoURL          string `json:"oidc_connect_userinfo_url"`
-	OIDCConnectJWKSURL              string `json:"oidc_connect_jwks_url"`
-	OIDCConnectScopes               string `json:"oidc_connect_scopes"`
-	OIDCConnectRedirectURL          string `json:"oidc_connect_redirect_url"`
-	OIDCConnectFrontendRedirectURL  string `json:"oidc_connect_frontend_redirect_url"`
-	OIDCConnectTokenAuthMethod      string `json:"oidc_connect_token_auth_method"`
-	OIDCConnectUsePKCE              *bool  `json:"oidc_connect_use_pkce"`
-	OIDCConnectValidateIDToken      *bool  `json:"oidc_connect_validate_id_token"`
-	OIDCConnectAllowedSigningAlgs   string `json:"oidc_connect_allowed_signing_algs"`
-	OIDCConnectClockSkewSeconds     int    `json:"oidc_connect_clock_skew_seconds"`
-	OIDCConnectRequireEmailVerified bool   `json:"oidc_connect_require_email_verified"`
-	OIDCConnectUserInfoEmailPath    string `json:"oidc_connect_userinfo_email_path"`
-	OIDCConnectUserInfoIDPath       string `json:"oidc_connect_userinfo_id_path"`
-	OIDCConnectUserInfoUsernamePath string `json:"oidc_connect_userinfo_username_path"`
+	OIDCConnectEnabled                       bool   `json:"oidc_connect_enabled"`
+	OIDCConnectProviderName                  string `json:"oidc_connect_provider_name"`
+	OIDCConnectClientID                      string `json:"oidc_connect_client_id"`
+	OIDCConnectClientSecret                  string `json:"oidc_connect_client_secret"`
+	OIDCConnectIssuerURL                     string `json:"oidc_connect_issuer_url"`
+	OIDCConnectDiscoveryURL                  string `json:"oidc_connect_discovery_url"`
+	OIDCConnectAuthorizeURL                  string `json:"oidc_connect_authorize_url"`
+	OIDCConnectTokenURL                      string `json:"oidc_connect_token_url"`
+	OIDCConnectUserInfoURL                   string `json:"oidc_connect_userinfo_url"`
+	OIDCConnectJWKSURL                       string `json:"oidc_connect_jwks_url"`
+	OIDCConnectScopes                        string `json:"oidc_connect_scopes"`
+	OIDCConnectRedirectURL                   string `json:"oidc_connect_redirect_url"`
+	OIDCConnectFrontendRedirectURL           string `json:"oidc_connect_frontend_redirect_url"`
+	OIDCConnectTokenAuthMethod               string `json:"oidc_connect_token_auth_method"`
+	OIDCConnectUsePKCE                       *bool  `json:"oidc_connect_use_pkce"`
+	OIDCConnectValidateIDToken               *bool  `json:"oidc_connect_validate_id_token"`
+	OIDCConnectAllowedSigningAlgs            string `json:"oidc_connect_allowed_signing_algs"`
+	OIDCConnectClockSkewSeconds              int    `json:"oidc_connect_clock_skew_seconds"`
+	OIDCConnectRequireEmailVerified          bool   `json:"oidc_connect_require_email_verified"`
+	OIDCConnectRequireLocalEmailVerification bool   `json:"oidc_connect_require_local_email_verification"`
+	OIDCConnectUserInfoEmailPath             string `json:"oidc_connect_userinfo_email_path"`
+	OIDCConnectUserInfoIDPath                string `json:"oidc_connect_userinfo_id_path"`
+	OIDCConnectUserInfoUsernamePath          string `json:"oidc_connect_userinfo_username_path"`
 
 	GitHubOAuthEnabled             bool   `json:"github_oauth_enabled"`
 	GitHubOAuthClientID            string `json:"github_oauth_client_id"`
@@ -1278,8 +1279,21 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 				response.BadRequest(c, "Custom menu item label is too long (max 50 characters)")
 				return
 			}
+			openMode := strings.TrimSpace(item.OpenMode)
+			if openMode == "" {
+				openMode = "iframe"
+			}
+			if openMode != "iframe" && openMode != "external" {
+				response.BadRequest(c, "Custom menu item open_mode must be 'iframe' or 'external'")
+				return
+			}
+			items[i].OpenMode = openMode
 			urlTrimmed := strings.TrimSpace(item.URL)
 			if strings.HasPrefix(urlTrimmed, "md:") {
+				if openMode == "external" {
+					response.BadRequest(c, "External custom menu URL must be an absolute http(s) URL")
+					return
+				}
 				// Markdown page mode: URL = "md:<slug>"
 				slug := strings.TrimPrefix(urlTrimmed, "md:")
 				if slug == "" {
@@ -1543,110 +1557,111 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.APIKeyACLTrustForwardedIP
 		}(),
-		ForwardedClientIPHeaders:               forwardedClientIPHeaders,
-		LinuxDoConnectEnabled:                  req.LinuxDoConnectEnabled,
-		LinuxDoConnectClientID:                 req.LinuxDoConnectClientID,
-		LinuxDoConnectClientSecret:             req.LinuxDoConnectClientSecret,
-		LinuxDoConnectRedirectURL:              req.LinuxDoConnectRedirectURL,
-		DingTalkConnectEnabled:                 req.DingTalkConnectEnabled,
-		DingTalkConnectClientID:                req.DingTalkConnectClientID,
-		DingTalkConnectClientSecret:            req.DingTalkConnectClientSecret,
-		DingTalkConnectRedirectURL:             req.DingTalkConnectRedirectURL,
-		DingTalkConnectCorpRestrictionPolicy:   req.DingTalkConnectCorpRestrictionPolicy,
-		DingTalkConnectInternalCorpID:          req.DingTalkConnectInternalCorpID,
-		DingTalkConnectBypassRegistration:      req.DingTalkConnectBypassRegistration,
-		DingTalkConnectSyncCorpEmail:           req.DingTalkConnectSyncCorpEmail,
-		DingTalkConnectSyncDisplayName:         req.DingTalkConnectSyncDisplayName,
-		DingTalkConnectSyncDept:                req.DingTalkConnectSyncDept,
-		DingTalkConnectSyncCorpEmailAttrKey:    req.DingTalkConnectSyncCorpEmailAttrKey,
-		DingTalkConnectSyncDisplayNameAttrKey:  req.DingTalkConnectSyncDisplayNameAttrKey,
-		DingTalkConnectSyncDeptAttrKey:         req.DingTalkConnectSyncDeptAttrKey,
-		DingTalkConnectSyncCorpEmailAttrName:   req.DingTalkConnectSyncCorpEmailAttrName,
-		DingTalkConnectSyncDisplayNameAttrName: req.DingTalkConnectSyncDisplayNameAttrName,
-		DingTalkConnectSyncDeptAttrName:        req.DingTalkConnectSyncDeptAttrName,
-		WeChatConnectEnabled:                   req.WeChatConnectEnabled,
-		WeChatConnectAppID:                     req.WeChatConnectAppID,
-		WeChatConnectAppSecret:                 req.WeChatConnectAppSecret,
-		WeChatConnectOpenAppID:                 req.WeChatConnectOpenAppID,
-		WeChatConnectOpenAppSecret:             req.WeChatConnectOpenAppSecret,
-		WeChatConnectMPAppID:                   req.WeChatConnectMPAppID,
-		WeChatConnectMPAppSecret:               req.WeChatConnectMPAppSecret,
-		WeChatConnectMobileAppID:               req.WeChatConnectMobileAppID,
-		WeChatConnectMobileAppSecret:           req.WeChatConnectMobileAppSecret,
-		WeChatConnectOpenEnabled:               req.WeChatConnectOpenEnabled,
-		WeChatConnectMPEnabled:                 req.WeChatConnectMPEnabled,
-		WeChatConnectMobileEnabled:             req.WeChatConnectMobileEnabled,
-		WeChatConnectMode:                      req.WeChatConnectMode,
-		WeChatConnectScopes:                    req.WeChatConnectScopes,
-		WeChatConnectRedirectURL:               req.WeChatConnectRedirectURL,
-		WeChatConnectFrontendRedirectURL:       req.WeChatConnectFrontendRedirectURL,
-		OIDCConnectEnabled:                     req.OIDCConnectEnabled,
-		OIDCConnectProviderName:                req.OIDCConnectProviderName,
-		OIDCConnectClientID:                    req.OIDCConnectClientID,
-		OIDCConnectClientSecret:                req.OIDCConnectClientSecret,
-		OIDCConnectIssuerURL:                   req.OIDCConnectIssuerURL,
-		OIDCConnectDiscoveryURL:                req.OIDCConnectDiscoveryURL,
-		OIDCConnectAuthorizeURL:                req.OIDCConnectAuthorizeURL,
-		OIDCConnectTokenURL:                    req.OIDCConnectTokenURL,
-		OIDCConnectUserInfoURL:                 req.OIDCConnectUserInfoURL,
-		OIDCConnectJWKSURL:                     req.OIDCConnectJWKSURL,
-		OIDCConnectScopes:                      req.OIDCConnectScopes,
-		OIDCConnectRedirectURL:                 req.OIDCConnectRedirectURL,
-		OIDCConnectFrontendRedirectURL:         req.OIDCConnectFrontendRedirectURL,
-		OIDCConnectTokenAuthMethod:             req.OIDCConnectTokenAuthMethod,
-		OIDCConnectUsePKCE:                     oidcUsePKCE,
-		OIDCConnectValidateIDToken:             oidcValidateIDToken,
-		OIDCConnectAllowedSigningAlgs:          req.OIDCConnectAllowedSigningAlgs,
-		OIDCConnectClockSkewSeconds:            req.OIDCConnectClockSkewSeconds,
-		OIDCConnectRequireEmailVerified:        req.OIDCConnectRequireEmailVerified,
-		OIDCConnectUserInfoEmailPath:           req.OIDCConnectUserInfoEmailPath,
-		OIDCConnectUserInfoIDPath:              req.OIDCConnectUserInfoIDPath,
-		OIDCConnectUserInfoUsernamePath:        req.OIDCConnectUserInfoUsernamePath,
-		GitHubOAuthEnabled:                     req.GitHubOAuthEnabled,
-		GitHubOAuthClientID:                    req.GitHubOAuthClientID,
-		GitHubOAuthClientSecret:                req.GitHubOAuthClientSecret,
-		GitHubOAuthRedirectURL:                 req.GitHubOAuthRedirectURL,
-		GitHubOAuthFrontendRedirectURL:         req.GitHubOAuthFrontendRedirectURL,
-		GoogleOAuthEnabled:                     req.GoogleOAuthEnabled,
-		GoogleOAuthClientID:                    req.GoogleOAuthClientID,
-		GoogleOAuthClientSecret:                req.GoogleOAuthClientSecret,
-		GoogleOAuthRedirectURL:                 req.GoogleOAuthRedirectURL,
-		GoogleOAuthFrontendRedirectURL:         req.GoogleOAuthFrontendRedirectURL,
-		SiteName:                               req.SiteName,
-		SiteLogo:                               req.SiteLogo,
-		SiteSubtitle:                           req.SiteSubtitle,
-		APIBaseURL:                             req.APIBaseURL,
-		ContactInfo:                            req.ContactInfo,
-		DocURL:                                 req.DocURL,
-		HomeContent:                            req.HomeContent,
-		CompactHomeEnabled:                     req.CompactHomeEnabled,
-		HideCcsImportButton:                    req.HideCcsImportButton,
-		PurchaseSubscriptionEnabled:            purchaseEnabled,
-		PurchaseSubscriptionURL:                purchaseURL,
-		TableDefaultPageSize:                   req.TableDefaultPageSize,
-		TablePageSizeOptions:                   req.TablePageSizeOptions,
-		CustomMenuItems:                        customMenuJSON,
-		CustomEndpoints:                        customEndpointsJSON,
-		DefaultConcurrency:                     req.DefaultConcurrency,
-		DefaultBalance:                         req.DefaultBalance,
-		AffiliateRebateRate:                    affiliateRebateRate,
-		AffiliateRebateFreezeHours:             affiliateRebateFreezeHours,
-		AffiliateRebateDurationDays:            affiliateRebateDurationDays,
-		AffiliateRebatePerInviteeCap:           affiliateRebatePerInviteeCap,
-		AdminRechargeRebateEnabled:             adminRechargeRebateEnabled,
-		DefaultUserRPMLimit:                    req.DefaultUserRPMLimit,
-		DefaultSubscriptions:                   defaultSubscriptions,
-		EnableModelFallback:                    req.EnableModelFallback,
-		FallbackModelAnthropic:                 req.FallbackModelAnthropic,
-		FallbackModelOpenAI:                    req.FallbackModelOpenAI,
-		FallbackModelGemini:                    req.FallbackModelGemini,
-		FallbackModelAntigravity:               req.FallbackModelAntigravity,
-		EnableIdentityPatch:                    req.EnableIdentityPatch,
-		IdentityPatchPrompt:                    req.IdentityPatchPrompt,
-		MinClaudeCodeVersion:                   req.MinClaudeCodeVersion,
-		MaxClaudeCodeVersion:                   req.MaxClaudeCodeVersion,
-		AllowUngroupedKeyScheduling:            req.AllowUngroupedKeyScheduling,
-		BackendModeEnabled:                     req.BackendModeEnabled,
+		ForwardedClientIPHeaders:                 forwardedClientIPHeaders,
+		LinuxDoConnectEnabled:                    req.LinuxDoConnectEnabled,
+		LinuxDoConnectClientID:                   req.LinuxDoConnectClientID,
+		LinuxDoConnectClientSecret:               req.LinuxDoConnectClientSecret,
+		LinuxDoConnectRedirectURL:                req.LinuxDoConnectRedirectURL,
+		DingTalkConnectEnabled:                   req.DingTalkConnectEnabled,
+		DingTalkConnectClientID:                  req.DingTalkConnectClientID,
+		DingTalkConnectClientSecret:              req.DingTalkConnectClientSecret,
+		DingTalkConnectRedirectURL:               req.DingTalkConnectRedirectURL,
+		DingTalkConnectCorpRestrictionPolicy:     req.DingTalkConnectCorpRestrictionPolicy,
+		DingTalkConnectInternalCorpID:            req.DingTalkConnectInternalCorpID,
+		DingTalkConnectBypassRegistration:        req.DingTalkConnectBypassRegistration,
+		DingTalkConnectSyncCorpEmail:             req.DingTalkConnectSyncCorpEmail,
+		DingTalkConnectSyncDisplayName:           req.DingTalkConnectSyncDisplayName,
+		DingTalkConnectSyncDept:                  req.DingTalkConnectSyncDept,
+		DingTalkConnectSyncCorpEmailAttrKey:      req.DingTalkConnectSyncCorpEmailAttrKey,
+		DingTalkConnectSyncDisplayNameAttrKey:    req.DingTalkConnectSyncDisplayNameAttrKey,
+		DingTalkConnectSyncDeptAttrKey:           req.DingTalkConnectSyncDeptAttrKey,
+		DingTalkConnectSyncCorpEmailAttrName:     req.DingTalkConnectSyncCorpEmailAttrName,
+		DingTalkConnectSyncDisplayNameAttrName:   req.DingTalkConnectSyncDisplayNameAttrName,
+		DingTalkConnectSyncDeptAttrName:          req.DingTalkConnectSyncDeptAttrName,
+		WeChatConnectEnabled:                     req.WeChatConnectEnabled,
+		WeChatConnectAppID:                       req.WeChatConnectAppID,
+		WeChatConnectAppSecret:                   req.WeChatConnectAppSecret,
+		WeChatConnectOpenAppID:                   req.WeChatConnectOpenAppID,
+		WeChatConnectOpenAppSecret:               req.WeChatConnectOpenAppSecret,
+		WeChatConnectMPAppID:                     req.WeChatConnectMPAppID,
+		WeChatConnectMPAppSecret:                 req.WeChatConnectMPAppSecret,
+		WeChatConnectMobileAppID:                 req.WeChatConnectMobileAppID,
+		WeChatConnectMobileAppSecret:             req.WeChatConnectMobileAppSecret,
+		WeChatConnectOpenEnabled:                 req.WeChatConnectOpenEnabled,
+		WeChatConnectMPEnabled:                   req.WeChatConnectMPEnabled,
+		WeChatConnectMobileEnabled:               req.WeChatConnectMobileEnabled,
+		WeChatConnectMode:                        req.WeChatConnectMode,
+		WeChatConnectScopes:                      req.WeChatConnectScopes,
+		WeChatConnectRedirectURL:                 req.WeChatConnectRedirectURL,
+		WeChatConnectFrontendRedirectURL:         req.WeChatConnectFrontendRedirectURL,
+		OIDCConnectEnabled:                       req.OIDCConnectEnabled,
+		OIDCConnectProviderName:                  req.OIDCConnectProviderName,
+		OIDCConnectClientID:                      req.OIDCConnectClientID,
+		OIDCConnectClientSecret:                  req.OIDCConnectClientSecret,
+		OIDCConnectIssuerURL:                     req.OIDCConnectIssuerURL,
+		OIDCConnectDiscoveryURL:                  req.OIDCConnectDiscoveryURL,
+		OIDCConnectAuthorizeURL:                  req.OIDCConnectAuthorizeURL,
+		OIDCConnectTokenURL:                      req.OIDCConnectTokenURL,
+		OIDCConnectUserInfoURL:                   req.OIDCConnectUserInfoURL,
+		OIDCConnectJWKSURL:                       req.OIDCConnectJWKSURL,
+		OIDCConnectScopes:                        req.OIDCConnectScopes,
+		OIDCConnectRedirectURL:                   req.OIDCConnectRedirectURL,
+		OIDCConnectFrontendRedirectURL:           req.OIDCConnectFrontendRedirectURL,
+		OIDCConnectTokenAuthMethod:               req.OIDCConnectTokenAuthMethod,
+		OIDCConnectUsePKCE:                       oidcUsePKCE,
+		OIDCConnectValidateIDToken:               oidcValidateIDToken,
+		OIDCConnectAllowedSigningAlgs:            req.OIDCConnectAllowedSigningAlgs,
+		OIDCConnectClockSkewSeconds:              req.OIDCConnectClockSkewSeconds,
+		OIDCConnectRequireEmailVerified:          req.OIDCConnectRequireEmailVerified,
+		OIDCConnectRequireLocalEmailVerification: req.OIDCConnectRequireLocalEmailVerification,
+		OIDCConnectUserInfoEmailPath:             req.OIDCConnectUserInfoEmailPath,
+		OIDCConnectUserInfoIDPath:                req.OIDCConnectUserInfoIDPath,
+		OIDCConnectUserInfoUsernamePath:          req.OIDCConnectUserInfoUsernamePath,
+		GitHubOAuthEnabled:                       req.GitHubOAuthEnabled,
+		GitHubOAuthClientID:                      req.GitHubOAuthClientID,
+		GitHubOAuthClientSecret:                  req.GitHubOAuthClientSecret,
+		GitHubOAuthRedirectURL:                   req.GitHubOAuthRedirectURL,
+		GitHubOAuthFrontendRedirectURL:           req.GitHubOAuthFrontendRedirectURL,
+		GoogleOAuthEnabled:                       req.GoogleOAuthEnabled,
+		GoogleOAuthClientID:                      req.GoogleOAuthClientID,
+		GoogleOAuthClientSecret:                  req.GoogleOAuthClientSecret,
+		GoogleOAuthRedirectURL:                   req.GoogleOAuthRedirectURL,
+		GoogleOAuthFrontendRedirectURL:           req.GoogleOAuthFrontendRedirectURL,
+		SiteName:                                 req.SiteName,
+		SiteLogo:                                 req.SiteLogo,
+		SiteSubtitle:                             req.SiteSubtitle,
+		APIBaseURL:                               req.APIBaseURL,
+		ContactInfo:                              req.ContactInfo,
+		DocURL:                                   req.DocURL,
+		HomeContent:                              req.HomeContent,
+		CompactHomeEnabled:                       req.CompactHomeEnabled,
+		HideCcsImportButton:                      req.HideCcsImportButton,
+		PurchaseSubscriptionEnabled:              purchaseEnabled,
+		PurchaseSubscriptionURL:                  purchaseURL,
+		TableDefaultPageSize:                     req.TableDefaultPageSize,
+		TablePageSizeOptions:                     req.TablePageSizeOptions,
+		CustomMenuItems:                          customMenuJSON,
+		CustomEndpoints:                          customEndpointsJSON,
+		DefaultConcurrency:                       req.DefaultConcurrency,
+		DefaultBalance:                           req.DefaultBalance,
+		AffiliateRebateRate:                      affiliateRebateRate,
+		AffiliateRebateFreezeHours:               affiliateRebateFreezeHours,
+		AffiliateRebateDurationDays:              affiliateRebateDurationDays,
+		AffiliateRebatePerInviteeCap:             affiliateRebatePerInviteeCap,
+		AdminRechargeRebateEnabled:               adminRechargeRebateEnabled,
+		DefaultUserRPMLimit:                      req.DefaultUserRPMLimit,
+		DefaultSubscriptions:                     defaultSubscriptions,
+		EnableModelFallback:                      req.EnableModelFallback,
+		FallbackModelAnthropic:                   req.FallbackModelAnthropic,
+		FallbackModelOpenAI:                      req.FallbackModelOpenAI,
+		FallbackModelGemini:                      req.FallbackModelGemini,
+		FallbackModelAntigravity:                 req.FallbackModelAntigravity,
+		EnableIdentityPatch:                      req.EnableIdentityPatch,
+		IdentityPatchPrompt:                      req.IdentityPatchPrompt,
+		MinClaudeCodeVersion:                     req.MinClaudeCodeVersion,
+		MaxClaudeCodeVersion:                     req.MaxClaudeCodeVersion,
+		AllowUngroupedKeyScheduling:              req.AllowUngroupedKeyScheduling,
+		BackendModeEnabled:                       req.BackendModeEnabled,
 		AllowUserViewErrorRequests: func() bool {
 			if req.AllowUserViewErrorRequests != nil {
 				return *req.AllowUserViewErrorRequests
@@ -2221,6 +2236,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		OIDCConnectAllowedSigningAlgs:                          updatedSettings.OIDCConnectAllowedSigningAlgs,
 		OIDCConnectClockSkewSeconds:                            updatedSettings.OIDCConnectClockSkewSeconds,
 		OIDCConnectRequireEmailVerified:                        updatedSettings.OIDCConnectRequireEmailVerified,
+		OIDCConnectRequireLocalEmailVerification:               updatedSettings.OIDCConnectRequireLocalEmailVerification,
 		OIDCConnectUserInfoEmailPath:                           updatedSettings.OIDCConnectUserInfoEmailPath,
 		OIDCConnectUserInfoIDPath:                              updatedSettings.OIDCConnectUserInfoIDPath,
 		OIDCConnectUserInfoUsernamePath:                        updatedSettings.OIDCConnectUserInfoUsernamePath,

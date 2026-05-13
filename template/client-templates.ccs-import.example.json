@@ -1,0 +1,20 @@
+{
+  "client_templates": {
+    "ccs_import": {
+      "base": "ccswitch://v1/import",
+      "params": {
+        "resource": "provider",
+        "app": "${app}",
+        "name": "${providerName}",
+        "homepage": "${baseUrl}",
+        "endpoint": "${endpoint}",
+        "model": "gpt-5.5",
+        "apiKey": "${apiKey}",
+        "configFormat": "json",
+        "usageEnabled": "true",
+        "usageScript": "({\n  request: {\n    url: \"${baseUrl}/v1/usage\",\n    method: \"GET\",\n    headers: { \"Authorization\": \"Bearer ${apiKey}\" }\n  },\n  extractor: function(response) {\n    const remaining = response?.remaining ?? response?.quota?.remaining ?? response?.balance;\n    const unit = response?.unit ?? response?.quota?.unit ?? \"USD\";\n    return {\n      isValid: response?.is_active ?? response?.isValid ?? true,\n      remaining,\n      unit\n    };\n  }\n})",
+        "usageAutoInterval": "30"
+      }
+    }
+  }
+}
