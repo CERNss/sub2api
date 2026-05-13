@@ -34,7 +34,7 @@
         @error="onTurnstileError"
       />
     </div>
-    <div v-if="emailVerifyEnabled" class="flex gap-3">
+    <div v-if="localEmailVerificationRequired" class="flex gap-3">
       <input
         v-model="verifyCode"
         :data-testid="`${testIdPrefix}-create-account-verify-code`"
@@ -61,10 +61,10 @@
         }}
       </button>
     </div>
-    <p v-if="emailVerifyEnabled && sendCodeSuccess" class="text-sm text-green-600 dark:text-green-400">
+    <p v-if="localEmailVerificationRequired && sendCodeSuccess" class="text-sm text-green-600 dark:text-green-400">
       {{ t('auth.codeSentSuccess') }}
     </p>
-    <p v-else-if="emailVerifyEnabled" class="text-xs text-gray-500 dark:text-dark-400">
+    <p v-else-if="localEmailVerificationRequired" class="text-xs text-gray-500 dark:text-dark-400">
       {{ t('auth.verificationCodeHint') }}
     </p>
     <input
@@ -118,6 +118,8 @@ const props = defineProps<{
   testIdPrefix: string
   isSubmitting: boolean
   errorMessage?: string
+  requireVerifyCode?: boolean
+  trustedEmail?: string
 }>()
 
 const emit = defineEmits<{
@@ -166,6 +168,19 @@ const captchaEnabled = computed(
   () =>
     (turnstileEnabled.value && Boolean(turnstileSiteKey.value)) || actionCaptchaEnabled.value
 )
+const normalizedTrustedEmail = computed(() => props.trustedEmail?.trim().toLowerCase() || '')
+const localEmailVerificationRequired = computed(() => {
+  if (!emailVerifyEnabled.value) {
+    return false
+  }
+  if (props.requireVerifyCode !== false) {
+    return true
+  }
+  if (!normalizedTrustedEmail.value) {
+    return true
+  }
+  return email.value.trim().toLowerCase() !== normalizedTrustedEmail.value
+})
 
 let countdownTimer: ReturnType<typeof setInterval> | null = null
 
@@ -262,6 +277,10 @@ async function acquireActionProof(): Promise<boolean> {
 }
 
 async function handleSendCode() {
+  if (!localEmailVerificationRequired.value) {
+    return
+  }
+
   const trimmedEmail = email.value.trim()
   if (!trimmedEmail) {
     return
@@ -321,7 +340,7 @@ async function handleSubmit() {
   emit('submit', {
     email: trimmedEmail,
     password: password.value,
-    verifyCode: emailVerifyEnabled.value ? verifyCode.value.trim() : '',
+    verifyCode: localEmailVerificationRequired.value ? verifyCode.value.trim() : '',
     ...((turnstileEnabled.value || aliyunCaptchaEnabled.value) && turnstileToken.value
       ? { turnstileToken: turnstileToken.value }
       : {}),
