@@ -19,3 +19,23 @@ declare module '*.md?raw' {
   const content: string
   export default content
 }
+
+declare module '@airwallex/components-sdk' {
+  export interface AirwallexPayments {
+    redirectToCheckout(options: {
+      intent_id: string
+      client_secret: string
+      currency: string
+      country_code: string
+      successUrl: string
+    }): string | void
+  }
+
+  export function init(options: {
+    env: 'demo' | 'prod'
+    enabledElements: string[]
+    locale: string
+  }): Promise<{
+    payments?: AirwallexPayments
+  }>
+}
