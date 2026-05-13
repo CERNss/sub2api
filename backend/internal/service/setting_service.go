@@ -1272,14 +1272,16 @@ func parseCustomMenuItemURLs(raw string) []string {
 		return nil
 	}
 	var items []struct {
-		URL string `json:"url"`
+		URL      string `json:"url"`
+		OpenMode string `json:"open_mode"`
 	}
 	if err := json.Unmarshal([]byte(raw), &items); err != nil {
 		return nil
 	}
 	urls := make([]string, 0, len(items))
 	for _, item := range items {
-		if item.URL != "" {
+		openMode := strings.TrimSpace(item.OpenMode)
+		if openMode == "" || openMode == "iframe" {
 			urls = append(urls, item.URL)
 		}
 	}

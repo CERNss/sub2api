@@ -169,6 +169,7 @@ export interface CustomMenuItem {
   icon_svg: string
   url: string
   page_slug?: string
+  open_mode?: 'iframe' | 'external'
   visibility: 'user' | 'admin'
   sort_order: number
 }

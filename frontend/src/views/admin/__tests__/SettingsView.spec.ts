@@ -603,6 +603,39 @@ describe("admin SettingsView payment visible method controls", () => {
     );
   });
 
+  it("defaults legacy custom menu items to iframe open mode", async () => {
+    getSettings.mockResolvedValueOnce({
+      ...baseSettingsResponse,
+      custom_menu_items: [
+        {
+          id: "sidecar",
+          label: "Sidecar",
+          icon_svg: "",
+          url: "https://sidecar.example.com",
+          visibility: "admin",
+          sort_order: 0,
+        },
+      ],
+    });
+
+    const wrapper = mountView();
+
+    await flushPromises();
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    expect(updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        custom_menu_items: [
+          expect.objectContaining({
+            id: "sidecar",
+            open_mode: "iframe",
+          }),
+        ],
+      }),
+    );
+  });
+
   it("submits message cache_control rewrite gateway setting", async () => {
     getSettings.mockResolvedValueOnce({
       ...baseSettingsResponse,

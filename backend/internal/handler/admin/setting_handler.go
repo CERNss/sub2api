@@ -1136,6 +1136,17 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 				response.BadRequest(c, "Custom menu item visibility must be 'user' or 'admin'")
 				return
 			}
+			openMode := strings.TrimSpace(item.OpenMode)
+			if openMode == "" {
+				items[i].OpenMode = "iframe"
+			} else if openMode != "iframe" && openMode != "external" {
+				response.BadRequest(c, "Custom menu item open_mode must be 'iframe' or 'external'")
+				return
+			}
+			if items[i].OpenMode == "external" && strings.HasPrefix(urlTrimmed, "md:") {
+				response.BadRequest(c, "External custom menu items must use an absolute http(s) URL")
+				return
+			}
 			if len(item.IconSVG) > maxMenuItemIconSVGLen {
 				response.BadRequest(c, "Custom menu item icon SVG is too large (max 10KB)")
 				return
