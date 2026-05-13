@@ -1,0 +1,3 @@
+source=golangci/golangci-lint-action
+ref=v9
+commit=1e7e51e771db61008b38414a730f564565cf7c20
