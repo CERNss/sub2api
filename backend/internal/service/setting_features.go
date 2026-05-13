@@ -43,6 +43,25 @@ func (s *SettingService) IsRegistrationEmailDomainQuotaEnabled(ctx context.Conte
 	return value == "true"
 }
 
+// GetOIDCConnectRequireLocalEmailVerification returns whether OIDC pending signup
+// should still require a local email-code check after upstream verified email.
+func (s *SettingService) GetOIDCConnectRequireLocalEmailVerification(ctx context.Context) bool {
+	if s == nil || s.settingRepo == nil {
+		return true
+	}
+	value, err := s.settingRepo.GetValue(ctx, SettingKeyOIDCConnectRequireLocalEmailVerification)
+	if err != nil {
+		return true
+	}
+	return strings.TrimSpace(value) != "false"
+}
+
+// IsOIDCConnectLocalEmailVerificationRequired is the policy predicate used by
+// pending OIDC signup flows.
+func (s *SettingService) IsOIDCConnectLocalEmailVerificationRequired(ctx context.Context) bool {
+	return s.GetOIDCConnectRequireLocalEmailVerification(ctx)
+}
+
 // GetRegistrationEmailSuffixWhitelist returns normalized registration email suffix whitelist.
 func (s *SettingService) GetRegistrationEmailSuffixWhitelist(ctx context.Context) []string {
 	value, err := s.settingRepo.GetValue(ctx, SettingKeyRegistrationEmailSuffixWhitelist)

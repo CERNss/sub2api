@@ -308,6 +308,9 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	if before.OIDCConnectRequireEmailVerified != after.OIDCConnectRequireEmailVerified {
 		changed = append(changed, "oidc_connect_require_email_verified")
 	}
+	if before.OIDCConnectRequireLocalEmailVerification != after.OIDCConnectRequireLocalEmailVerification {
+		changed = append(changed, "oidc_connect_require_local_email_verification")
+	}
 	if before.OIDCConnectUserInfoEmailPath != after.OIDCConnectUserInfoEmailPath {
 		changed = append(changed, "oidc_connect_userinfo_email_path")
 	}
