@@ -6,6 +6,8 @@ import { describe, expect, it } from 'vitest'
 
 const componentPath = resolve(dirname(fileURLToPath(import.meta.url)), '../AppSidebar.vue')
 const componentSource = readFileSync(componentPath, 'utf8')
+const customPagePath = resolve(dirname(fileURLToPath(import.meta.url)), '../../../views/user/CustomPageView.vue')
+const customPageSource = readFileSync(customPagePath, 'utf8')
 const stylePath = resolve(dirname(fileURLToPath(import.meta.url)), '../../../style.css')
 const styleSource = readFileSync(stylePath, 'utf8')
 
@@ -28,5 +30,17 @@ describe('AppSidebar header styles', () => {
     expect(sidebarBrandBlockMatch).not.toBeNull()
     expect(sidebarHeaderBlockMatch?.[0]).not.toContain('@apply overflow-hidden;')
     expect(sidebarBrandBlockMatch?.[0]).not.toContain('overflow: hidden;')
+  })
+})
+
+describe('AppSidebar external custom menu items', () => {
+  it('opens external custom menu items without routing to the iframe custom page', () => {
+    expect(componentSource).toContain("path: externalUrl ? `external:${item.id}` : `/custom/${item.id}`")
+    expect(componentSource).toContain('v-else-if="item.externalUrl"')
+    expect(componentSource).toContain("window.open(url, '_blank', 'noopener,noreferrer')")
+  })
+
+  it('keeps external custom menu items out of CustomPageView iframe resolution', () => {
+    expect(customPageSource).toContain("item.id === id && item.open_mode !== 'external'")
   })
 })
