@@ -105,6 +105,7 @@ func (s *AuthService) RegisterOAuthEmailAccount(
 	verifyCode string,
 	invitationCode string,
 	signupSource string,
+	requireLocalEmailVerification bool,
 ) (*TokenPair, *User, error) {
 	if s == nil {
 		return nil, nil, ErrServiceUnavailable
@@ -120,8 +121,10 @@ func (s *AuthService) RegisterOAuthEmailAccount(
 	if err := s.validateRegistrationEmailPolicy(ctx, email); err != nil {
 		return nil, nil, err
 	}
-	if err := s.VerifyOAuthEmailCode(ctx, email, verifyCode); err != nil {
-		return nil, nil, err
+	if requireLocalEmailVerification {
+		if err := s.VerifyOAuthEmailCode(ctx, email, verifyCode); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	if _, err := s.validateOAuthRegistrationInvitation(ctx, invitationCode); err != nil {

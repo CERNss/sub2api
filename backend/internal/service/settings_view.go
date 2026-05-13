@@ -69,29 +69,30 @@ type SystemSettings struct {
 	WeChatConnectFrontendRedirectURL       string
 
 	// Generic OIDC OAuth 登录
-	OIDCConnectEnabled                bool
-	OIDCConnectProviderName           string
-	OIDCConnectClientID               string
-	OIDCConnectClientSecret           string
-	OIDCConnectClientSecretConfigured bool
-	OIDCConnectIssuerURL              string
-	OIDCConnectDiscoveryURL           string
-	OIDCConnectAuthorizeURL           string
-	OIDCConnectTokenURL               string
-	OIDCConnectUserInfoURL            string
-	OIDCConnectJWKSURL                string
-	OIDCConnectScopes                 string
-	OIDCConnectRedirectURL            string
-	OIDCConnectFrontendRedirectURL    string
-	OIDCConnectTokenAuthMethod        string
-	OIDCConnectUsePKCE                bool
-	OIDCConnectValidateIDToken        bool
-	OIDCConnectAllowedSigningAlgs     string
-	OIDCConnectClockSkewSeconds       int
-	OIDCConnectRequireEmailVerified   bool
-	OIDCConnectUserInfoEmailPath      string
-	OIDCConnectUserInfoIDPath         string
-	OIDCConnectUserInfoUsernamePath   string
+	OIDCConnectEnabled                       bool
+	OIDCConnectProviderName                  string
+	OIDCConnectClientID                      string
+	OIDCConnectClientSecret                  string
+	OIDCConnectClientSecretConfigured        bool
+	OIDCConnectIssuerURL                     string
+	OIDCConnectDiscoveryURL                  string
+	OIDCConnectAuthorizeURL                  string
+	OIDCConnectTokenURL                      string
+	OIDCConnectUserInfoURL                   string
+	OIDCConnectJWKSURL                       string
+	OIDCConnectScopes                        string
+	OIDCConnectRedirectURL                   string
+	OIDCConnectFrontendRedirectURL           string
+	OIDCConnectTokenAuthMethod               string
+	OIDCConnectUsePKCE                       bool
+	OIDCConnectValidateIDToken               bool
+	OIDCConnectAllowedSigningAlgs            string
+	OIDCConnectClockSkewSeconds              int
+	OIDCConnectRequireEmailVerified          bool
+	OIDCConnectRequireLocalEmailVerification bool
+	OIDCConnectUserInfoEmailPath             string
+	OIDCConnectUserInfoIDPath                string
+	OIDCConnectUserInfoUsernamePath          string
 
 	// GitHub / Google 邮箱快捷登录
 	GitHubOAuthEnabled                bool
