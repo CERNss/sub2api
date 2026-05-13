@@ -652,7 +652,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          "${{ steps.install_goreleaser.outputs.goreleaser_bin }}" release --clean --skip=validate ${{ env.SIMPLE_RELEASE == 'true' && '--config=.goreleaser.simple.yaml' || '' }}
+          bash tools/run-goreleaser-release.sh "${{ steps.install_goreleaser.outputs.goreleaser_bin }}" ${{ env.SIMPLE_RELEASE == 'true' && '--config=.goreleaser.simple.yaml' || '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG_MESSAGE: ${{ steps.tag_message.outputs.message }}
@@ -905,7 +905,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          "${{ steps.install_goreleaser.outputs.goreleaser_bin }}" release --clean --skip=validate ${{ env.SIMPLE_RELEASE == 'true' && '--config=.goreleaser.simple.yaml' || '' }}
+          bash tools/run-goreleaser-release.sh "${{ steps.install_goreleaser.outputs.goreleaser_bin }}" ${{ env.SIMPLE_RELEASE == 'true' && '--config=.goreleaser.simple.yaml' || '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG_MESSAGE: ${{ steps.tag_message.outputs.message }}
