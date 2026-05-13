@@ -344,6 +344,8 @@ type PendingOidcCompletion = PendingOAuthExchangeResponse & {
   pending_email?: string
   resolved_email?: string
   existing_account_email?: string
+  existing_account_bindable?: boolean
+  create_account_allowed?: boolean
   email?: string
   suggested_email?: string
   provider_fallback?: string

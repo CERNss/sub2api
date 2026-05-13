@@ -481,6 +481,31 @@ export interface PaginationConfig {
   page_size: number
 }
 
+// ==================== Client Template Types ====================
+
+export interface ClientTemplateFile {
+  path: string
+  content: string
+  hint?: string
+}
+
+export interface ClientTemplateSectionConfig {
+  files?: ClientTemplateFile[]
+  websocket_files?: ClientTemplateFile[]
+}
+
+export interface CcsImportTemplateConfig {
+  base?: string
+  params?: Record<string, string>
+}
+
+export interface ClientTemplatesConfig {
+  codex?: ClientTemplateSectionConfig
+  opencode?: ClientTemplateSectionConfig
+  ccs_import?: CcsImportTemplateConfig
+  [key: string]: ClientTemplateSectionConfig | CcsImportTemplateConfig | undefined
+}
+
 // ==================== API Key & Group Types ====================
 
 export type GroupPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity'
