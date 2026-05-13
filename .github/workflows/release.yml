@@ -587,7 +587,7 @@ jobs:
           which -a go
           go version
           go env GOROOT GOTOOLCHAIN
-          go version | grep -q 'go1.26.2'
+          go version | grep -q 'go1.26.3'
 
       - name: Verify Docker on macOS runner
         shell: bash
@@ -846,7 +846,7 @@ jobs:
           which -a go
           go version
           go env GOROOT GOTOOLCHAIN
-          go version | grep -q 'go1.26.2'
+          go version | grep -q 'go1.26.3'
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
