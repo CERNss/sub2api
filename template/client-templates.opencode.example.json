@@ -1,0 +1,12 @@
+{
+  "client_templates": {
+    "opencode": {
+      "files": [
+        {
+          "path": "opencode.json",
+          "content": "{\n  \"$schema\": \"https://opencode.ai/config.json\",\n  \"provider\": {\n    \"openai\": {\n      \"options\": {\n        \"baseURL\": \"${endpoint}\",\n        \"apiKey\": \"${apiKey}\"\n      }\n    }\n  }\n}"
+        }
+      ]
+    }
+  }
+}
