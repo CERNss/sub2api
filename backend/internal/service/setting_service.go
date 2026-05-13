@@ -1635,6 +1635,7 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyOIDCConnectAllowedSigningAlgs] = settings.OIDCConnectAllowedSigningAlgs
 	updates[SettingKeyOIDCConnectClockSkewSeconds] = strconv.Itoa(settings.OIDCConnectClockSkewSeconds)
 	updates[SettingKeyOIDCConnectRequireEmailVerified] = strconv.FormatBool(settings.OIDCConnectRequireEmailVerified)
+	updates[SettingKeyOIDCConnectRequireLocalEmailVerification] = strconv.FormatBool(settings.OIDCConnectRequireLocalEmailVerification)
 	updates[SettingKeyOIDCConnectUserInfoEmailPath] = settings.OIDCConnectUserInfoEmailPath
 	updates[SettingKeyOIDCConnectUserInfoIDPath] = settings.OIDCConnectUserInfoIDPath
 	updates[SettingKeyOIDCConnectUserInfoUsernamePath] = settings.OIDCConnectUserInfoUsernamePath
@@ -2158,6 +2159,16 @@ func (s *SettingService) IsEmailVerifyEnabled(ctx context.Context) bool {
 	return value == "true"
 }
 
+// GetOIDCConnectRequireLocalEmailVerification returns whether OIDC pending signup
+// should still require a local email-code check after upstream verified email.
+func (s *SettingService) GetOIDCConnectRequireLocalEmailVerification(ctx context.Context) bool {
+	value, err := s.settingRepo.GetValue(ctx, SettingKeyOIDCConnectRequireLocalEmailVerification)
+	if err != nil {
+		return true
+	}
+	return value != "false"
+}
+
 // GetRegistrationEmailSuffixWhitelist returns normalized registration email suffix whitelist.
 func (s *SettingService) GetRegistrationEmailSuffixWhitelist(ctx context.Context) []string {
 	value, err := s.settingRepo.GetValue(ctx, SettingKeyRegistrationEmailSuffixWhitelist)
@@ -2540,6 +2551,7 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyOIDCConnectAllowedSigningAlgs:             "RS256,ES256,PS256",
 		SettingKeyOIDCConnectClockSkewSeconds:               "120",
 		SettingKeyOIDCConnectRequireEmailVerified:           "false",
+		SettingKeyOIDCConnectRequireLocalEmailVerification:  "true",
 		SettingKeyOIDCConnectUserInfoEmailPath:              "",
 		SettingKeyOIDCConnectUserInfoIDPath:                 "",
 		SettingKeyOIDCConnectUserInfoUsernamePath:           "",
@@ -3148,6 +3160,11 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	}
 	result.AntigravityUserAgentVersion = antigravity.NormalizeUserAgentVersion(settings[SettingKeyAntigravityUserAgentVersion])
 	result.OpenAICodexUserAgent = strings.TrimSpace(settings[SettingKeyOpenAICodexUserAgent])
+	if raw, ok := settings[SettingKeyOIDCConnectRequireLocalEmailVerification]; ok {
+		result.OIDCConnectRequireLocalEmailVerification = raw != "false"
+	} else {
+		result.OIDCConnectRequireLocalEmailVerification = true
+	}
 
 	// Web search emulation: quick enabled check from the JSON config
 	if raw := settings[SettingKeyWebSearchEmulationConfig]; raw != "" {

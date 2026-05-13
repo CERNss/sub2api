@@ -10,7 +10,7 @@ docker run -d \
   -p 8080:8080 \
   -e DATABASE_URL="postgres://user:pass@host:5432/sub2api" \
   -e REDIS_URL="redis://host:6379" \
-  weishaw/sub2api:latest
+  <dockerhub-namespace>/<image-name>:latest
 ```
 
 ## Docker Compose
@@ -20,7 +20,7 @@ version: '3.8'
 
 services:
   sub2api:
-    image: weishaw/sub2api:latest
+    image: <dockerhub-namespace>/<image-name>:latest
     ports:
       - "8080:8080"
     environment:
@@ -70,7 +70,12 @@ volumes:
 - `x.y` - Latest patch of minor version
 - `x` - Latest minor of major version
 
+## Repository Naming
+
+- Replace `<dockerhub-namespace>/<image-name>` with the DockerHub repository published by your release workflow.
+- The same image is also published to GHCR as `ghcr.io/<ghcr-namespace>/<image-name>`.
+
 ## Links
 
-- [GitHub Repository](https://github.com/weishaw/sub2api)
-- [Documentation](https://github.com/weishaw/sub2api#readme)
+- GitHub repository: the repository that published this image
+- Documentation: see `deploy/README.md` in that repository

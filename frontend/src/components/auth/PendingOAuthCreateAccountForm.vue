@@ -16,7 +16,10 @@
       :placeholder="t('auth.passwordPlaceholder')"
       :disabled="isSubmitting"
     />
-    <div v-if="turnstileEnabled && turnstileSiteKey" class="space-y-2">
+    <div
+      v-if="localEmailVerificationRequired && turnstileEnabled && turnstileSiteKey"
+      class="space-y-2"
+    >
       <TurnstileWidget
         ref="turnstileRef"
         :site-key="turnstileSiteKey"
@@ -25,17 +28,17 @@
         @error="onTurnstileError"
       />
     </div>
-    <div class="flex gap-3">
-    <input
-      v-model="verifyCode"
-      :data-testid="`${testIdPrefix}-create-account-verify-code`"
-      type="text"
+    <div v-if="localEmailVerificationRequired" class="flex gap-3">
+      <input
+        v-model="verifyCode"
+        :data-testid="`${testIdPrefix}-create-account-verify-code`"
+        type="text"
         inputmode="numeric"
-      maxlength="6"
-      class="input min-w-0 flex-1"
-      placeholder="123456"
-      :disabled="isSubmitting"
-    />
+        maxlength="6"
+        class="input min-w-0 flex-1"
+        placeholder="123456"
+        :disabled="isSubmitting"
+      />
       <button
         :data-testid="`${testIdPrefix}-create-account-send-code`"
         type="button"
@@ -52,10 +55,16 @@
         }}
       </button>
     </div>
-    <p v-if="sendCodeSuccess" class="text-sm text-green-600 dark:text-green-400">
+    <p
+      v-if="localEmailVerificationRequired && sendCodeSuccess"
+      class="text-sm text-green-600 dark:text-green-400"
+    >
       {{ t('auth.codeSentSuccess') }}
     </p>
-    <p v-else class="text-xs text-gray-500 dark:text-dark-400">
+    <p
+      v-else-if="localEmailVerificationRequired"
+      class="text-xs text-gray-500 dark:text-dark-400"
+    >
       {{ t('auth.verificationCodeHint') }}
     </p>
     <input
@@ -88,7 +97,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import TurnstileWidget from '@/components/TurnstileWidget.vue'
 import { getPublicSettings, sendPendingOAuthVerifyCode } from '@/api/auth'
@@ -106,6 +115,8 @@ const props = defineProps<{
   testIdPrefix: string
   isSubmitting: boolean
   errorMessage?: string
+  requireVerifyCode?: boolean
+  trustedEmail?: string
 }>()
 
 const emit = defineEmits<{
@@ -129,6 +140,16 @@ const turnstileEnabled = ref(false)
 const turnstileSiteKey = ref('')
 const turnstileToken = ref('')
 const turnstileRef = ref<InstanceType<typeof TurnstileWidget> | null>(null)
+const normalizedTrustedEmail = computed(() => props.trustedEmail?.trim().toLowerCase() || '')
+const localEmailVerificationRequired = computed(() => {
+  if (props.requireVerifyCode !== false) {
+    return true
+  }
+  if (!normalizedTrustedEmail.value) {
+    return true
+  }
+  return email.value.trim().toLowerCase() !== normalizedTrustedEmail.value
+})
 
 let countdownTimer: ReturnType<typeof setInterval> | null = null
 
@@ -207,6 +228,10 @@ function onTurnstileError() {
 }
 
 async function handleSendCode() {
+  if (!localEmailVerificationRequired.value) {
+    return
+  }
+
   const trimmedEmail = email.value.trim()
   if (!trimmedEmail) {
     return

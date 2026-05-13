@@ -143,6 +143,28 @@ describe('PendingOAuthCreateAccountForm', () => {
     })
   })
 
+  it('hides local verification controls for the trusted OIDC email until the email changes', async () => {
+    const wrapper = mount(PendingOAuthCreateAccountForm, {
+      props: {
+        testIdPrefix: 'oidc',
+        initialEmail: 'trusted@example.com',
+        trustedEmail: 'trusted@example.com',
+        requireVerifyCode: false,
+        isSubmitting: false
+      }
+    })
+
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="oidc-create-account-verify-code"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="oidc-create-account-send-code"]').exists()).toBe(false)
+
+    await wrapper.get('[data-testid="oidc-create-account-email"]').setValue('other@example.com')
+
+    expect(wrapper.find('[data-testid="oidc-create-account-verify-code"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="oidc-create-account-send-code"]').exists()).toBe(true)
+  })
+
   it('shows send-code failures via toast without rendering inline error text', async () => {
     sendPendingOAuthVerifyCode.mockRejectedValue(new Error('send failed'))
 

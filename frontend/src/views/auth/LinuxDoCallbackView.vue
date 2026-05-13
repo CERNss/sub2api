@@ -333,7 +333,10 @@ type LinuxDoPendingActionResponse = PendingOAuthExchangeResponse & {
   resolved_email?: string
   pending_email?: string
   existing_account_email?: string
+  compat_email?: string
   suggested_email?: string
+  existing_account_bindable?: boolean
+  create_account_allowed?: boolean
 }
 
 function persistPendingAuthSession(redirect?: string) {
@@ -434,10 +437,15 @@ function normalizedPendingState(value: string | null | undefined): string {
   return value?.trim().toLowerCase() || ''
 }
 
+function shouldCreateAccountFromChoice(completion: LinuxDoPendingActionResponse): boolean {
+  return completion.existing_account_bindable === false && completion.create_account_allowed !== false
+}
+
 function extractPendingAccountEmail(completion: LinuxDoPendingActionResponse): string {
   return (
     completion.pending_email ||
     completion.existing_account_email ||
+    completion.compat_email ||
     completion.email ||
     completion.resolved_email ||
     completion.suggested_email ||
@@ -456,6 +464,9 @@ function resolvePendingAccountAction(
     raw === 'choose_account' ||
     raw === 'choose'
   ) {
+    if (shouldCreateAccountFromChoice(completion)) {
+      return 'create_account'
+    }
     return 'choose_account_action'
   }
   if (raw === 'email_required' || raw === 'create_account_required' || raw === 'create_account') {
