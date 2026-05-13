@@ -1588,13 +1588,17 @@ func parseCustomMenuItemURLs(raw string) []string {
 		return nil
 	}
 	var items []struct {
-		URL string `json:"url"`
+		URL      string `json:"url"`
+		OpenMode string `json:"open_mode"`
 	}
 	if err := json.Unmarshal([]byte(raw), &items); err != nil {
 		return nil
 	}
 	urls := make([]string, 0, len(items))
 	for _, item := range items {
+		if strings.TrimSpace(item.OpenMode) == "external" {
+			continue
+		}
 		if item.URL != "" {
 			urls = append(urls, item.URL)
 		}
@@ -1832,6 +1836,7 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyOIDCConnectAllowedSigningAlgs] = settings.OIDCConnectAllowedSigningAlgs
 	updates[SettingKeyOIDCConnectClockSkewSeconds] = strconv.Itoa(settings.OIDCConnectClockSkewSeconds)
 	updates[SettingKeyOIDCConnectRequireEmailVerified] = strconv.FormatBool(settings.OIDCConnectRequireEmailVerified)
+	updates[SettingKeyOIDCConnectRequireLocalEmailVerification] = strconv.FormatBool(settings.OIDCConnectRequireLocalEmailVerification)
 	updates[SettingKeyOIDCConnectUserInfoEmailPath] = settings.OIDCConnectUserInfoEmailPath
 	updates[SettingKeyOIDCConnectUserInfoIDPath] = settings.OIDCConnectUserInfoIDPath
 	updates[SettingKeyOIDCConnectUserInfoUsernamePath] = settings.OIDCConnectUserInfoUsernamePath
@@ -2861,6 +2866,7 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyOIDCConnectAllowedSigningAlgs:             "RS256,ES256,PS256",
 		SettingKeyOIDCConnectClockSkewSeconds:               "120",
 		SettingKeyOIDCConnectRequireEmailVerified:           "false",
+		SettingKeyOIDCConnectRequireLocalEmailVerification:  "true",
 		SettingKeyOIDCConnectUserInfoEmailPath:              "",
 		SettingKeyOIDCConnectUserInfoIDPath:                 "",
 		SettingKeyOIDCConnectUserInfoUsernamePath:           "",
@@ -3342,6 +3348,11 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 		result.OIDCConnectRequireEmailVerified = raw == "true"
 	} else {
 		result.OIDCConnectRequireEmailVerified = oidcBase.RequireEmailVerified
+	}
+	if raw, ok := settings[SettingKeyOIDCConnectRequireLocalEmailVerification]; ok {
+		result.OIDCConnectRequireLocalEmailVerification = raw != "false"
+	} else {
+		result.OIDCConnectRequireLocalEmailVerification = true
 	}
 	if v, ok := settings[SettingKeyOIDCConnectUserInfoEmailPath]; ok {
 		result.OIDCConnectUserInfoEmailPath = strings.TrimSpace(v)
