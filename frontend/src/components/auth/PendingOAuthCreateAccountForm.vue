@@ -16,7 +16,7 @@
       :placeholder="t('auth.passwordPlaceholder')"
       :disabled="isSubmitting"
     />
-    <div v-if="emailVerifyEnabled && turnstileEnabled && turnstileSiteKey" class="space-y-2">
+    <div v-if="localEmailVerificationRequired && turnstileEnabled && turnstileSiteKey" class="space-y-2">
       <TurnstileWidget
         ref="turnstileRef"
         :site-key="turnstileSiteKey"
@@ -25,7 +25,7 @@
         @error="onTurnstileError"
       />
     </div>
-    <div v-if="emailVerifyEnabled" class="flex gap-3">
+    <div v-if="localEmailVerificationRequired" class="flex gap-3">
       <input
         v-model="verifyCode"
         :data-testid="`${testIdPrefix}-create-account-verify-code`"
@@ -52,10 +52,10 @@
         }}
       </button>
     </div>
-    <p v-if="emailVerifyEnabled && sendCodeSuccess" class="text-sm text-green-600 dark:text-green-400">
+    <p v-if="localEmailVerificationRequired && sendCodeSuccess" class="text-sm text-green-600 dark:text-green-400">
       {{ t('auth.codeSentSuccess') }}
     </p>
-    <p v-else-if="emailVerifyEnabled" class="text-xs text-gray-500 dark:text-dark-400">
+    <p v-else-if="localEmailVerificationRequired" class="text-xs text-gray-500 dark:text-dark-400">
       {{ t('auth.verificationCodeHint') }}
     </p>
     <input
@@ -88,7 +88,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import TurnstileWidget from '@/components/TurnstileWidget.vue'
 import { getPublicSettings, sendPendingOAuthVerifyCode } from '@/api/auth'
@@ -106,6 +106,8 @@ const props = defineProps<{
   testIdPrefix: string
   isSubmitting: boolean
   errorMessage?: string
+  requireVerifyCode?: boolean
+  trustedEmail?: string
 }>()
 
 const emit = defineEmits<{
@@ -130,6 +132,19 @@ const turnstileEnabled = ref(false)
 const turnstileSiteKey = ref('')
 const turnstileToken = ref('')
 const turnstileRef = ref<InstanceType<typeof TurnstileWidget> | null>(null)
+const normalizedTrustedEmail = computed(() => props.trustedEmail?.trim().toLowerCase() || '')
+const localEmailVerificationRequired = computed(() => {
+  if (!emailVerifyEnabled.value) {
+    return false
+  }
+  if (props.requireVerifyCode !== false) {
+    return true
+  }
+  if (!normalizedTrustedEmail.value) {
+    return true
+  }
+  return email.value.trim().toLowerCase() !== normalizedTrustedEmail.value
+})
 
 let countdownTimer: ReturnType<typeof setInterval> | null = null
 
@@ -208,6 +223,10 @@ function onTurnstileError() {
 }
 
 async function handleSendCode() {
+  if (!localEmailVerificationRequired.value) {
+    return
+  }
+
   const trimmedEmail = email.value.trim()
   if (!trimmedEmail) {
     return
@@ -248,7 +267,7 @@ function handleSubmit() {
   emit('submit', {
     email: trimmedEmail,
     password: password.value,
-    verifyCode: emailVerifyEnabled.value ? verifyCode.value.trim() : '',
+    verifyCode: localEmailVerificationRequired.value ? verifyCode.value.trim() : '',
     invitationCode: invitationCode.value.trim() || undefined
   })
 }

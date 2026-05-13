@@ -158,6 +158,8 @@
               :initial-email="pendingAccountEmail"
               :is-submitting="isSubmitting"
               :error-message="accountActionError"
+              :require-verify-code="requireLocalEmailVerification"
+              :trusted-email="trustedPendingEmail"
               @submit="handleCreateAccount"
               @switch-to-bind="switchToBindLoginMode"
             />
@@ -304,6 +306,8 @@ const totpTempToken = ref('')
 const totpCode = ref('')
 const totpError = ref('')
 const totpUserEmailMasked = ref('')
+const requireLocalEmailVerification = ref(true)
+const trustedPendingEmail = ref('')
 
 const needsCreateAccount = computed(() => pendingAccountAction.value === 'create_account')
 const needsChooser = computed(() => pendingAccountAction.value === 'choose_account_action')
@@ -335,6 +339,8 @@ watch(errorMessage, value => {
 
 type PendingOidcCompletion = PendingOAuthExchangeResponse & {
   step?: string
+  compat_email?: string
+  local_email_verification_required?: boolean
   pending_email?: string
   resolved_email?: string
   existing_account_email?: string
@@ -458,6 +464,10 @@ function normalizedPendingState(value: string | null | undefined): string {
   return value?.trim().toLowerCase() || ''
 }
 
+function shouldCreateAccountFromChoice(completion: PendingOidcCompletion): boolean {
+  return completion.existing_account_bindable === false && completion.create_account_allowed !== false
+}
+
 function extractPendingAccountEmail(completion: PendingOidcCompletion): string {
   return (
     completion.pending_email ||
@@ -481,6 +491,9 @@ function resolvePendingAccountAction(
     raw === 'choose_account' ||
     raw === 'choose'
   ) {
+    if (shouldCreateAccountFromChoice(completion)) {
+      return 'create_account'
+    }
     return 'choose_account_action'
   }
   if (raw === 'email_required' || raw === 'create_account_required' || raw === 'create_account') {
@@ -507,6 +520,8 @@ function applyPendingAccountAction(completion: PendingOidcCompletion) {
   totpCode.value = ''
   totpError.value = ''
   totpUserEmailMasked.value = ''
+  requireLocalEmailVerification.value = completion.local_email_verification_required !== false
+  trustedPendingEmail.value = completion.compat_email?.trim() || ''
 
   const email = extractPendingAccountEmail(completion)
   if (action === 'choose_account_action') {
