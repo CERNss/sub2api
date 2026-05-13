@@ -421,6 +421,8 @@ type PendingWeChatCompletion = PendingOAuthExchangeResponse & {
   pending_email?: string
   resolved_email?: string
   existing_account_email?: string
+  existing_account_bindable?: boolean
+  create_account_allowed?: boolean
   email?: string
   intent?: string
   requires_2fa?: boolean
