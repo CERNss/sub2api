@@ -5525,8 +5525,25 @@
                     </select>
                   </div>
 
+                  <!-- Open Mode -->
+                  <div>
+                    <label
+                      class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
+                    >
+                      {{ localText("打开方式", "Open Mode") }}
+                    </label>
+                    <select v-model="item.open_mode" class="input text-sm">
+                      <option value="iframe">
+                        {{ localText("内嵌页面", "Embedded Page") }}
+                      </option>
+                      <option value="external">
+                        {{ localText("外部打开", "External Link") }}
+                      </option>
+                    </select>
+                  </div>
+
                   <!-- URL (full width) -->
-                  <div class="sm:col-span-2">
+                  <div>
                     <label
                       class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
                     >
@@ -8127,6 +8144,7 @@ const form = reactive<SettingsForm>({
     label: string;
     icon_svg: string;
     url: string;
+    open_mode?: "iframe" | "external";
     visibility: "user" | "admin";
     sort_order: number;
   }>,
@@ -8868,6 +8886,7 @@ function addMenuItem() {
     label: "",
     icon_svg: "",
     url: "",
+    open_mode: "iframe",
     visibility: "user",
     sort_order: form.custom_menu_items.length,
   });
@@ -9047,11 +9066,26 @@ function removeCodexWhitelistRow(i: number): void {
   codexWhitelistRows.value.splice(i, 1);
 }
 
+function normalizeCustomMenuItems(
+  items: SystemSettings["custom_menu_items"] | undefined,
+): typeof form.custom_menu_items {
+  if (!Array.isArray(items)) {
+    return [];
+  }
+  return items.map((item) => ({
+    ...item,
+    open_mode: item.open_mode === "external" ? "external" : "iframe",
+  }));
+}
+
 async function loadSettings() {
   loading.value = true;
   loadFailed.value = false;
   try {
     const settings = await adminAPI.settings.getSettings();
+    settings.custom_menu_items = normalizeCustomMenuItems(
+      settings.custom_menu_items,
+    );
     settings.payment_load_balance_strategy =
       settings.payment_load_balance_strategy || "round-robin";
     // Only assign non-null values from backend (null means unconfigured, keep defaults)
