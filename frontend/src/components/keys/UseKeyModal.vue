@@ -262,13 +262,17 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useClipboard } from '@/composables/useClipboard'
 import { fetchCodexModelsManifest } from '@/api/codex'
-import type { GroupPlatform } from '@/types'
 import {
   findCodexCatalogModel,
   formatCodexReasoningEffortTomlLine,
   parseCodexCatalogModels,
   selectCodexConfigReasoningEffort
 } from '@/utils/codexCatalogConfig'
+import {
+  buildClientTemplateContext,
+  renderTemplateFiles
+} from '@/utils/clientTemplates'
+import type { ClientTemplateFile, ClientTemplatesConfig, GroupPlatform } from '@/types'
 
 interface Props {
   show: boolean
@@ -276,6 +280,7 @@ interface Props {
   baseUrl: string
   platform: GroupPlatform | null
   allowMessagesDispatch?: boolean
+  clientTemplates?: ClientTemplatesConfig | null
 }
 
 interface Emits {
@@ -681,6 +686,32 @@ const operator = (value: string) => wrapToken('text-slate-400', value)
 const string = (value: string) => wrapToken('text-amber-200', value)
 const comment = (value: string) => wrapToken('text-slate-500', value)
 
+function toFileConfigs(files: ClientTemplateFile[] | undefined): FileConfig[] | null {
+  return files?.length ? files.map((file) => ({ ...file })) : null
+}
+
+function renderConfiguredFiles(
+  files: ClientTemplateFile[] | undefined,
+  baseUrl: string,
+  apiKey: string,
+  endpoint: string,
+  app: string,
+  configDir = ''
+): FileConfig[] | null {
+  const configuredFiles = toFileConfigs(files)
+  if (!configuredFiles) return null
+
+  return renderTemplateFiles(configuredFiles, buildClientTemplateContext({
+    rawBaseUrl: baseUrl,
+    apiKey,
+    configDir,
+    endpoint,
+    app,
+    platform: props.platform ?? '',
+    clientType: activeClientTab.value
+  }))
+}
+
 // Syntax highlighting helpers
 // Generate file configs based on platform and active tab
 const currentFiles = computed((): FileConfig[] => {
@@ -703,6 +734,23 @@ const currentFiles = computed((): FileConfig[] => {
   })()
 
   if (activeClientTab.value === 'opencode') {
+    const configuredOpenCodeFiles = (() => {
+      switch (props.platform) {
+        case 'gemini':
+          return renderConfiguredFiles(props.clientTemplates?.opencode?.files, baseUrl, apiKey, geminiBase, 'gemini')
+        case 'antigravity':
+          return renderConfiguredFiles(props.clientTemplates?.opencode?.files, baseUrl, apiKey, antigravityBase, 'antigravity')
+        case 'anthropic':
+          return renderConfiguredFiles(props.clientTemplates?.opencode?.files, baseUrl, apiKey, apiBase, 'claude')
+        case 'openai':
+        default:
+          return renderConfiguredFiles(props.clientTemplates?.opencode?.files, baseUrl, apiKey, apiBase, 'codex')
+      }
+    })()
+    if (configuredOpenCodeFiles) {
+      return configuredOpenCodeFiles
+    }
+
     switch (props.platform) {
       case 'anthropic':
         return [generateOpenCodeConfig('anthropic', apiBase, apiKey)]
@@ -728,7 +776,29 @@ const currentFiles = computed((): FileConfig[] => {
         return generateAnthropicFiles(baseUrl, apiKey)
       }
       if (activeClientTab.value === 'codex-ws') {
+        const configDir = activeTab.value === 'windows' ? '%userprofile%\\.codex' : '~/.codex'
+        const configuredWsFiles = renderConfiguredFiles(
+          props.clientTemplates?.codex?.websocket_files,
+          baseUrl,
+          apiKey,
+          apiBase,
+          'codex',
+          configDir
+        )
+        if (configuredWsFiles) return configuredWsFiles
         return generateOpenAIWsFiles(baseUrl, apiKey)
+      }
+      {
+        const configDir = activeTab.value === 'windows' ? '%userprofile%\\.codex' : '~/.codex'
+        const configuredCodexFiles = renderConfiguredFiles(
+          props.clientTemplates?.codex?.files,
+          baseUrl,
+          apiKey,
+          apiBase,
+          'codex',
+          configDir
+        )
+        if (configuredCodexFiles) return configuredCodexFiles
       }
       return generateOpenAIFiles(baseUrl, apiKey)
     case 'gemini':
