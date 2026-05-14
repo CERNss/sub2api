@@ -1630,7 +1630,13 @@ watch(openAIUsageRefreshKey, (nextKey, prevKey) => {
   }
 
   _usageCache.delete(props.account.id)
+<<<<<<< HEAD
   requestAutoLoad()
+=======
+  loadUsage({ bypassCache: true }).catch((e) => {
+    console.error('Failed to refresh OpenAI usage after account update:', e)
+  })
+>>>>>>> 1f5a8ae6 (fix(frontend): restore client template loading)
 })
 
 watch(
