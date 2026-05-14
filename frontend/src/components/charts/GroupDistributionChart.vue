@@ -188,11 +188,18 @@ const chartColors = [
   '#84cc16'
 ]
 
+const numericValue = (value: number | null | undefined): number =>
+  Number.isFinite(Number(value)) ? Number(value) : 0
+
 const displayGroupStats = computed(() => {
   if (!props.groupStats?.length) return []
 
   const metricKey = props.metric === 'actual_cost' ? 'actual_cost' : 'total_tokens'
+<<<<<<< HEAD
   return [...props.groupStats].sort((a, b) => toFiniteNumber(b[metricKey]) - toFiniteNumber(a[metricKey]))
+=======
+  return [...props.groupStats].sort((a, b) => numericValue(b[metricKey]) - numericValue(a[metricKey]))
+>>>>>>> 1f5a8ae6 (fix(frontend): restore client template loading)
 })
 
 const chartData = computed(() => {
@@ -202,7 +209,11 @@ const chartData = computed(() => {
     labels: displayGroupStats.value.map((g) => g.group_name || String(g.group_id)),
     datasets: [
       {
+<<<<<<< HEAD
         data: displayGroupStats.value.map((g) => toFiniteNumber(props.metric === 'actual_cost' ? g.actual_cost : g.total_tokens)),
+=======
+        data: displayGroupStats.value.map((g) => props.metric === 'actual_cost' ? numericValue(g.actual_cost) : numericValue(g.total_tokens)),
+>>>>>>> 1f5a8ae6 (fix(frontend): restore client template loading)
         backgroundColor: chartColors.slice(0, displayGroupStats.value.length),
         borderWidth: 0
       }
@@ -234,6 +245,7 @@ const doughnutOptions = computed(() => ({
 }))
 
 const formatTokens = (value: number): string => {
+  value = numericValue(value)
   if (value >= 1_000_000_000) {
     return `${(value / 1_000_000_000).toFixed(2)}B`
   } else if (value >= 1_000_000) {
@@ -245,6 +257,7 @@ const formatTokens = (value: number): string => {
 }
 
 const formatNumber = (value: number): string => {
+<<<<<<< HEAD
   return toFiniteNumber(value).toLocaleString()
 }
 
@@ -261,6 +274,19 @@ const formatCost = (value: number | null | undefined): string => {
     return safeValue.toFixed(2)
   } else if (safeValue >= 0.01) {
     return safeValue.toFixed(3)
+=======
+  return numericValue(value).toLocaleString()
+}
+
+const formatCost = (value: number): string => {
+  value = numericValue(value)
+  if (value >= 1000) {
+    return (value / 1000).toFixed(2) + 'K'
+  } else if (value >= 1) {
+    return value.toFixed(2)
+  } else if (value >= 0.01) {
+    return value.toFixed(3)
+>>>>>>> 1f5a8ae6 (fix(frontend): restore client template loading)
   }
   return safeValue.toFixed(4)
 }
