@@ -345,6 +345,9 @@ const chartColors = [
   '#a855f7'
 ]
 
+const numericValue = (value: number | null | undefined): number =>
+  Number.isFinite(Number(value)) ? Number(value) : 0
+
 const displayModelStats = computed(() => {
   const sourceStats = props.source === 'upstream'
     ? props.upstreamModelStats
@@ -354,7 +357,7 @@ const displayModelStats = computed(() => {
   if (!sourceStats?.length) return []
 
   const metricKey = props.metric === 'actual_cost' ? 'actual_cost' : 'total_tokens'
-  return [...sourceStats].sort((a, b) => b[metricKey] - a[metricKey])
+  return [...sourceStats].sort((a, b) => numericValue(b[metricKey]) - numericValue(a[metricKey]))
 })
 
 const chartData = computed(() => {
@@ -364,7 +367,7 @@ const chartData = computed(() => {
     labels: displayModelStats.value.map((m) => m.model),
     datasets: [
       {
-        data: displayModelStats.value.map((m) => props.metric === 'actual_cost' ? m.actual_cost : m.total_tokens),
+        data: displayModelStats.value.map((m) => props.metric === 'actual_cost' ? numericValue(m.actual_cost) : numericValue(m.total_tokens)),
         backgroundColor: chartColors.slice(0, displayModelStats.value.length),
         borderWidth: 0
       }
@@ -471,6 +474,7 @@ const rankingDoughnutOptions = computed(() => ({
 }))
 
 const formatTokens = (value: number): string => {
+  value = numericValue(value)
   if (value >= 1_000_000_000) {
     return `${(value / 1_000_000_000).toFixed(2)}B`
   } else if (value >= 1_000_000) {
@@ -482,7 +486,7 @@ const formatTokens = (value: number): string => {
 }
 
 const formatNumber = (value: number): string => {
-  return value.toLocaleString()
+  return numericValue(value).toLocaleString()
 }
 
 const getRankingUserLabel = (item: UserSpendingRankingItem): string => {
@@ -496,6 +500,7 @@ const getRankingRowLabel = (item: RankingDisplayItem): string => {
 }
 
 const formatCost = (value: number): string => {
+  value = numericValue(value)
   if (value >= 1000) {
     return (value / 1000).toFixed(2) + 'K'
   } else if (value >= 1) {

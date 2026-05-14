@@ -13,7 +13,29 @@ export interface ResolvedBaseUrls {
   antigravityGeminiBase: string
 }
 
-const STATIC_CLIENT_TEMPLATES_PATH = '/client-templates.json'
+interface ClientTemplatesSource {
+  client_templates?: unknown
+}
+
+interface ResolveClientTemplatesOptions {
+  publicSettings?: ClientTemplatesSource | null
+  cachedPublicSettings?: ClientTemplatesSource | null
+  injectedConfig?: ClientTemplatesSource | null
+  fetchImpl?: typeof fetch
+}
+
+interface BuildTemplateContextOptions {
+  rawBaseUrl: string
+  apiKey: string
+  configDir?: string
+  endpoint?: string
+  app?: string
+  platform?: string
+  clientType?: string
+  providerName?: string
+}
+
+const STATIC_CLIENT_TEMPLATES_PATHS = ['/template/client-templates.json', '/client-templates.json']
 let staticClientTemplatesPromise: Promise<ClientTemplatesConfig | null> | null = null
 
 const TEMPLATE_PATTERNS = [
@@ -23,6 +45,10 @@ const TEMPLATE_PATTERNS = [
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isEmptyRecord(value: unknown): boolean {
+  return isRecord(value) && Object.keys(value).length === 0
 }
 
 export function normalizeClientTemplatesConfig(payload: unknown): ClientTemplatesConfig | null {
@@ -44,29 +70,34 @@ export async function loadStaticClientTemplatesConfig(
   }
 
   staticClientTemplatesPromise = (async () => {
-    try {
-      const response = await fetchImpl(STATIC_CLIENT_TEMPLATES_PATH, {
-        cache: 'no-store'
-      })
+    for (const path of STATIC_CLIENT_TEMPLATES_PATHS) {
+      try {
+        const response = await fetchImpl(path, {
+          cache: 'no-store'
+        })
 
-      if (response.status === 404) {
-        return null
-      }
-      if (!response.ok) {
-        console.warn('[clientTemplates] Failed to load static templates:', response.status, response.statusText)
-        return null
-      }
+        if (response.status === 404) {
+          continue
+        }
+        if (!response.ok) {
+          console.warn('[clientTemplates] Failed to load static templates:', path, response.status, response.statusText)
+          continue
+        }
 
-      const payload = await response.json()
-      const normalized = normalizeClientTemplatesConfig(payload)
-      if (!normalized && payload) {
-        console.warn('[clientTemplates] Ignoring invalid static template payload from', STATIC_CLIENT_TEMPLATES_PATH)
+        const payload = await response.json()
+        const normalized = normalizeClientTemplatesConfig(payload)
+        if (!normalized && payload && !isEmptyRecord(payload)) {
+          console.warn('[clientTemplates] Ignoring invalid static template payload from', path)
+        }
+        if (normalized) {
+          return normalized
+        }
+      } catch (error) {
+        console.warn('[clientTemplates] Failed to load static templates:', path, error)
       }
-      return normalized
-    } catch (error) {
-      console.warn('[clientTemplates] Failed to load static templates:', error)
-      return null
     }
+
+    return null
   })()
 
   return staticClientTemplatesPromise
@@ -74,6 +105,28 @@ export async function loadStaticClientTemplatesConfig(
 
 export function resetStaticClientTemplatesCache(): void {
   staticClientTemplatesPromise = null
+}
+
+export async function resolveClientTemplatesConfig({
+  publicSettings,
+  cachedPublicSettings,
+  injectedConfig,
+  fetchImpl
+}: ResolveClientTemplatesOptions = {}): Promise<ClientTemplatesConfig | null> {
+  const preferredSources = [
+    publicSettings?.client_templates,
+    cachedPublicSettings?.client_templates,
+    injectedConfig?.client_templates
+  ]
+
+  for (const source of preferredSources) {
+    const normalized = normalizeClientTemplatesConfig(source)
+    if (normalized) {
+      return normalized
+    }
+  }
+
+  return loadStaticClientTemplatesConfig(fetchImpl)
 }
 
 function hasTemplateValue(context: TemplateContext, key: string): boolean {
@@ -117,6 +170,30 @@ export function resolveBaseUrls(rawBaseUrl: string): ResolvedBaseUrls {
     geminiBase: ensureSuffix(baseRoot, '/v1beta'),
     antigravityBase: ensureSuffix(`${baseRoot}/antigravity`, '/v1'),
     antigravityGeminiBase: ensureSuffix(`${baseRoot}/antigravity`, '/v1beta')
+  }
+}
+
+export function buildClientTemplateContext({
+  rawBaseUrl,
+  apiKey,
+  configDir = '',
+  endpoint,
+  app = '',
+  platform = '',
+  clientType = '',
+  providerName = ''
+}: BuildTemplateContextOptions): TemplateContext {
+  const urls = resolveBaseUrls(rawBaseUrl)
+
+  return {
+    ...urls,
+    apiKey,
+    configDir,
+    endpoint: endpoint ?? urls.apiBase,
+    app,
+    platform,
+    clientType,
+    providerName
   }
 }
 

@@ -927,6 +927,7 @@
       :base-url="publicSettings?.api_base_url || ''"
       :platform="selectedKey?.group?.platform || null"
       :allow-messages-dispatch="selectedKey?.group?.allow_messages_dispatch || false"
+      :client-templates="clientTemplates"
       @close="closeUseKeyModal"
     />
 
@@ -1068,15 +1069,21 @@ import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 	import EndpointPopover from '@/components/keys/EndpointPopover.vue'
 	import GroupBadge from '@/components/common/GroupBadge.vue'
 	import GroupOptionItem from '@/components/common/GroupOptionItem.vue'
-	import type { ApiKey, Group, PublicSettings, SubscriptionType, GroupPlatform } from '@/types'
+	import type { ApiKey, ClientTemplatesConfig, Group, PublicSettings, SubscriptionType, GroupPlatform } from '@/types'
 import type { Column } from '@/components/common/types'
 import type { BatchApiKeyUsageStats } from '@/api/usage'
 import { formatDateTime } from '@/utils/format'
 import { maskApiKey } from '@/utils/maskApiKey'
 import {
   buildCcSwitchImportDeeplink,
+  resolveCcSwitchImportConfig,
   type CcSwitchClientType
 } from '@/utils/ccswitchImport'
+import {
+  buildClientTemplateContext,
+  buildCcsImportDeeplink,
+  resolveClientTemplatesConfig
+} from '@/utils/clientTemplates'
 
 // Helper to format date for datetime-local input
 const formatDateTimeLocal = (isoDate: string): string => {
@@ -1149,6 +1156,7 @@ const selectedKey = ref<ApiKey | null>(null)
 const copiedKeyId = ref<number | null>(null)
 const groupSelectorKeyId = ref<number | null>(null)
 const publicSettings = ref<PublicSettings | null>(null)
+const clientTemplates = ref<ClientTemplatesConfig | null>(null)
 const dropdownRef = ref<HTMLElement | null>(null)
 const dropdownPosition = ref<{ top?: number; bottom?: number; left: number } | null>(null)
 const groupButtonRefs = ref<Map<number, HTMLElement>>(new Map())
@@ -1352,10 +1360,23 @@ const loadUserGroupRates = async () => {
 }
 
 const loadPublicSettings = async () => {
+  let settings: PublicSettings | null = null
   try {
-    publicSettings.value = await authAPI.getPublicSettings()
+    settings = await authAPI.getPublicSettings()
+    publicSettings.value = settings
   } catch (error) {
     console.error('Failed to load public settings:', error)
+  }
+
+  try {
+    clientTemplates.value = await resolveClientTemplatesConfig({
+      publicSettings: settings,
+      cachedPublicSettings: appStore.cachedPublicSettings,
+      injectedConfig: window.__APP_CONFIG__
+    })
+  } catch (error) {
+    console.error('Failed to load client templates:', error)
+    clientTemplates.value = null
   }
 }
 
@@ -1725,14 +1746,48 @@ const executeCcsImport = (row: ApiKey, clientType: CcSwitchClientType) => {
     }
   })`
   const providerName = (publicSettings.value?.site_name || 'sub2api').trim() || 'sub2api'
-  const deeplink = buildCcSwitchImportDeeplink({
-    baseUrl,
-    platform,
-    clientType,
-    providerName,
-    apiKey: row.key,
-    usageScript
-  })
+  const ccsTemplate = clientTemplates.value?.ccs_import
+  const deeplink = ccsTemplate
+    ? (() => {
+        const config = resolveCcSwitchImportConfig(platform, clientType, baseUrl)
+        const defaults: Record<string, string> = {
+          resource: 'provider',
+          app: config.app,
+          name: providerName,
+          homepage: baseUrl,
+          endpoint: config.endpoint,
+          apiKey: row.key,
+          configFormat: 'json',
+          usageEnabled: 'true',
+          usageScript,
+          usageAutoInterval: '30'
+        }
+        if (config.model) {
+          defaults.model = config.model
+        }
+
+        return buildCcsImportDeeplink(
+          ccsTemplate,
+          defaults,
+          buildClientTemplateContext({
+            rawBaseUrl: baseUrl,
+            apiKey: row.key,
+            endpoint: config.endpoint,
+            app: config.app,
+            platform,
+            clientType,
+            providerName
+          })
+        )
+      })()
+    : buildCcSwitchImportDeeplink({
+        baseUrl,
+        platform,
+        clientType,
+        providerName,
+        apiKey: row.key,
+        usageScript
+      })
 
   try {
     window.open(deeplink, '_self')
