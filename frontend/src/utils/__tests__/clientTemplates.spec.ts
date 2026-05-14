@@ -4,6 +4,7 @@ import {
   buildCcsImportDeeplink,
   loadStaticClientTemplatesConfig,
   normalizeClientTemplatesConfig,
+  resolveClientTemplatesConfig,
   renderTemplateString,
   resetStaticClientTemplatesCache,
   resolveBaseUrls
@@ -75,7 +76,7 @@ describe('clientTemplates', () => {
     })
   })
 
-  it('loads static client templates from the built-in runtime file', async () => {
+  it('loads static client templates from the template runtime path', async () => {
     const fetchImpl = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -94,6 +95,76 @@ describe('clientTemplates', () => {
         files: [{ path: 'opencode.json', content: '{"apiKey":"${apiKey}"}' }]
       }
     })
+    expect(fetchImpl).toHaveBeenCalledWith('/template/client-templates.json', { cache: 'no-store' })
     expect(fetchImpl).toHaveBeenCalledTimes(1)
+  })
+
+  it('falls back to the legacy runtime path when the template path is missing', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        statusText: 'Not Found',
+        json: async () => ({})
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => ({
+          client_templates: {
+            codex: {
+              files: [{ path: 'config.toml', content: 'legacy' }]
+            }
+          }
+        })
+      })
+
+    await expect(loadStaticClientTemplatesConfig(fetchImpl as typeof fetch)).resolves.toEqual({
+      codex: {
+        files: [{ path: 'config.toml', content: 'legacy' }]
+      }
+    })
+    expect(fetchImpl).toHaveBeenNthCalledWith(1, '/template/client-templates.json', { cache: 'no-store' })
+    expect(fetchImpl).toHaveBeenNthCalledWith(2, '/client-templates.json', { cache: 'no-store' })
+  })
+
+  it('prefers public settings over injected and static template sources', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: async () => ({
+        client_templates: {
+          codex: {
+            files: [{ path: 'static.toml', content: 'static' }]
+          }
+        }
+      })
+    })
+
+    await expect(resolveClientTemplatesConfig({
+      publicSettings: {
+        client_templates: {
+          opencode: {
+            files: [{ path: 'public.json', content: 'public' }]
+          }
+        }
+      },
+      injectedConfig: {
+        client_templates: {
+          codex: {
+            files: [{ path: 'injected.toml', content: 'injected' }]
+          }
+        }
+      },
+      fetchImpl: fetchImpl as typeof fetch
+    })).resolves.toEqual({
+      opencode: {
+        files: [{ path: 'public.json', content: 'public' }]
+      }
+    })
+    expect(fetchImpl).not.toHaveBeenCalled()
   })
 })
