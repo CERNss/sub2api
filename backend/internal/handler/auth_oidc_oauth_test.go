@@ -550,6 +550,57 @@ func TestOIDCOAuthCallbackCreatesChoicePendingSessionWhenSignupRequiresInvite(t 
 	require.Equal(t, "third_party_signup", completion["choice_reason"])
 }
 
+func TestOIDCOAuthCallbackMarksTrustedOIDCEmailAsNotNeedingLocalVerification(t *testing.T) {
+	cfg, cleanup := newOIDCTestProvider(t, oidcProviderFixture{
+		Subject:           "oidc-subject-trusted-email",
+		PreferredUsername: "oidc_trusted",
+		DisplayName:       "OIDC Trusted Display",
+		AvatarURL:         "https://cdn.example/oidc-trusted.png",
+		Email:             "trusted@example.com",
+		EmailVerified:     true,
+	})
+	defer cleanup()
+
+	handler, client := newOIDCOAuthHandlerAndClient(t, false, cfg)
+	t.Cleanup(func() { _ = client.Close() })
+	handler.settingSvc = service.NewSettingService(&oauthPendingFlowSettingRepoStub{
+		values: map[string]string{
+			service.SettingKeyOIDCConnectRequireLocalEmailVerification: "false",
+		},
+	}, handler.cfg)
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/oauth/oidc/callback?code=oidc-code&state=state-trusted-email", nil)
+	req.AddCookie(encodedCookie(oidcOAuthStateCookieName, "state-trusted-email"))
+	req.AddCookie(encodedCookie(oidcOAuthRedirectCookie, "/dashboard"))
+	req.AddCookie(encodedCookie(oidcOAuthVerifierCookie, "verifier-trusted-email"))
+	req.AddCookie(encodedCookie(oidcOAuthNonceCookie, "nonce-oidc-subject-trusted-email"))
+	req.AddCookie(encodedCookie(oidcOAuthIntentCookieName, oauthIntentLogin))
+	req.AddCookie(encodedCookie(oauthPendingBrowserCookieName, "browser-trusted-email"))
+	c.Request = req
+
+	handler.OIDCOAuthCallback(c)
+
+	require.Equal(t, http.StatusFound, recorder.Code)
+	require.Equal(t, "/auth/oidc/callback", recorder.Header().Get("Location"))
+
+	sessionCookie := findCookie(recorder.Result().Cookies(), oauthPendingSessionCookieName)
+	require.NotNil(t, sessionCookie)
+
+	ctx := context.Background()
+	session, err := client.PendingAuthSession.Query().
+		Where(pendingauthsession.SessionTokenEQ(decodeCookieValueForTest(t, sessionCookie.Value))).
+		Only(ctx)
+	require.NoError(t, err)
+
+	completion, ok := session.LocalFlowState[oauthCompletionResponseKey].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, oauthPendingChoiceStep, completion["step"])
+	require.Equal(t, "trusted@example.com", completion["compat_email"])
+	require.Equal(t, false, completion["local_email_verification_required"])
+}
+
 func TestOIDCOAuthCallbackCreatesBindPendingSessionForCurrentUser(t *testing.T) {
 	cfg, cleanup := newOIDCTestProvider(t, oidcProviderFixture{
 		Subject:           "oidc-subject-bind",
