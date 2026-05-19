@@ -468,6 +468,15 @@ func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIK
 		return nil, fmt.Errorf("get user: %w", err)
 	}
 
+	return s.createForUser(ctx, user, req)
+}
+
+func (s *APIKeyService) createForUser(ctx context.Context, user *User, req CreateAPIKeyRequest) (*APIKey, error) {
+	if user == nil {
+		return nil, ErrUserNotFound
+	}
+	userID := user.ID
+
 	// 验证 IP 白名单格式
 	if len(req.IPWhitelist) > 0 {
 		if invalid := ip.ValidateIPPatterns(req.IPWhitelist); len(invalid) > 0 {

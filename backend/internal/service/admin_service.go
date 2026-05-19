@@ -22,6 +22,7 @@ type AdminService interface {
 	BatchUpdateConcurrency(ctx context.Context, userIDs []int64, value int, mode string) (int, error)
 	BatchUpdateLimits(ctx context.Context, userIDs []int64, concurrency, rpmLimit *int) (int, error)
 	GetUserAPIKeys(ctx context.Context, userID int64, page, pageSize int, sortBy, sortOrder string) ([]APIKey, int64, error)
+	CreateUserAPIKey(ctx context.Context, userID int64, input CreateUserAPIKeyInput) (*CreateUserAPIKeyResult, error)
 	GetUserUsageStats(ctx context.Context, userID int64, period string) (any, error)
 	GetUserRPMStatus(ctx context.Context, userID int64) (*UserRPMStatus, error)
 	// GetUserBalanceHistory returns paginated balance/concurrency change records for a user.
@@ -171,6 +172,26 @@ type UpdateUserInput struct {
 	GroupRates map[int64]*float64
 	// ActorAdminID 执行本次操作的管理员ID(来自JWT)，仅用于权限敏感操作的审计日志。
 	ActorAdminID int64
+}
+
+type CreateUserAPIKeyInput struct {
+	Name          string
+	GroupID       *int64
+	CustomKey     *string
+	IPWhitelist   []string
+	IPBlacklist   []string
+	Quota         float64
+	ExpiresInDays *int
+	RateLimit5h   float64
+	RateLimit1d   float64
+	RateLimit7d   float64
+}
+
+type CreateUserAPIKeyResult struct {
+	APIKey                 *APIKey
+	AutoGrantedGroupAccess bool
+	GrantedGroupID         *int64
+	GrantedGroupName       string
 }
 
 type AdminBindAuthIdentityInput struct {
@@ -665,6 +686,7 @@ type adminServiceImpl struct {
 	redeemCodeRepo       RedeemCodeRepository
 	userGroupRateRepo    UserGroupRateRepository
 	userRPMCache         UserRPMCache
+	apiKeyService        *APIKeyService
 	billingCacheService  *BillingCacheService
 	proxyProber          ProxyExitInfoProber
 	proxyLatencyCache    ProxyLatencyCache
@@ -706,6 +728,7 @@ func NewAdminService(
 	redeemCodeRepo RedeemCodeRepository,
 	userGroupRateRepo UserGroupRateRepository,
 	userRPMCache UserRPMCache,
+	apiKeyService *APIKeyService,
 	billingCacheService *BillingCacheService,
 	proxyProber ProxyExitInfoProber,
 	proxyLatencyCache ProxyLatencyCache,
@@ -733,6 +756,7 @@ func NewAdminService(
 		redeemCodeRepo:       redeemCodeRepo,
 		userGroupRateRepo:    userGroupRateRepo,
 		userRPMCache:         userRPMCache,
+		apiKeyService:        apiKeyService,
 		billingCacheService:  billingCacheService,
 		proxyProber:          proxyProber,
 		proxyLatencyCache:    proxyLatencyCache,

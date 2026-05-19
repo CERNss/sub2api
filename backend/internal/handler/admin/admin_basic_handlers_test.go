@@ -29,6 +29,7 @@ func setupAdminRouter() (*gin.Engine, *stubAdminService) {
 	router.DELETE("/api/v1/admin/users/:id", userHandler.Delete)
 	router.POST("/api/v1/admin/users/:id/balance", userHandler.UpdateBalance)
 	router.GET("/api/v1/admin/users/:id/api-keys", userHandler.GetUserAPIKeys)
+	router.POST("/api/v1/admin/users/:id/api-keys", NewAdminAPIKeyHandler(adminSvc).CreateForUser)
 	router.GET("/api/v1/admin/users/:id/usage", userHandler.GetUserUsage)
 
 	router.GET("/api/v1/admin/groups", groupHandler.List)
@@ -131,6 +132,30 @@ func TestUserHandlerEndpoints(t *testing.T) {
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/admin/users/1/api-keys", nil)
 	router.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusOK, rec.Code)
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/admin/users/1/api-keys", bytes.NewBufferString(`{"name":"svc","custom_key":"sk-custom-created","quota":12.5,"rate_limit_1d":3}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var keyResp struct {
+		Data struct {
+			APIKey struct {
+				UserID      int64   `json:"user_id"`
+				Key         string  `json:"key"`
+				Name        string  `json:"name"`
+				Quota       float64 `json:"quota"`
+				RateLimit1d float64 `json:"rate_limit_1d"`
+			} `json:"api_key"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &keyResp))
+	require.Equal(t, int64(1), keyResp.Data.APIKey.UserID)
+	require.Equal(t, "sk-custom-created", keyResp.Data.APIKey.Key)
+	require.Equal(t, "svc", keyResp.Data.APIKey.Name)
+	require.Equal(t, 12.5, keyResp.Data.APIKey.Quota)
+	require.Equal(t, 3.0, keyResp.Data.APIKey.RateLimit1d)
 
 	rec = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/admin/users/1/usage?period=today", nil)

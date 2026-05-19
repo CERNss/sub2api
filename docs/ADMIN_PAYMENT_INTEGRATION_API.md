@@ -99,7 +99,40 @@ curl -X POST "${BASE}/api/v1/admin/users/123/balance" \
   }'
 ```
 
-### 4) 购买页 / 自定义页面 URL Query 透传（iframe / 新窗口一致）
+### 4) 创建用户 API Key
+`POST /api/v1/admin/users/:id/api-keys`
+
+用途：外部系统通过 Admin API Key 为指定用户创建可用于 AI 调用的 API Key。
+
+请求头：
+- `x-api-key`
+- `Idempotency-Key`
+
+请求体字段：
+- `name`：必填，Key 名称
+- `group_id`：可选，绑定分组 ID
+- `custom_key`：可选，自定义 Key（至少 16 位，仅字母、数字、下划线、连字符）
+- `quota`：可选，Key 配额（USD，`0` 或不传表示不限）
+- `expires_in_days`：可选，过期天数
+- `rate_limit_5h` / `rate_limit_1d` / `rate_limit_7d`：可选，滚动窗口限额（USD）
+- `ip_whitelist` / `ip_blacklist`：可选，IP/CIDR 列表
+
+响应中的 `data.api_key.key` 为完整可用 Key。若绑定专属标准分组且用户尚未被授权，接口会自动授予该分组权限并返回 `auto_granted_group_access=true`；订阅分组要求用户已有有效订阅。
+
+```bash
+curl -X POST "${BASE}/api/v1/admin/users/123/api-keys" \
+  -H "x-api-key: ${KEY}" \
+  -H "Idempotency-Key: create-api-key-user-123-cm1234567890" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name":"external-service",
+    "group_id":2,
+    "quota":50.00,
+    "rate_limit_1d":10.00
+  }'
+```
+
+### 5) 购买页 / 自定义页面 URL Query 透传（iframe / 新窗口一致）
 当 Sub2API 打开 `purchase_subscription_url` 或用户侧自定义页面 iframe URL 时，会统一追加：
 - `user_id`
 - `token`
@@ -112,13 +145,13 @@ curl -X POST "${BASE}/api/v1/admin/users/123/balance" \
 https://pay.example.com/pay?user_id=123&token=<jwt>&theme=light&lang=zh&ui_mode=embedded
 ```
 
-### 5) 失败处理建议
+### 6) 失败处理建议
 - 支付成功与充值成功分状态落库
 - 回调验签成功后立即标记“支付成功”
 - 支付成功但充值失败的订单允许后续重试
 - 重试保持相同 `code`，并使用新的 `Idempotency-Key`
 
-### 6) `doc_url` 配置建议
+### 7) `doc_url` 配置建议
 - 查看链接：`https://github.com/Wei-Shaw/sub2api/blob/main/docs/ADMIN_PAYMENT_INTEGRATION_API.md`
 - 下载链接：`https://raw.githubusercontent.com/Wei-Shaw/sub2api/main/docs/ADMIN_PAYMENT_INTEGRATION_API.md`
 
@@ -219,7 +252,40 @@ curl -X POST "${BASE}/api/v1/admin/users/123/balance" \
   }'
 ```
 
-### 4) Purchase / Custom Page URL query forwarding (iframe and new tab)
+### 4) Create a user API key
+`POST /api/v1/admin/users/:id/api-keys`
+
+Use this endpoint when an external service needs to create an AI-usable API key for a target user via the Admin API Key.
+
+Headers:
+- `x-api-key`
+- `Idempotency-Key`
+
+Request fields:
+- `name`: required key name
+- `group_id`: optional group binding
+- `custom_key`: optional custom key, at least 16 characters, letters/numbers/underscore/hyphen only
+- `quota`: optional key quota in USD (`0` or omitted means unlimited)
+- `expires_in_days`: optional expiration in days
+- `rate_limit_5h` / `rate_limit_1d` / `rate_limit_7d`: optional rolling-window USD limits
+- `ip_whitelist` / `ip_blacklist`: optional IP/CIDR lists
+
+The full usable key is returned as `data.api_key.key`. If the key is bound to an exclusive standard group and the user does not yet have access, the endpoint auto-grants that group and returns `auto_granted_group_access=true`. Subscription groups require an active subscription.
+
+```bash
+curl -X POST "${BASE}/api/v1/admin/users/123/api-keys" \
+  -H "x-api-key: ${KEY}" \
+  -H "Idempotency-Key: create-api-key-user-123-cm1234567890" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name":"external-service",
+    "group_id":2,
+    "quota":50.00,
+    "rate_limit_1d":10.00
+  }'
+```
+
+### 5) Purchase / Custom Page URL query forwarding (iframe and new tab)
 When Sub2API opens `purchase_subscription_url` or a user-facing custom page iframe URL, it appends:
 - `user_id`
 - `token`
@@ -232,12 +298,12 @@ Example:
 https://pay.example.com/pay?user_id=123&token=<jwt>&theme=light&lang=zh&ui_mode=embedded
 ```
 
-### 5) Failure handling recommendations
+### 6) Failure handling recommendations
 - Persist payment success and recharge success as separate states
 - Mark payment as successful immediately after verified callback
 - Allow retry for orders with payment success but recharge failure
 - Keep the same `code` for retry, and use a new `Idempotency-Key`
 
-### 6) Recommended `doc_url`
+### 7) Recommended `doc_url`
 - View URL: `https://github.com/Wei-Shaw/sub2api/blob/main/docs/ADMIN_PAYMENT_INTEGRATION_API.md`
 - Download URL: `https://raw.githubusercontent.com/Wei-Shaw/sub2api/main/docs/ADMIN_PAYMENT_INTEGRATION_API.md`
