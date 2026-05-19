@@ -27,8 +27,8 @@
 |---|----|------|-------|---------|-------------|
 | 1 | `add-admin-user-api-key-creation`         | 🟢 active   | Admin 通过 Admin API Key 为指定用户创建 API key | 0 | 12 |
 | 2 | `add-external-custom-menu-token-open`     | 🟢 active   | 自定义菜单支持以 `external` 方式新开页并透传 JWT | 2 | 11 |
-| 3 | `control-oidc-local-email-verification`   | 🟢 active   | OIDC 专用开关跳过二次本地邮箱验证                | 0 | ~17 |
-| 4 | `refine-pending-oauth-account-resolution` | 🟢 active   | OAuth 回调跳过 chooser、邮箱预填规则             | 0 | ~7 |
+| 3 | `control-oidc-local-email-verification`   | 🟢 active   | OIDC 专用开关跳过二次本地邮箱验证                | 0 | 19 |
+| 4 | `refine-pending-oauth-account-resolution` | 🟢 active   | OAuth 回调跳过 chooser、邮箱预填规则             | 0 | 6 |
 | 5 | `support-mounted-frontend-client-templates` | 📦 archived | 前端 `client-templates.json` 挂载渲染 Codex/OpenCode/CCS | 9 | ~6 |
 
 **状态图例**
@@ -152,9 +152,10 @@ _无。_
 | `frontend/src/components/auth/__tests__/PendingOAuthCreateAccountForm.spec.ts` | 测试 |
 | `frontend/src/views/auth/OidcCallbackView.vue` | 消费 verification flag |
 | `frontend/src/views/auth/__tests__/OidcCallbackView.spec.ts` | 测试 |
-| `frontend/src/api/auth.ts` | pending session typing |
 | `frontend/src/i18n/locales/en.ts` | 文案 |
 | `frontend/src/i18n/locales/zh.ts` | 文案 |
+
+> ℹ️ `PendingOAuthResponse` 字段（包含 `local_email_verification_required` 等）以 inline `interface` 形式声明在各 `*CallbackView.vue` 内部，而**不在** `frontend/src/api/auth.ts`。rebase 复原时保持就地声明的形态。
 
 #### ⚠ 跨 change 共享文件
 > 以下文件本 change 修改，**同时也被其他 change 修改**。rebase 解决冲突时，必须同时核对本 change 与对方 change 的修改是否都已包含。
@@ -164,7 +165,6 @@ _无。_
 - `frontend/src/views/admin/SettingsView.vue` → 也属于 #2
 - `frontend/src/views/auth/OidcCallbackView.vue` → 也属于 #4
 - `frontend/src/views/auth/__tests__/OidcCallbackView.spec.ts` → 也属于 #4
-- `frontend/src/api/auth.ts` → 也属于 #4
 
 #### 关联 commits
 - `320e10f9` fix(auth): propagate OIDC local email verification state
@@ -190,13 +190,13 @@ _无。_
 | `frontend/src/views/auth/__tests__/OidcCallbackView.spec.ts` | 回归测试 |
 | `frontend/src/views/auth/__tests__/LinuxDoCallbackView.spec.ts` | 回归测试 |
 | `frontend/src/views/auth/__tests__/WechatCallbackView.spec.ts` | 回归测试 |
-| `frontend/src/api/auth.ts` | `PendingOAuthResponse` 字段 |
+
+> ℹ️ `PendingOAuthResponse` 形状（`existing_account_bindable` / `create_account_allowed` / `compat_email`）以 inline `interface` 形式声明在各 `*CallbackView.vue` 内部，**不集中放在** `frontend/src/api/auth.ts`。
 
 #### ⚠ 跨 change 共享文件
 > 以下文件本 change 修改，**同时也被其他 change 修改**。rebase 解决冲突时，必须同时核对本 change 与对方 change 的修改是否都已包含。
 - `frontend/src/views/auth/OidcCallbackView.vue` → 也属于 #3
 - `frontend/src/views/auth/__tests__/OidcCallbackView.spec.ts` → 也属于 #3
-- `frontend/src/api/auth.ts` → 也属于 #3
 
 #### 关联 commits
 - `8f439bfe` feat: reapply openspec changes after develop rebase（部分内容）
@@ -277,16 +277,29 @@ _无。_
 2. 不要删除 — archive 后该 change 仍存在于 `develop`，rebase 还要照顾。
 
 ### 上游同步流程
-1. **rebase 前**：跑 `git diff main..develop --name-only > /tmp/fork-files.before`
-2. rebase 完成后：跑同样命令到 `.after`，diff 两个文件，看消失了哪些。
-3. 对照本文每个 change 的「上游补丁」表，逐一确认仍在。
-4. 缺失的逐个手工恢复（参考 spec / tasks / design.md）。
+1. **rebase 前**：`python3 tools/fork_overlay.py snapshot`
+   会读所有 proposal 的 `## Fork Touchpoints`，把每个 change 的清单 + 当前
+   `git diff main..HEAD` 写到 `tools/fork-snapshots/<change-id>/`
+   （该目录已 gitignore，仅本地使用）。
+2. 拉新上游 → `git rebase` develop 到新 main。
+3. **rebase 后**：`python3 tools/fork_overlay.py verify`
+   会逐条检查：
+   - 每个 `New Files` / `Upstream Patch Files` 路径仍存在；
+   - 每个 `Upstream Patch Files` 路径相对 `main` 仍非零差异（=patch 没丢）；
+   - 每个 `Shared Touchpoints` 引用的 co-owner change 也列出该路径（双向闭合）。
+4. **若 verify 报错**：
+   - 若是 patch 丢失：参考 `tools/fork-snapshots/<change-id>/patch.diff`
+     或 spec/tasks/design.md 手工恢复。
+   - 若是 shared touchpoint 单边声明：把对面 change 的 proposal 补全。
+   - 若是 patch 已被上游收编（diff 永远为空且确认无需保留）：
+     从对应 proposal 的 `## Fork Touchpoints` 中删除该路径，并同步本文表格。
 
 ### 共享文件
 当一个文件被多个 change 触碰时，rebase 冲突解决要**把所有 change 的修改都加回来**。
 - 每条 change 的「⚠ 跨 change 共享文件」小节列出了这种文件，并用 `→ 也属于 #N` 给出对面 change 编号。
 - 在 FORK.md 里全文搜索某个文件路径，可以反向查到所有相关 change（同一文件会在每个相关 change 下重复出现）。
 
-### 后续工具计划（见 [Step 3/4 of fork-overlay plan]）
-- `tools/fork-snapshot.sh`：rebase 前对每个 change 生成 `change/patch.diff`
-- `tools/fork-verify.sh`：rebase 后 `git apply --check` 验证每个 patch 仍可干净应用
+### 工具
+- `tools/fork_overlay.py snapshot` — rebase 前保存每个 change 的 manifest + patch diff
+- `tools/fork_overlay.py verify` — rebase 后校验 patch 仍在 + 共享文件双向闭合
+- 两者均接 `--base <ref>`（默认 `main`）
