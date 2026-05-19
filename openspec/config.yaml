@@ -1,20 +1,32 @@
 schema: spec-driven
 
 # Project context (optional)
-# This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+context: |
+  This repo is a fork of upstream `jhs-sub2api/sub2api`.
+  Branch model: `main` mirrors upstream; `develop` carries all customizations and is rebased onto `main` every upstream sync.
+  Every OpenSpec change is also a fork-overlay entry tracked in `openspec/FORK.md`.
+  When a change is added/archived/modified, FORK.md MUST be updated in the same commit.
 
-# Per-artifact rules (optional)
-# Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
+# Per-artifact rules
+rules:
+  proposal:
+    - |
+      Must include a `## Fork Touchpoints` section after `## Impact`, with these subsections (omit body of a subsection only if it is genuinely empty, but always include the heading):
+
+        ### New Files
+        - `path/to/file`: why this file exists
+
+        ### Upstream Patch Files
+        - `path/to/file`: behavior that must survive an upstream rebase
+
+        ### Shared Touchpoints
+        - `path/to/file`: also owned by `<other-change-id>` because <reason>
+
+        ### Non-OpenSpec Overlap
+        - `path/to/file`: overlaps infra/docs fork area (e.g. `.goreleaser.yaml`, README non-feature sections) because <reason>
+
+      This is the machine-readable boundary used by `tools/fork-snapshot.sh` / `tools/fork-verify.sh` and by `openspec/FORK.md`.
+    - When a proposal is created or modified, the matching row in `openspec/FORK.md` must be added/updated in the same commit.
+
+  tasks:
+    - When implementation finishes (before archiving), confirm `openspec/FORK.md` accurately reflects the final set of touched files.
