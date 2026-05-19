@@ -5,6 +5,7 @@ package server_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"math"
@@ -1405,6 +1406,158 @@ func TestAPIContracts(t *testing.T) {
 	}
 }
 
+func TestAdminCreateUserAPIKeyWithAdminAPIKeyMockData(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	service.SetDefaultIdempotencyCoordinator(nil)
+
+	now := time.Date(2026, 5, 19, 12, 0, 0, 0, time.UTC)
+	adminKey := "admin-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	targetGroupID := int64(20)
+	targetUserID := int64(100)
+
+	userRepo := &stubUserRepo{
+		users: map[int64]*service.User{
+			1: {
+				ID:          1,
+				Email:       "admin@example.com",
+				Role:        service.RoleAdmin,
+				Status:      service.StatusActive,
+				Concurrency: 9,
+				CreatedAt:   now,
+				UpdatedAt:   now,
+			},
+			targetUserID: {
+				ID:            targetUserID,
+				Email:         "mock-user@example.com",
+				Role:          service.RoleUser,
+				Status:        service.StatusActive,
+				AllowedGroups: nil,
+				CreatedAt:     now,
+				UpdatedAt:     now,
+			},
+		},
+	}
+
+	groupRepo := &stubGroupRepo{}
+	groupRepo.SetByID([]service.Group{{
+		ID:               targetGroupID,
+		Name:             "Mock Exclusive",
+		Platform:         service.PlatformAnthropic,
+		Status:           service.StatusActive,
+		IsExclusive:      true,
+		SubscriptionType: service.SubscriptionTypeStandard,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	}})
+
+	apiKeyRepo := newStubApiKeyRepo(now)
+	userSubRepo := &stubUserSubscriptionRepo{}
+	cfg := &config.Config{Default: config.DefaultConfig{APIKeyPrefix: "sk-"}}
+	apiKeyService := service.NewAPIKeyService(apiKeyRepo, userRepo, groupRepo, userSubRepo, nil, stubApiKeyCache{}, cfg)
+	adminService := service.NewAdminService(
+		userRepo,
+		groupRepo,
+		&stubAccountRepo{},
+		stubProxyRepo{},
+		apiKeyRepo,
+		&stubRedeemCodeRepo{},
+		nil,
+		nil,
+		apiKeyService,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		service.NewSettingService(newStubSettingRepo(), cfg),
+		nil,
+		userSubRepo,
+		nil,
+		nil,
+	)
+
+	settingRepo := newStubSettingRepo()
+	require.NoError(t, settingRepo.Set(context.Background(), service.SettingKeyAdminAPIKey, adminKey))
+	settingService := service.NewSettingService(settingRepo, cfg)
+	userService := service.NewUserService(userRepo, nil, nil, nil)
+	adminAuth := middleware.NewAdminAuthMiddleware(nil, userService, settingService)
+
+	router := gin.New()
+	adminGroup := router.Group("/api/v1/admin")
+	adminGroup.Use(gin.HandlerFunc(adminAuth))
+	adminGroup.POST("/users/:id/api-keys", adminhandler.NewAdminAPIKeyHandler(adminService).CreateForUser)
+
+	t.Run("invalid admin api key is rejected", func(t *testing.T) {
+		status, body := doRequest(t, router, http.MethodPost, "/api/v1/admin/users/100/api-keys", `{"name":"mock"}`, map[string]string{
+			"Content-Type":    "application/json",
+			"x-api-key":       "admin-wrong",
+			"Idempotency-Key": "mock-create-wrong-key",
+		})
+
+		require.Equal(t, http.StatusUnauthorized, status)
+		require.Contains(t, body, "INVALID_ADMIN_KEY")
+	})
+
+	t.Run("admin api key creates ai usable user key", func(t *testing.T) {
+		status, body := doRequest(t, router, http.MethodPost, "/api/v1/admin/users/100/api-keys", `{
+			"name":"mock-created-key",
+			"group_id":20,
+			"custom_key":"sk-mock-created-key",
+			"quota":25.5,
+			"rate_limit_1d":7.25,
+			"ip_whitelist":["10.0.0.0/8"]
+		}`, map[string]string{
+			"Content-Type":    "application/json",
+			"x-api-key":       adminKey,
+			"Idempotency-Key": "mock-create-user-100-key",
+		})
+
+		require.Equal(t, http.StatusOK, status, body)
+
+		var resp struct {
+			Code int `json:"code"`
+			Data struct {
+				APIKey struct {
+					ID          int64    `json:"id"`
+					UserID      int64    `json:"user_id"`
+					Key         string   `json:"key"`
+					Name        string   `json:"name"`
+					GroupID     *int64   `json:"group_id"`
+					Quota       float64  `json:"quota"`
+					RateLimit1d float64  `json:"rate_limit_1d"`
+					IPWhitelist []string `json:"ip_whitelist"`
+					Status      string   `json:"status"`
+				} `json:"api_key"`
+				AutoGrantedGroupAccess bool   `json:"auto_granted_group_access"`
+				GrantedGroupID         *int64 `json:"granted_group_id"`
+				GrantedGroupName       string `json:"granted_group_name"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(body), &resp))
+		require.Equal(t, 0, resp.Code)
+		require.Equal(t, targetUserID, resp.Data.APIKey.UserID)
+		require.Equal(t, "sk-mock-created-key", resp.Data.APIKey.Key)
+		require.Equal(t, "mock-created-key", resp.Data.APIKey.Name)
+		require.Equal(t, service.StatusAPIKeyActive, resp.Data.APIKey.Status)
+		require.NotNil(t, resp.Data.APIKey.GroupID)
+		require.Equal(t, targetGroupID, *resp.Data.APIKey.GroupID)
+		require.Equal(t, 25.5, resp.Data.APIKey.Quota)
+		require.Equal(t, 7.25, resp.Data.APIKey.RateLimit1d)
+		require.Equal(t, []string{"10.0.0.0/8"}, resp.Data.APIKey.IPWhitelist)
+		require.True(t, resp.Data.AutoGrantedGroupAccess)
+		require.NotNil(t, resp.Data.GrantedGroupID)
+		require.Equal(t, targetGroupID, *resp.Data.GrantedGroupID)
+		require.Equal(t, "Mock Exclusive", resp.Data.GrantedGroupName)
+
+		created, err := apiKeyRepo.GetByKey(context.Background(), "sk-mock-created-key")
+		require.NoError(t, err)
+		require.Equal(t, targetUserID, created.UserID)
+		require.NotNil(t, created.GroupID)
+		require.Equal(t, targetGroupID, *created.GroupID)
+		require.Contains(t, userRepo.users[targetUserID].AllowedGroups, targetGroupID)
+	})
+}
+
 type contractDeps struct {
 	now         time.Time
 	router      http.Handler
@@ -1470,7 +1623,7 @@ func newContractDeps(t *testing.T) *contractDeps {
 	settingRepo := newStubSettingRepo()
 	settingService := service.NewSettingService(settingRepo, cfg)
 
-	adminService := service.NewAdminService(userRepo, groupRepo, &accountRepo, proxyRepo, apiKeyRepo, redeemRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	adminService := service.NewAdminService(userRepo, groupRepo, &accountRepo, proxyRepo, apiKeyRepo, redeemRepo, nil, nil, apiKeyService, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	authHandler := handler.NewAuthHandler(cfg, nil, userService, settingService, nil, redeemService, nil, nil)
 	apiKeyHandler := handler.NewAPIKeyHandler(apiKeyService)
 	usageHandler := handler.NewUsageHandler(usageService, apiKeyService, nil, nil)
@@ -1670,7 +1823,17 @@ func (r *stubUserRepo) RemoveGroupFromUserAllowedGroups(ctx context.Context, use
 }
 
 func (r *stubUserRepo) AddGroupToAllowedGroups(ctx context.Context, userID int64, groupID int64) error {
-	return errors.New("not implemented")
+	user, ok := r.users[userID]
+	if !ok {
+		return service.ErrUserNotFound
+	}
+	for _, existing := range user.AllowedGroups {
+		if existing == groupID {
+			return nil
+		}
+	}
+	user.AllowedGroups = append(user.AllowedGroups, groupID)
+	return nil
 }
 
 func (r *stubUserRepo) ListUserAuthIdentities(ctx context.Context, userID int64) ([]service.UserAuthIdentityRecord, error) {
@@ -1753,22 +1916,35 @@ func (stubApiKeyCache) SubscribeAuthCacheInvalidation(ctx context.Context, handl
 
 type stubGroupRepo struct {
 	active []service.Group
+	byID   map[int64]service.Group
 }
 
 func (r *stubGroupRepo) SetActive(groups []service.Group) {
 	r.active = append([]service.Group(nil), groups...)
 }
 
+func (r *stubGroupRepo) SetByID(groups []service.Group) {
+	r.byID = make(map[int64]service.Group, len(groups))
+	for _, group := range groups {
+		r.byID[group.ID] = group
+	}
+}
+
 func (stubGroupRepo) Create(ctx context.Context, group *service.Group) error {
 	return errors.New("not implemented")
 }
 
-func (stubGroupRepo) GetByID(ctx context.Context, id int64) (*service.Group, error) {
-	return nil, service.ErrGroupNotFound
+func (r *stubGroupRepo) GetByID(ctx context.Context, id int64) (*service.Group, error) {
+	group, ok := r.byID[id]
+	if !ok {
+		return nil, service.ErrGroupNotFound
+	}
+	clone := group
+	return &clone, nil
 }
 
-func (stubGroupRepo) GetByIDLite(ctx context.Context, id int64) (*service.Group, error) {
-	return nil, service.ErrGroupNotFound
+func (r *stubGroupRepo) GetByIDLite(ctx context.Context, id int64) (*service.Group, error) {
+	return r.GetByID(ctx, id)
 }
 
 func (stubGroupRepo) Update(ctx context.Context, group *service.Group) error {

@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"context"
 	"strconv"
 
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
@@ -26,6 +27,72 @@ func NewAdminAPIKeyHandler(adminService service.AdminService) *AdminAPIKeyHandle
 type AdminUpdateAPIKeyGroupRequest struct {
 	GroupID             *int64 `json:"group_id"`               // nil=不修改, 0=解绑, >0=绑定到目标分组
 	ResetRateLimitUsage *bool  `json:"reset_rate_limit_usage"` // true=重置 5h/1d/7d 限速用量
+}
+
+// AdminCreateUserAPIKeyRequest represents the request to create a user API key.
+type AdminCreateUserAPIKeyRequest struct {
+	Name          string   `json:"name" binding:"required"`
+	GroupID       *int64   `json:"group_id"`
+	CustomKey     *string  `json:"custom_key"`
+	IPWhitelist   []string `json:"ip_whitelist"`
+	IPBlacklist   []string `json:"ip_blacklist"`
+	Quota         *float64 `json:"quota"`
+	ExpiresInDays *int     `json:"expires_in_days"`
+	RateLimit5h   *float64 `json:"rate_limit_5h"`
+	RateLimit1d   *float64 `json:"rate_limit_1d"`
+	RateLimit7d   *float64 `json:"rate_limit_7d"`
+}
+
+// CreateForUser handles creating an API key for a target user.
+// POST /api/v1/admin/users/:id/api-keys
+func (h *AdminAPIKeyHandler) CreateForUser(c *gin.Context) {
+	userID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid user ID")
+		return
+	}
+
+	var req AdminCreateUserAPIKeyRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	input := service.CreateUserAPIKeyInput{
+		Name:          req.Name,
+		GroupID:       req.GroupID,
+		CustomKey:     req.CustomKey,
+		IPWhitelist:   req.IPWhitelist,
+		IPBlacklist:   req.IPBlacklist,
+		ExpiresInDays: req.ExpiresInDays,
+	}
+	if req.Quota != nil {
+		input.Quota = *req.Quota
+	}
+	if req.RateLimit5h != nil {
+		input.RateLimit5h = *req.RateLimit5h
+	}
+	if req.RateLimit1d != nil {
+		input.RateLimit1d = *req.RateLimit1d
+	}
+	if req.RateLimit7d != nil {
+		input.RateLimit7d = *req.RateLimit7d
+	}
+
+	idempotencyPayload := struct {
+		UserID int64                        `json:"user_id"`
+		Body   AdminCreateUserAPIKeyRequest `json:"body"`
+	}{
+		UserID: userID,
+		Body:   req,
+	}
+	executeAdminIdempotentJSON(c, "admin.users.api_keys.create", idempotencyPayload, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
+		result, execErr := h.adminService.CreateUserAPIKey(ctx, userID, input)
+		if execErr != nil {
+			return nil, execErr
+		}
+		return adminCreateAPIKeyResponse(result), nil
+	})
 }
 
 // UpdateGroup handles updating an API key's admin-managed fields.
@@ -73,4 +140,21 @@ func (h *AdminAPIKeyHandler) UpdateGroup(c *gin.Context) {
 		GrantedGroupName:       result.GrantedGroupName,
 	}
 	response.Success(c, resp)
+}
+
+func adminCreateAPIKeyResponse(result *service.CreateUserAPIKeyResult) any {
+	if result == nil {
+		return nil
+	}
+	return struct {
+		APIKey                 *dto.APIKey `json:"api_key"`
+		AutoGrantedGroupAccess bool        `json:"auto_granted_group_access"`
+		GrantedGroupID         *int64      `json:"granted_group_id,omitempty"`
+		GrantedGroupName       string      `json:"granted_group_name,omitempty"`
+	}{
+		APIKey:                 dto.APIKeyFromService(result.APIKey),
+		AutoGrantedGroupAccess: result.AutoGrantedGroupAccess,
+		GrantedGroupID:         result.GrantedGroupID,
+		GrantedGroupName:       result.GrantedGroupName,
+	}
 }
