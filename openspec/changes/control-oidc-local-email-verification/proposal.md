@@ -50,7 +50,6 @@ The pending OIDC signup flow currently performs a second local email-code verifi
 - `frontend/src/components/auth/__tests__/PendingOAuthCreateAccountForm.spec.ts`: form tests.
 - `frontend/src/views/auth/OidcCallbackView.vue`: consumes the verification flag.
 - `frontend/src/views/auth/__tests__/OidcCallbackView.spec.ts`: callback view tests.
-- `frontend/src/api/auth.ts`: pending OAuth session typing carries the new field.
 - `frontend/src/i18n/locales/en.ts`: copy strings.
 - `frontend/src/i18n/locales/zh.ts`: copy strings.
 
@@ -61,7 +60,6 @@ The pending OIDC signup flow currently performs a second local email-code verifi
 - `frontend/src/views/admin/SettingsView.vue`: also owned by `add-external-custom-menu-token-open` — preserve both settings panels.
 - `frontend/src/views/auth/OidcCallbackView.vue`: also owned by `refine-pending-oauth-account-resolution` — preserve both chooser bypass and verification flag handling.
 - `frontend/src/views/auth/__tests__/OidcCallbackView.spec.ts`: also owned by `refine-pending-oauth-account-resolution`.
-- `frontend/src/api/auth.ts`: also owned by `refine-pending-oauth-account-resolution` — preserve both `PendingOAuthResponse` field sets.
 
 ### Non-OpenSpec Overlap
 - _None._
