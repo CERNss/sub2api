@@ -27,3 +27,27 @@ External payment and provisioning systems need to create AI-usable API keys for 
 - API key service internals to allow shared creation logic for an already-loaded user
 - Admin/payment integration documentation
 - Handler, service, route, and mock-data HTTP contract tests
+
+## Fork Touchpoints
+
+### New Files
+- _None._ All changes are patches into existing upstream files.
+
+### Upstream Patch Files
+- `backend/cmd/server/wire_gen.go`: wire-regenerated to inject the new handler.
+- `backend/internal/handler/admin/apikey_handler.go`: adds `AdminAPIKeyHandler.CreateForUser` and `AdminCreateUserAPIKeyRequest` DTO.
+- `backend/internal/handler/admin/admin_basic_handlers_test.go`: route coverage for the new endpoint.
+- `backend/internal/handler/admin/admin_service_stub_test.go`: stub interface extended with `CreateUserAPIKey`.
+- `backend/internal/server/routes/admin.go`: registers `POST /api/v1/admin/users/:id/api-keys` (`users.POST("/:id/api-keys", h.Admin.APIKey.CreateForUser)`).
+- `backend/internal/server/api_contract_test.go`: contract rows for the new admin endpoint.
+- `backend/internal/service/admin_service.go`: adds `adminServiceImpl.CreateUserAPIKey`, `CreateUserAPIKeyInput`, `CreateUserAPIKeyResult`.
+- `backend/internal/service/admin_service_apikey_test.go`: service unit tests.
+- `backend/internal/service/api_key_service.go`: exposes shared creation core so admin path can reuse it without acting as the user.
+- `docs/ADMIN_PAYMENT_INTEGRATION_API.md`: endpoint documentation for payment integrators.
+
+### Shared Touchpoints
+- `README.md`: also owned by `add-external-custom-menu-token-open` — both changes append a feature blurb section, do not delete the other change's paragraph during rebase.
+- `README_CN.md`: also owned by `add-external-custom-menu-token-open` — same reason as above.
+
+### Non-OpenSpec Overlap
+- _None._ This change does not touch infra/CI/docker fork areas.
