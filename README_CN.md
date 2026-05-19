@@ -45,6 +45,20 @@ Sub2API 是一个 AI API 网关平台，用于分发和管理 AI 产品订阅的
 - **管理后台** - Web 界面进行监控和管理
 - **外部系统集成** - 支持通过 iframe 嵌入外部系统（如工单等），扩展管理后台功能
 
+## Fork 新增功能
+
+### Admin API 为指定用户创建 API Key
+
+外部开通、支付或发卡系统可以通过 Admin API Key 为指定用户创建正常可用于 AI 调用的 API Key：
+
+```bash
+POST /api/v1/admin/users/:id/api-keys
+```
+
+目标用户由路径里的 `:id` 指定。请求体支持与用户端“创建密钥”弹窗一致的控制项，包括绑定分组、自定义密钥、IP 限制、额度限制、滚动速率限制和密钥有效期。完整可用密钥会在响应的 `data.api_key.key` 中返回。
+
+OpenSpec 参考：[Admin API 为指定用户创建 API Key](openspec/changes/add-admin-user-api-key-creation/proposal.md)。
+
 ## ❤️ 赞助商
 
 > [想出现在这里？](mailto:support@pincc.ai)

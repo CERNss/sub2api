@@ -46,6 +46,20 @@ Sub2API is an AI API gateway platform designed to distribute and manage API quot
 - **Admin Dashboard** - Web interface for monitoring and management
 - **External System Integration** - Embed external systems (e.g. ticketing) via iframe to extend the admin dashboard
 
+## Fork Additions
+
+### Admin API User Key Provisioning
+
+External provisioning or payment systems can create a normal AI-usable API key for a specific user through the Admin API Key flow:
+
+```bash
+POST /api/v1/admin/users/:id/api-keys
+```
+
+The target user is selected by the `:id` path parameter. The request supports the same create-key controls as the user modal, including group binding, optional custom key, IP restrictions, quota, rolling rate limits, and expiration. The full created key is returned at `data.api_key.key`.
+
+OpenSpec reference: [Admin API user key provisioning](openspec/changes/add-admin-user-api-key-creation/proposal.md).
+
 ## ❤️ Sponsors
 
 > [Want to appear here?](mailto:support@pincc.ai)
