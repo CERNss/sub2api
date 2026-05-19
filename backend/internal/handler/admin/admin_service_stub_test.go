@@ -205,6 +205,30 @@ func (s *stubAdminService) GetUserAPIKeys(ctx context.Context, userID int64, pag
 	return s.apiKeys, int64(len(s.apiKeys)), nil
 }
 
+func (s *stubAdminService) CreateUserAPIKey(ctx context.Context, userID int64, input service.CreateUserAPIKeyInput) (*service.CreateUserAPIKeyResult, error) {
+	key := service.APIKey{
+		ID:          11,
+		UserID:      userID,
+		Key:         "sk-created",
+		Name:        input.Name,
+		GroupID:     input.GroupID,
+		Status:      service.StatusAPIKeyActive,
+		IPWhitelist: input.IPWhitelist,
+		IPBlacklist: input.IPBlacklist,
+		Quota:       input.Quota,
+		RateLimit5h: input.RateLimit5h,
+		RateLimit1d: input.RateLimit1d,
+		RateLimit7d: input.RateLimit7d,
+		CreatedAt:   time.Now().UTC(),
+		UpdatedAt:   time.Now().UTC(),
+	}
+	if input.CustomKey != nil && *input.CustomKey != "" {
+		key.Key = *input.CustomKey
+	}
+	s.apiKeys = append(s.apiKeys, key)
+	return &service.CreateUserAPIKeyResult{APIKey: &key}, nil
+}
+
 func (s *stubAdminService) GetUserUsageStats(ctx context.Context, userID int64, period string) (any, error) {
 	return map[string]any{"user_id": userID}, nil
 }
