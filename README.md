@@ -39,7 +39,32 @@ POST /api/v1/admin/users/:id/api-keys
 
 The target user is selected by the `:id` path parameter. The request supports the same create-key controls as the user modal, including group binding, optional custom key, IP restrictions, quota, rolling rate limits, and expiration. The full created key is returned at `data.api_key.key`.
 
-OpenSpec reference: [Admin API user key provisioning](openspec/changes/add-admin-user-api-key-creation/proposal.md).
+### External Custom Menu Launch
+
+Custom admin menu entries can now choose between the existing iframe mode and an external launch mode. External entries open the configured absolute URL in a new tab and append the current Sub2API JWT as a `token` query parameter, so sidecar admin tools can bootstrap their own session.
+
+### OIDC Local Email Verification Control
+
+Admins can keep the secure default that requires local email-code verification for pending OIDC account creation, or disable that duplicate step when the upstream OIDC provider already supplied a verified, non-synthetic trusted `compat_email`.
+
+The backend returns `local_email_verification_required` with pending OIDC completion responses, and the frontend hides verification controls only while the form email still matches the trusted OIDC email. If the user edits the email, local verification is restored.
+
+### Pending OAuth Account Flow Refinements
+
+OIDC, LinuxDo, and WeChat callback pages now resolve pending account actions from both state and bindability hints. When no existing account can be bound and account creation is allowed, brand-new users go directly to account creation instead of seeing an unnecessary bind/create chooser.
+
+### Better OAuth Email Prefill
+
+Pending OAuth create-account and bind-login forms now prefer the most useful human email, including `pending_email`, `existing_account_email`, and `compat_email`, before falling back to provider-specific values. Synthetic provider fallback emails are avoided when better data exists.
+
+### OpenSpec References
+
+The README summary is based on these OpenSpec changes:
+
+- [Admin API user key provisioning](openspec/changes/add-admin-user-api-key-creation/proposal.md)
+- [External custom menu launch](openspec/changes/add-external-custom-menu-token-open/proposal.md)
+- [OIDC local email verification control](openspec/changes/control-oidc-local-email-verification/proposal.md)
+- [Pending OAuth account resolution refinements](openspec/changes/refine-pending-oauth-account-resolution/proposal.md)
 
 ## ❤️ Sponsors
 
