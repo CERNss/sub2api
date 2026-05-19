@@ -116,6 +116,8 @@ backend/.installed
 # ===================
 # 其他
 # ===================
+# Fork overlay snapshots are local, regenerated before each rebase.
+tools/fork-snapshots/
 tests
 !deploy/tests/
 !deploy/tests/**
