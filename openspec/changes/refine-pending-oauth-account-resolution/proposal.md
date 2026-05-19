@@ -24,3 +24,25 @@ The `v0.0.5` auth callback changes corrected two regressions introduced by the p
 - Pending OAuth response typing in `frontend/src/api/auth.ts`
 - Callback flow tests in `frontend/src/views/auth/__tests__`
 - Future backend changes that rely on callback interpretation of pending OAuth responses
+
+## Fork Touchpoints
+
+### New Files
+- _None._
+
+### Upstream Patch Files
+- `frontend/src/views/auth/OidcCallbackView.vue`: chooser bypass + email prefill order rules.
+- `frontend/src/views/auth/LinuxDoCallbackView.vue`: same rules for LinuxDo callback.
+- `frontend/src/views/auth/WechatCallbackView.vue`: same rules for WeChat callback.
+- `frontend/src/views/auth/__tests__/OidcCallbackView.spec.ts`: regression coverage.
+- `frontend/src/views/auth/__tests__/LinuxDoCallbackView.spec.ts`: regression coverage.
+- `frontend/src/views/auth/__tests__/WechatCallbackView.spec.ts`: regression coverage.
+- `frontend/src/api/auth.ts`: `PendingOAuthResponse` fields for `existing_account_bindable` / `create_account_allowed` / `compat_email`.
+
+### Shared Touchpoints
+- `frontend/src/views/auth/OidcCallbackView.vue`: also owned by `control-oidc-local-email-verification` — preserve both chooser bypass and verification flag handling.
+- `frontend/src/views/auth/__tests__/OidcCallbackView.spec.ts`: also owned by `control-oidc-local-email-verification`.
+- `frontend/src/api/auth.ts`: also owned by `control-oidc-local-email-verification` — preserve both `PendingOAuthResponse` field sets.
+
+### Non-OpenSpec Overlap
+- _None._
