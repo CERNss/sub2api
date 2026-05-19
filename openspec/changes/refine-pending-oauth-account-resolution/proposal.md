@@ -37,12 +37,12 @@ The `v0.0.5` auth callback changes corrected two regressions introduced by the p
 - `frontend/src/views/auth/__tests__/OidcCallbackView.spec.ts`: regression coverage.
 - `frontend/src/views/auth/__tests__/LinuxDoCallbackView.spec.ts`: regression coverage.
 - `frontend/src/views/auth/__tests__/WechatCallbackView.spec.ts`: regression coverage.
-- `frontend/src/api/auth.ts`: `PendingOAuthResponse` fields for `existing_account_bindable` / `create_account_allowed` / `compat_email`.
+
+> Note: the `PendingOAuthResponse` shape (e.g. `existing_account_bindable`, `create_account_allowed`, `compat_email`) is declared inline as a local `interface` inside each `*CallbackView.vue`, not in `frontend/src/api/auth.ts`. Keep that pattern when reapplying after rebase.
 
 ### Shared Touchpoints
 - `frontend/src/views/auth/OidcCallbackView.vue`: also owned by `control-oidc-local-email-verification` — preserve both chooser bypass and verification flag handling.
 - `frontend/src/views/auth/__tests__/OidcCallbackView.spec.ts`: also owned by `control-oidc-local-email-verification`.
-- `frontend/src/api/auth.ts`: also owned by `control-oidc-local-email-verification` — preserve both `PendingOAuthResponse` field sets.
 
 ### Non-OpenSpec Overlap
 - _None._
