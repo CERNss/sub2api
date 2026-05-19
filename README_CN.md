@@ -42,6 +42,10 @@ POST /api/v1/admin/users/:id/api-keys
 
 目标用户由路径里的 `:id` 指定。请求体支持与用户端“创建密钥”弹窗一致的控制项，包括绑定分组、自定义密钥、IP 限制、额度限制、滚动速率限制和密钥有效期。完整可用密钥会在响应的 `data.api_key.key` 中返回。
 
+### 自定义菜单外部打开模式
+
+管理后台自定义菜单现在可以选择保留原有 iframe 打开方式，或使用外部打开模式。外部菜单项会在新标签页打开配置的绝对 URL，并追加当前 Sub2API JWT 作为 `token` query 参数，方便旁路管理工具完成自己的登录引导。
+
 ### OIDC 本地邮箱验证控制
 
 管理员可以保留默认的安全策略，即待处理 OIDC 创建账号仍要求本地邮箱验证码；也可以在上游 OIDC 已提供可信、已验证、非合成的 `compat_email` 时关闭这一步重复验证。
@@ -61,6 +65,7 @@ OIDC、LinuxDo、微信回调页现在会结合 state 与 bindability hints 解�
 本 README 摘要基于以下 OpenSpec 变更：
 
 - [Admin API 为指定用户创建 API Key](openspec/changes/add-admin-user-api-key-creation/proposal.md)
+- [自定义菜单外部打开模式](openspec/changes/add-external-custom-menu-token-open/proposal.md)
 - [OIDC 本地邮箱验证控制](openspec/changes/control-oidc-local-email-verification/proposal.md)
 - [待处理 OAuth 账号解析优化](openspec/changes/refine-pending-oauth-account-resolution/proposal.md)
 
