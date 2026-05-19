@@ -32,13 +32,14 @@ func (s *userRepoStubForGroupUpdate) AddGroupToAllowedGroups(_ context.Context, 
 	return s.addGroupErr
 }
 
-func (s *userRepoStubForGroupUpdate) Create(context.Context, *User) error { panic("unexpected") }
 func (s *userRepoStubForGroupUpdate) CreateWithEmailAliasGuard(context.Context, *User) error {
 	panic("unexpected")
 }
-func (s *userRepoStubForGroupUpdate) GetByID(context.Context, int64) (*User, error) {
-	panic("unexpected")
+func (s *userRepoStubForGroupUpdate) GetByID(_ context.Context, id int64) (*User, error) {
+	return &User{ID: id, Status: StatusActive}, nil
 }
+
+func (s *userRepoStubForGroupUpdate) Create(context.Context, *User) error { panic("unexpected") }
 func (s *userRepoStubForGroupUpdate) GetByEmail(context.Context, string) (*User, error) {
 	panic("unexpected")
 }
@@ -134,6 +135,8 @@ type apiKeyRepoStubForGroupUpdate struct {
 	key       *APIKey
 	getErr    error
 	updateErr error
+	createErr error
+	created   *APIKey
 	updated   *APIKey // captures what was passed to Update
 }
 
@@ -153,8 +156,20 @@ func (s *apiKeyRepoStubForGroupUpdate) Update(_ context.Context, key *APIKey, _ 
 	return nil
 }
 
+func (s *apiKeyRepoStubForGroupUpdate) Create(_ context.Context, key *APIKey) error {
+	if s.createErr != nil {
+		return s.createErr
+	}
+	clone := *key
+	if clone.ID == 0 {
+		clone.ID = 100
+		key.ID = clone.ID
+	}
+	s.created = &clone
+	return nil
+}
+
 // Unused methods – panic on unexpected call.
-func (s *apiKeyRepoStubForGroupUpdate) Create(context.Context, *APIKey) error { panic("unexpected") }
 func (s *apiKeyRepoStubForGroupUpdate) GetKeyAndOwnerID(context.Context, int64) (string, int64, error) {
 	panic("unexpected")
 }
@@ -177,8 +192,8 @@ func (s *apiKeyRepoStubForGroupUpdate) VerifyOwnership(context.Context, int64, [
 func (s *apiKeyRepoStubForGroupUpdate) CountByUserID(context.Context, int64) (int64, error) {
 	panic("unexpected")
 }
-func (s *apiKeyRepoStubForGroupUpdate) ExistsByKey(context.Context, string) (bool, error) {
-	panic("unexpected")
+func (s *apiKeyRepoStubForGroupUpdate) ExistsByKey(_ context.Context, key string) (bool, error) {
+	return s.key != nil && s.key.Key == key, nil
 }
 func (s *apiKeyRepoStubForGroupUpdate) ListByGroupID(context.Context, int64, pagination.PaginationParams) ([]APIKey, *pagination.PaginationResult, error) {
 	panic("unexpected")
@@ -564,4 +579,90 @@ func TestAdminService_AdminUpdateAPIKeyGroupID_Unbind_NoAllowedGroupUpdate(t *te
 	// 解绑时不修改 allowed_groups
 	require.False(t, userRepo.addGroupCalled)
 	require.False(t, got.AutoGrantedGroupAccess)
+}
+
+func TestAdminService_CreateUserAPIKey_ExclusiveGroupAutoGrant(t *testing.T) {
+	gid := int64(10)
+	customKey := "sk-admin-created"
+	userRepo := &userRepoStubForGroupUpdate{}
+	groupRepo := &groupRepoStubForGroupUpdate{group: &Group{
+		ID:               gid,
+		Name:             "Exclusive",
+		Status:           StatusActive,
+		IsExclusive:      true,
+		SubscriptionType: SubscriptionTypeStandard,
+	}}
+	apiKeyRepo := &apiKeyRepoStubForGroupUpdate{}
+	apiKeySvc := &APIKeyService{
+		apiKeyRepo: apiKeyRepo,
+		userRepo:   userRepo,
+		groupRepo:  groupRepo,
+	}
+	svc := &adminServiceImpl{
+		userRepo:      userRepo,
+		groupRepo:     groupRepo,
+		apiKeyService: apiKeySvc,
+	}
+
+	got, err := svc.CreateUserAPIKey(context.Background(), 42, CreateUserAPIKeyInput{
+		Name:      "service-key",
+		GroupID:   &gid,
+		CustomKey: &customKey,
+		Quota:     12.5,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, got.APIKey)
+	require.Equal(t, customKey, got.APIKey.Key)
+	require.Equal(t, int64(42), got.APIKey.UserID)
+	require.NotNil(t, got.APIKey.GroupID)
+	require.Equal(t, gid, *got.APIKey.GroupID)
+	require.Equal(t, 12.5, got.APIKey.Quota)
+	require.True(t, userRepo.addGroupCalled)
+	require.Equal(t, int64(42), userRepo.addedUserID)
+	require.Equal(t, gid, userRepo.addedGroupID)
+	require.True(t, got.AutoGrantedGroupAccess)
+	require.NotNil(t, got.GrantedGroupID)
+	require.Equal(t, gid, *got.GrantedGroupID)
+	require.Equal(t, "Exclusive", got.GrantedGroupName)
+	require.NotNil(t, apiKeyRepo.created)
+}
+
+func TestAdminService_CreateUserAPIKey_SubscriptionGroupRequiresActiveSubscription(t *testing.T) {
+	gid := int64(10)
+	customKey := "sk-admin-sub-created"
+	userRepo := &userRepoStubForGroupUpdate{}
+	groupRepo := &groupRepoStubForGroupUpdate{group: &Group{
+		ID:               gid,
+		Name:             "Subscription",
+		Status:           StatusActive,
+		IsExclusive:      true,
+		SubscriptionType: SubscriptionTypeSubscription,
+	}}
+	userSubRepo := &userSubRepoStubForGroupUpdate{getActiveErr: ErrSubscriptionNotFound}
+	apiKeyRepo := &apiKeyRepoStubForGroupUpdate{}
+	apiKeySvc := &APIKeyService{
+		apiKeyRepo:  apiKeyRepo,
+		userRepo:    userRepo,
+		groupRepo:   groupRepo,
+		userSubRepo: userSubRepo,
+	}
+	svc := &adminServiceImpl{
+		userRepo:      userRepo,
+		groupRepo:     groupRepo,
+		userSubRepo:   userSubRepo,
+		apiKeyService: apiKeySvc,
+	}
+
+	_, err := svc.CreateUserAPIKey(context.Background(), 42, CreateUserAPIKeyInput{
+		Name:      "service-key",
+		GroupID:   &gid,
+		CustomKey: &customKey,
+	})
+
+	require.Error(t, err)
+	require.Equal(t, "SUBSCRIPTION_REQUIRED", infraerrors.Reason(err))
+	require.True(t, userSubRepo.called)
+	require.Nil(t, apiKeyRepo.created)
+	require.False(t, userRepo.addGroupCalled)
 }

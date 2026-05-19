@@ -602,6 +602,86 @@ func (s *adminServiceImpl) GetUserAPIKeys(ctx context.Context, userID int64, pag
 	return keys, result.Total, nil
 }
 
+func (s *adminServiceImpl) CreateUserAPIKey(ctx context.Context, userID int64, input CreateUserAPIKeyInput) (*CreateUserAPIKeyResult, error) {
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	result := &CreateUserAPIKeyResult{}
+	var createCtx context.Context = ctx
+	var tx *dbent.Tx
+
+	if input.GroupID != nil && *input.GroupID > 0 {
+		group, err := s.groupRepo.GetByID(ctx, *input.GroupID)
+		if err != nil {
+			return nil, err
+		}
+		if group.Status != StatusActive {
+			return nil, infraerrors.BadRequest("GROUP_NOT_ACTIVE", "target group is not active")
+		}
+		if group.IsSubscriptionType() {
+			if s.userSubRepo == nil {
+				return nil, infraerrors.InternalServer("SUBSCRIPTION_REPOSITORY_UNAVAILABLE", "subscription repository is not configured")
+			}
+			if _, err := s.userSubRepo.GetActiveByUserIDAndGroupID(ctx, userID, *input.GroupID); err != nil {
+				if errors.Is(err, ErrSubscriptionNotFound) {
+					return nil, infraerrors.BadRequest("SUBSCRIPTION_REQUIRED", "user does not have an active subscription for this group")
+				}
+				return nil, err
+			}
+		} else if group.IsExclusive && !user.CanBindGroup(group.ID, group.IsExclusive) {
+			if s.entClient == nil {
+				logger.LegacyPrintf("service.admin", "Warning: entClient is nil, creating API key without transaction protection for exclusive group auto-grant")
+			} else {
+				tx, err = s.entClient.Tx(ctx)
+				if err != nil {
+					return nil, fmt.Errorf("begin transaction: %w", err)
+				}
+				defer func() { _ = tx.Rollback() }()
+				createCtx = dbent.NewTxContext(ctx, tx)
+			}
+
+			if err := s.userRepo.AddGroupToAllowedGroups(createCtx, userID, group.ID); err != nil {
+				return nil, fmt.Errorf("add group to user allowed groups: %w", err)
+			}
+			user.AllowedGroups = append(user.AllowedGroups, group.ID)
+			result.AutoGrantedGroupAccess = true
+			result.GrantedGroupID = &group.ID
+			result.GrantedGroupName = group.Name
+		}
+	}
+
+	if s.apiKeyService == nil {
+		return nil, infraerrors.InternalServer("API_KEY_SERVICE_UNAVAILABLE", "api key service is not configured")
+	}
+
+	apiKey, err := s.apiKeyService.createForUser(createCtx, user, CreateAPIKeyRequest{
+		Name:          input.Name,
+		GroupID:       input.GroupID,
+		CustomKey:     input.CustomKey,
+		IPWhitelist:   input.IPWhitelist,
+		IPBlacklist:   input.IPBlacklist,
+		Quota:         input.Quota,
+		ExpiresInDays: input.ExpiresInDays,
+		RateLimit5h:   input.RateLimit5h,
+		RateLimit1d:   input.RateLimit1d,
+		RateLimit7d:   input.RateLimit7d,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if tx != nil {
+		if err := tx.Commit(); err != nil {
+			return nil, fmt.Errorf("commit transaction: %w", err)
+		}
+	}
+
+	result.APIKey = apiKey
+	return result, nil
+}
+
 func (s *adminServiceImpl) GetUserRPMStatus(ctx context.Context, userID int64) (*UserRPMStatus, error) {
 	if s.userRPMCache == nil {
 		return nil, ErrRPMStatusUnavailable
