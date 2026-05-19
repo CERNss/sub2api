@@ -32,6 +32,16 @@ Sub2API distributes and manages API quotas from AI product subscriptions. Users 
 
 ## Newly Added
 
+### Admin API User Key Provisioning
+
+External provisioning or payment systems can now create a normal AI-usable API key for a specific user through the Admin API Key flow:
+
+```bash
+POST /api/v1/admin/users/:id/api-keys
+```
+
+The target user is selected by the `:id` path parameter. The request supports the same create-key controls as the user modal, including group binding, optional custom key, IP restrictions, quota, rolling rate limits, and expiration. The full created key is returned at `data.api_key.key`.
+
 ### OIDC Local Email Verification Control
 
 Admins can keep the secure default that requires local email-code verification for pending OIDC account creation, or disable that duplicate step when the upstream OIDC provider already supplied a verified, non-synthetic trusted `compat_email`.
@@ -50,6 +60,7 @@ Pending OAuth create-account and bind-login forms now prefer the most useful hum
 
 The README summary is based on these OpenSpec changes:
 
+- [Admin API user key provisioning](openspec/changes/add-admin-user-api-key-creation/proposal.md)
 - [OIDC local email verification control](openspec/changes/control-oidc-local-email-verification/proposal.md)
 - [Pending OAuth account resolution refinements](openspec/changes/refine-pending-oauth-account-resolution/proposal.md)
 

@@ -32,6 +32,16 @@ Sub2API 用于分发和管理 AI 产品订阅的 API 配额。用户通过平台
 
 ## 新增功能
 
+### Admin API 为指定用户创建 API Key
+
+外部开通、支付或发卡系统现在可以通过 Admin API Key 为指定用户创建正常可用于 AI 调用的 API Key：
+
+```bash
+POST /api/v1/admin/users/:id/api-keys
+```
+
+目标用户由路径里的 `:id` 指定。请求体支持与用户端“创建密钥”弹窗一致的控制项，包括绑定分组、自定义密钥、IP 限制、额度限制、滚动速率限制和密钥有效期。完整可用密钥会在响应的 `data.api_key.key` 中返回。
+
 ### OIDC 本地邮箱验证控制
 
 管理员可以保留默认的安全策略，即待处理 OIDC 创建账号仍要求本地邮箱验证码；也可以在上游 OIDC 已提供可信、已验证、非合成的 `compat_email` 时关闭这一步重复验证。
@@ -50,6 +60,7 @@ OIDC、LinuxDo、微信回调页现在会结合 state 与 bindability hints 解�
 
 本 README 摘要基于以下 OpenSpec 变更：
 
+- [Admin API 为指定用户创建 API Key](openspec/changes/add-admin-user-api-key-creation/proposal.md)
 - [OIDC 本地邮箱验证控制](openspec/changes/control-oidc-local-email-verification/proposal.md)
 - [待处理 OAuth 账号解析优化](openspec/changes/refine-pending-oauth-account-resolution/proposal.md)
 
