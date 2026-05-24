@@ -50,6 +50,10 @@ func (s *authRepoStub) Update(ctx context.Context, key *APIKey, _ APIKeyUpdateFi
 	panic("unexpected Update call")
 }
 
+func (s *authRepoStub) TransferUpdate(ctx context.Context, key *APIKey) error {
+	panic("unexpected TransferUpdate call")
+}
+
 func (s *authRepoStub) Delete(ctx context.Context, id int64) error {
 	panic("unexpected Delete call")
 }

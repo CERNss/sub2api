@@ -29,7 +29,7 @@ Please read the following carefully before using this project:
 
 ## Fork Additions
 
-### Admin API User Key Provisioning
+### Admin API User Key Provisioning And Transfer
 
 External provisioning or payment systems can create a normal AI-usable API key for a specific user through the Admin API Key flow:
 
@@ -38,6 +38,14 @@ POST /api/v1/admin/users/:id/api-keys
 ```
 
 The target user is selected by the `:id` path parameter. The request supports the same create-key controls as the user modal, including group binding, optional custom key, IP restrictions, quota, rolling rate limits, and expiration. The full created key is returned at `data.api_key.key`.
+
+Sidecar integrations can also transfer an existing API key to the correct owner and optionally update group binding, quota, or clear used quota:
+
+```bash
+POST /api/v1/admin/api-keys/:id/transfer
+```
+
+The transfer response confirms `data.api_key.user_id`, `quota`, and `quota_used`, and successful transfers invalidate API key auth cache.
 
 ### External Custom Menu Launch
 

@@ -30,6 +30,7 @@ func setupAdminRouter() (*gin.Engine, *stubAdminService) {
 	router.POST("/api/v1/admin/users/:id/balance", userHandler.UpdateBalance)
 	router.GET("/api/v1/admin/users/:id/api-keys", userHandler.GetUserAPIKeys)
 	router.POST("/api/v1/admin/users/:id/api-keys", NewAdminAPIKeyHandler(adminSvc).CreateForUser)
+	router.POST("/api/v1/admin/api-keys/:id/transfer", NewAdminAPIKeyHandler(adminSvc).Transfer)
 	router.GET("/api/v1/admin/users/:id/usage", userHandler.GetUserUsage)
 
 	router.GET("/api/v1/admin/groups", groupHandler.List)
@@ -156,6 +157,28 @@ func TestUserHandlerEndpoints(t *testing.T) {
 	require.Equal(t, "svc", keyResp.Data.APIKey.Name)
 	require.Equal(t, 12.5, keyResp.Data.APIKey.Quota)
 	require.Equal(t, 3.0, keyResp.Data.APIKey.RateLimit1d)
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/admin/api-keys/10/transfer", bytes.NewBufferString(`{"target_user_id":2,"target_group_id":0,"quota":20.5,"reset_quota":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var transferResp struct {
+		Data struct {
+			APIKey struct {
+				UserID    int64   `json:"user_id"`
+				GroupID   *int64  `json:"group_id"`
+				Quota     float64 `json:"quota"`
+				QuotaUsed float64 `json:"quota_used"`
+			} `json:"api_key"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &transferResp))
+	require.Equal(t, int64(2), transferResp.Data.APIKey.UserID)
+	require.Nil(t, transferResp.Data.APIKey.GroupID)
+	require.Equal(t, 20.5, transferResp.Data.APIKey.Quota)
+	require.Equal(t, 0.0, transferResp.Data.APIKey.QuotaUsed)
 
 	rec = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/admin/users/1/usage?period=today", nil)

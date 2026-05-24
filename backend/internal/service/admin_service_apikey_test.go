@@ -20,6 +20,7 @@ import (
 // userRepoStubForGroupUpdate implements UserRepository for AdminUpdateAPIKeyGroupID tests.
 type userRepoStubForGroupUpdate struct {
 	addGroupErr    error
+	getErr         error
 	addGroupCalled bool
 	addedUserID    int64
 	addedGroupID   int64
@@ -36,6 +37,9 @@ func (s *userRepoStubForGroupUpdate) CreateWithEmailAliasGuard(context.Context, 
 	panic("unexpected")
 }
 func (s *userRepoStubForGroupUpdate) GetByID(_ context.Context, id int64) (*User, error) {
+	if s.getErr != nil {
+		return nil, s.getErr
+	}
 	return &User{ID: id, Status: StatusActive}, nil
 }
 
@@ -132,12 +136,14 @@ func (s *userRepoStubForGroupUpdate) RemoveGroupFromUserAllowedGroups(context.Co
 
 // apiKeyRepoStubForGroupUpdate implements APIKeyRepository for AdminUpdateAPIKeyGroupID tests.
 type apiKeyRepoStubForGroupUpdate struct {
-	key       *APIKey
-	getErr    error
-	updateErr error
-	createErr error
-	created   *APIKey
-	updated   *APIKey // captures what was passed to Update
+	key               *APIKey
+	getErr            error
+	updateErr         error
+	transferUpdateErr error
+	createErr         error
+	created           *APIKey
+	updated           *APIKey // captures what was passed to Update
+	transferUpdated   *APIKey // captures what was passed to TransferUpdate
 }
 
 func (s *apiKeyRepoStubForGroupUpdate) GetByID(_ context.Context, _ int64) (*APIKey, error) {
@@ -153,6 +159,15 @@ func (s *apiKeyRepoStubForGroupUpdate) Update(_ context.Context, key *APIKey, _ 
 	}
 	clone := *key
 	s.updated = &clone
+	return nil
+}
+
+func (s *apiKeyRepoStubForGroupUpdate) TransferUpdate(_ context.Context, key *APIKey) error {
+	if s.transferUpdateErr != nil {
+		return s.transferUpdateErr
+	}
+	clone := *key
+	s.transferUpdated = &clone
 	return nil
 }
 
@@ -665,4 +680,147 @@ func TestAdminService_CreateUserAPIKey_SubscriptionGroupRequiresActiveSubscripti
 	require.True(t, userSubRepo.called)
 	require.Nil(t, apiKeyRepo.created)
 	require.False(t, userRepo.addGroupCalled)
+}
+
+func TestAdminService_TransferAPIKey_OwnerQuotaResetAndCacheInvalidation(t *testing.T) {
+	existing := &APIKey{
+		ID:        1,
+		UserID:    10,
+		Key:       "sk-transfer",
+		Name:      "transfer",
+		Status:    StatusAPIKeyQuotaExhausted,
+		Quota:     10,
+		QuotaUsed: 10,
+		GroupID:   int64Ptr(5),
+	}
+	apiKeyRepo := &apiKeyRepoStubForGroupUpdate{key: existing}
+	userRepo := &userRepoStubForGroupUpdate{}
+	cache := &authCacheInvalidatorStub{}
+	quota := 50.0
+	svc := &adminServiceImpl{apiKeyRepo: apiKeyRepo, userRepo: userRepo, authCacheInvalidator: cache}
+
+	got, err := svc.TransferAPIKey(context.Background(), 1, TransferAPIKeyInput{
+		TargetUserID:  42,
+		TargetGroupID: int64Ptr(0),
+		Quota:         &quota,
+		ResetQuota:    true,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, got.APIKey)
+	require.Equal(t, int64(42), got.APIKey.UserID)
+	require.Nil(t, got.APIKey.GroupID)
+	require.Equal(t, 50.0, got.APIKey.Quota)
+	require.Equal(t, 0.0, got.APIKey.QuotaUsed)
+	require.Equal(t, StatusActive, got.APIKey.Status)
+	require.NotNil(t, apiKeyRepo.transferUpdated)
+	require.Equal(t, int64(42), apiKeyRepo.transferUpdated.UserID)
+	require.Equal(t, []string{"sk-transfer"}, cache.keys)
+}
+
+func TestAdminService_TransferAPIKey_ExclusiveGroupAutoGrant(t *testing.T) {
+	existing := &APIKey{ID: 1, UserID: 10, Key: "sk-transfer", Status: StatusActive}
+	apiKeyRepo := &apiKeyRepoStubForGroupUpdate{key: existing}
+	groupRepo := &groupRepoStubForGroupUpdate{group: &Group{ID: 20, Name: "Exclusive", Status: StatusActive, IsExclusive: true, SubscriptionType: SubscriptionTypeStandard}}
+	userRepo := &userRepoStubForGroupUpdate{}
+	svc := &adminServiceImpl{apiKeyRepo: apiKeyRepo, userRepo: userRepo, groupRepo: groupRepo}
+
+	got, err := svc.TransferAPIKey(context.Background(), 1, TransferAPIKeyInput{
+		TargetUserID:  42,
+		TargetGroupID: int64Ptr(20),
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, got.APIKey.GroupID)
+	require.Equal(t, int64(20), *got.APIKey.GroupID)
+	require.True(t, userRepo.addGroupCalled)
+	require.Equal(t, int64(42), userRepo.addedUserID)
+	require.Equal(t, int64(20), userRepo.addedGroupID)
+	require.True(t, got.AutoGrantedGroupAccess)
+	require.NotNil(t, got.GrantedGroupID)
+	require.Equal(t, int64(20), *got.GrantedGroupID)
+	require.Equal(t, "Exclusive", got.GrantedGroupName)
+	require.Equal(t, int64(42), apiKeyRepo.transferUpdated.UserID)
+}
+
+func TestAdminService_TransferAPIKey_PreservesQuotaUsageWithoutReset(t *testing.T) {
+	existing := &APIKey{ID: 1, UserID: 10, Key: "sk-transfer", Status: StatusActive, Quota: 10, QuotaUsed: 6}
+	apiKeyRepo := &apiKeyRepoStubForGroupUpdate{key: existing}
+	userRepo := &userRepoStubForGroupUpdate{}
+	svc := &adminServiceImpl{apiKeyRepo: apiKeyRepo, userRepo: userRepo}
+
+	got, err := svc.TransferAPIKey(context.Background(), 1, TransferAPIKeyInput{TargetUserID: 42})
+
+	require.NoError(t, err)
+	require.Equal(t, int64(42), got.APIKey.UserID)
+	require.Equal(t, 10.0, got.APIKey.Quota)
+	require.Equal(t, 6.0, got.APIKey.QuotaUsed)
+	require.Equal(t, StatusActive, got.APIKey.Status)
+}
+
+func TestAdminService_TransferAPIKey_TargetUserMissing(t *testing.T) {
+	existing := &APIKey{ID: 1, UserID: 10, Key: "sk-transfer", Status: StatusActive}
+	apiKeyRepo := &apiKeyRepoStubForGroupUpdate{key: existing}
+	userRepo := &userRepoStubForGroupUpdate{getErr: ErrUserNotFound}
+	svc := &adminServiceImpl{apiKeyRepo: apiKeyRepo, userRepo: userRepo}
+
+	_, err := svc.TransferAPIKey(context.Background(), 1, TransferAPIKeyInput{TargetUserID: 42})
+
+	require.ErrorIs(t, err, ErrUserNotFound)
+	require.Nil(t, apiKeyRepo.transferUpdated)
+}
+
+func TestAdminService_TransferAPIKey_SubscriptionGroupRequiresTargetSubscription(t *testing.T) {
+	existing := &APIKey{ID: 1, UserID: 10, Key: "sk-transfer", Status: StatusActive}
+	apiKeyRepo := &apiKeyRepoStubForGroupUpdate{key: existing}
+	groupRepo := &groupRepoStubForGroupUpdate{group: &Group{ID: 30, Name: "Sub", Status: StatusActive, SubscriptionType: SubscriptionTypeSubscription}}
+	userRepo := &userRepoStubForGroupUpdate{}
+	userSubRepo := &userSubRepoStubForGroupUpdate{getActiveErr: ErrSubscriptionNotFound}
+	svc := &adminServiceImpl{apiKeyRepo: apiKeyRepo, userRepo: userRepo, groupRepo: groupRepo, userSubRepo: userSubRepo}
+
+	_, err := svc.TransferAPIKey(context.Background(), 1, TransferAPIKeyInput{
+		TargetUserID:  42,
+		TargetGroupID: int64Ptr(30),
+	})
+
+	require.Error(t, err)
+	require.Equal(t, "SUBSCRIPTION_REQUIRED", infraerrors.Reason(err))
+	require.True(t, userSubRepo.called)
+	require.Equal(t, int64(42), userSubRepo.calledUserID)
+	require.Nil(t, apiKeyRepo.transferUpdated)
+	require.False(t, userRepo.addGroupCalled)
+}
+
+func TestAdminService_TransferAPIKey_ExistingSubscriptionGroupRequiresTargetSubscription(t *testing.T) {
+	existing := &APIKey{ID: 1, UserID: 10, Key: "sk-transfer", Status: StatusActive, GroupID: int64Ptr(30)}
+	apiKeyRepo := &apiKeyRepoStubForGroupUpdate{key: existing}
+	groupRepo := &groupRepoStubForGroupUpdate{group: &Group{ID: 30, Name: "Sub", Status: StatusActive, SubscriptionType: SubscriptionTypeSubscription}}
+	userRepo := &userRepoStubForGroupUpdate{}
+	userSubRepo := &userSubRepoStubForGroupUpdate{getActiveErr: ErrSubscriptionNotFound}
+	svc := &adminServiceImpl{apiKeyRepo: apiKeyRepo, userRepo: userRepo, groupRepo: groupRepo, userSubRepo: userSubRepo}
+
+	_, err := svc.TransferAPIKey(context.Background(), 1, TransferAPIKeyInput{TargetUserID: 42})
+
+	require.Error(t, err)
+	require.Equal(t, "SUBSCRIPTION_REQUIRED", infraerrors.Reason(err))
+	require.True(t, userSubRepo.called)
+	require.Equal(t, int64(42), userSubRepo.calledUserID)
+	require.Nil(t, apiKeyRepo.transferUpdated)
+}
+
+func TestAdminService_TransferAPIKey_InactiveGroupRejected(t *testing.T) {
+	existing := &APIKey{ID: 1, UserID: 10, Key: "sk-transfer", Status: StatusActive}
+	apiKeyRepo := &apiKeyRepoStubForGroupUpdate{key: existing}
+	groupRepo := &groupRepoStubForGroupUpdate{group: &Group{ID: 40, Status: StatusDisabled}}
+	userRepo := &userRepoStubForGroupUpdate{}
+	svc := &adminServiceImpl{apiKeyRepo: apiKeyRepo, userRepo: userRepo, groupRepo: groupRepo}
+
+	_, err := svc.TransferAPIKey(context.Background(), 1, TransferAPIKeyInput{
+		TargetUserID:  42,
+		TargetGroupID: int64Ptr(40),
+	})
+
+	require.Error(t, err)
+	require.Equal(t, "GROUP_NOT_ACTIVE", infraerrors.Reason(err))
+	require.Nil(t, apiKeyRepo.transferUpdated)
 }
