@@ -357,7 +357,7 @@ func pendingOIDCTrustedEmail(upstream map[string]any) string {
 }
 
 func (h *AuthHandler) pendingOIDCLocalEmailVerificationRequired(ctx context.Context, upstream map[string]any, email string) bool {
-	if h == nil || h.settingSvc == nil || h.settingSvc.IsOIDCConnectLocalEmailVerificationRequired(ctx) {
+	if h == nil || h.settingSvc == nil || h.settingSvc.GetOIDCConnectRequireLocalEmailVerification(ctx) {
 		return true
 	}
 	if !pendingSessionBoolValue(upstream, "email_verified") {
