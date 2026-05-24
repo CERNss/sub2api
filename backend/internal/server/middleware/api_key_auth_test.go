@@ -1050,6 +1050,10 @@ func (r *stubApiKeyRepo) Update(ctx context.Context, key *service.APIKey) error 
 	return errors.New("not implemented")
 }
 
+func (r *stubApiKeyRepo) TransferUpdate(ctx context.Context, key *service.APIKey) error {
+	return errors.New("not implemented")
+}
+
 func (r *stubApiKeyRepo) Delete(ctx context.Context, id int64) error {
 	return errors.New("not implemented")
 }
