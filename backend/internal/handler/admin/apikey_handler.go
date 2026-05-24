@@ -43,6 +43,14 @@ type AdminCreateUserAPIKeyRequest struct {
 	RateLimit7d   *float64 `json:"rate_limit_7d"`
 }
 
+// AdminTransferAPIKeyRequest represents the request to transfer an API key.
+type AdminTransferAPIKeyRequest struct {
+	TargetUserID  int64    `json:"target_user_id" binding:"required"`
+	TargetGroupID *int64   `json:"target_group_id"`
+	Quota         *float64 `json:"quota"`
+	ResetQuota    *bool    `json:"reset_quota"`
+}
+
 // CreateForUser handles creating an API key for a target user.
 // POST /api/v1/admin/users/:id/api-keys
 func (h *AdminAPIKeyHandler) CreateForUser(c *gin.Context) {
@@ -95,6 +103,44 @@ func (h *AdminAPIKeyHandler) CreateForUser(c *gin.Context) {
 	})
 }
 
+// Transfer handles transferring an API key to a target user.
+// POST /api/v1/admin/api-keys/:id/transfer
+func (h *AdminAPIKeyHandler) Transfer(c *gin.Context) {
+	keyID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid API key ID")
+		return
+	}
+
+	var req AdminTransferAPIKeyRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	input := service.TransferAPIKeyInput{
+		TargetUserID:  req.TargetUserID,
+		TargetGroupID: req.TargetGroupID,
+		Quota:         req.Quota,
+		ResetQuota:    req.ResetQuota != nil && *req.ResetQuota,
+	}
+
+	idempotencyPayload := struct {
+		KeyID int64                      `json:"key_id"`
+		Body  AdminTransferAPIKeyRequest `json:"body"`
+	}{
+		KeyID: keyID,
+		Body:  req,
+	}
+	executeAdminIdempotentJSON(c, "admin.api_keys.transfer", idempotencyPayload, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
+		result, execErr := h.adminService.TransferAPIKey(ctx, keyID, input)
+		if execErr != nil {
+			return nil, execErr
+		}
+		return adminTransferAPIKeyResponse(result), nil
+	})
+}
+
 // UpdateGroup handles updating an API key's admin-managed fields.
 // PUT /api/v1/admin/api-keys/:id
 func (h *AdminAPIKeyHandler) UpdateGroup(c *gin.Context) {
@@ -143,6 +189,23 @@ func (h *AdminAPIKeyHandler) UpdateGroup(c *gin.Context) {
 }
 
 func adminCreateAPIKeyResponse(result *service.CreateUserAPIKeyResult) any {
+	if result == nil {
+		return nil
+	}
+	return struct {
+		APIKey                 *dto.APIKey `json:"api_key"`
+		AutoGrantedGroupAccess bool        `json:"auto_granted_group_access"`
+		GrantedGroupID         *int64      `json:"granted_group_id,omitempty"`
+		GrantedGroupName       string      `json:"granted_group_name,omitempty"`
+	}{
+		APIKey:                 dto.APIKeyFromService(result.APIKey),
+		AutoGrantedGroupAccess: result.AutoGrantedGroupAccess,
+		GrantedGroupID:         result.GrantedGroupID,
+		GrantedGroupName:       result.GrantedGroupName,
+	}
+}
+
+func adminTransferAPIKeyResponse(result *service.TransferAPIKeyResult) any {
 	if result == nil {
 		return nil
 	}

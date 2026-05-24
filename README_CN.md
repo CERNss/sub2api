@@ -47,7 +47,7 @@ Sub2API 是一个 AI API 网关平台，用于分发和管理 AI 产品订阅的
 
 ## Fork 新增功能
 
-### Admin API 为指定用户创建 API Key
+### Admin API 为指定用户创建/转移 API Key
 
 外部开通、支付或发卡系统可以通过 Admin API Key 为指定用户创建正常可用于 AI 调用的 API Key：
 
@@ -56,6 +56,14 @@ POST /api/v1/admin/users/:id/api-keys
 ```
 
 目标用户由路径里的 `:id` 指定。请求体支持与用户端“创建密钥”弹窗一致的控制项，包括绑定分组、自定义密钥、IP 限制、额度限制、滚动速率限制和密钥有效期。完整可用密钥会在响应的 `data.api_key.key` 中返回。
+
+sidecar 集成也可以把已存在的 API Key 转移给正确用户，并可同步更新分组、配额或清零已用配额：
+
+```bash
+POST /api/v1/admin/api-keys/:id/transfer
+```
+
+转移响应会确认 `data.api_key.user_id`、`quota` 和 `quota_used`，成功后会失效 API Key 认证缓存。
 
 ### 自定义菜单外部打开模式
 
