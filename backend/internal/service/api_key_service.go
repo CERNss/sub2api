@@ -57,6 +57,7 @@ type APIKeyRepository interface {
 	// GetByKeyForAuth 认证专用查询，返回最小字段集
 	GetByKeyForAuth(ctx context.Context, key string) (*APIKey, error)
 	Update(ctx context.Context, key *APIKey) error
+	TransferUpdate(ctx context.Context, key *APIKey) error
 	Delete(ctx context.Context, id int64) error
 	// DeleteWithAudit 在同一事务内先写 deleted_api_key_audits 审计、再软删除该 key。
 	DeleteWithAudit(ctx context.Context, id int64) error
