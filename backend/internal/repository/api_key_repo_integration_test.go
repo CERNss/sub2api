@@ -129,6 +129,7 @@ func (s *APIKeyRepoSuite) TestGetByKeyForAuth_PreservesMessagesDispatchModelConf
 
 func (s *APIKeyRepoSuite) TestUpdate() {
 	user := s.mustCreateUser("update@test.com")
+	otherUser := s.mustCreateUser("update-other@test.com")
 	key := &service.APIKey{
 		UserID: user.ID,
 		Key:    "sk-update",
@@ -139,6 +140,7 @@ func (s *APIKeyRepoSuite) TestUpdate() {
 
 	key.Name = "Renamed"
 	key.Status = service.StatusDisabled
+	key.UserID = otherUser.ID
 	err := s.repo.Update(s.ctx, key, service.APIKeyUpdateFields{Name: true, Status: true})
 	s.Require().NoError(err, "Update")
 
@@ -148,6 +150,38 @@ func (s *APIKeyRepoSuite) TestUpdate() {
 	s.Require().Equal(user.ID, got.UserID, "Update should not change user_id")
 	s.Require().Equal("Renamed", got.Name)
 	s.Require().Equal(service.StatusDisabled, got.Status)
+}
+
+func (s *APIKeyRepoSuite) TestTransferUpdate_ChangesOwnerGroupQuotaAndStatus() {
+	sourceUser := s.mustCreateUser("transfer-source@test.com")
+	targetUser := s.mustCreateUser("transfer-target@test.com")
+	group := s.mustCreateGroup("g-transfer")
+	key := &service.APIKey{
+		UserID:    sourceUser.ID,
+		Key:       "sk-transfer-update",
+		Name:      "Transfer",
+		Status:    service.StatusAPIKeyQuotaExhausted,
+		Quota:     10,
+		QuotaUsed: 10,
+	}
+	s.Require().NoError(s.repo.Create(s.ctx, key))
+
+	key.UserID = targetUser.ID
+	key.GroupID = &group.ID
+	key.Quota = 50
+	key.QuotaUsed = 0
+	key.Status = service.StatusActive
+	err := s.repo.TransferUpdate(s.ctx, key)
+	s.Require().NoError(err, "TransferUpdate")
+
+	got, err := s.repo.GetByID(s.ctx, key.ID)
+	s.Require().NoError(err, "GetByID after TransferUpdate")
+	s.Require().Equal(targetUser.ID, got.UserID)
+	s.Require().NotNil(got.GroupID)
+	s.Require().Equal(group.ID, *got.GroupID)
+	s.Require().Equal(50.0, got.Quota)
+	s.Require().Equal(0.0, got.QuotaUsed)
+	s.Require().Equal(service.StatusActive, got.Status)
 }
 
 func (s *APIKeyRepoSuite) TestUpdate_ClearGroupID() {

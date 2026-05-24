@@ -229,6 +229,35 @@ func (s *stubAdminService) CreateUserAPIKey(ctx context.Context, userID int64, i
 	return &service.CreateUserAPIKeyResult{APIKey: &key}, nil
 }
 
+func (s *stubAdminService) TransferAPIKey(ctx context.Context, keyID int64, input service.TransferAPIKeyInput) (*service.TransferAPIKeyResult, error) {
+	for i := range s.apiKeys {
+		if s.apiKeys[i].ID != keyID {
+			continue
+		}
+		s.apiKeys[i].UserID = input.TargetUserID
+		if input.TargetGroupID != nil {
+			if *input.TargetGroupID == 0 {
+				s.apiKeys[i].GroupID = nil
+			} else {
+				gid := *input.TargetGroupID
+				s.apiKeys[i].GroupID = &gid
+			}
+		}
+		if input.Quota != nil {
+			s.apiKeys[i].Quota = *input.Quota
+		}
+		if input.ResetQuota {
+			s.apiKeys[i].QuotaUsed = 0
+			if s.apiKeys[i].Status == service.StatusAPIKeyQuotaExhausted {
+				s.apiKeys[i].Status = service.StatusActive
+			}
+		}
+		key := s.apiKeys[i]
+		return &service.TransferAPIKeyResult{APIKey: &key}, nil
+	}
+	return nil, service.ErrAPIKeyNotFound
+}
+
 func (s *stubAdminService) GetUserUsageStats(ctx context.Context, userID int64, period string) (any, error) {
 	return map[string]any{"user_id": userID}, nil
 }
