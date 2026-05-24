@@ -82,3 +82,102 @@ The admin endpoint SHALL participate in the existing admin idempotency mechanism
 - **WHEN** the external system retries the same request with the same idempotency key and payload
 - **THEN** the system SHALL return the same logical result
 - **AND** it SHALL NOT create duplicate API keys for the same operation
+
+### Requirement: Admin integrations SHALL transfer an existing API key to a target user
+The system SHALL expose an explicit admin-authenticated endpoint that transfers an existing normal API key to a target user without requiring a user JWT for either the current owner or the target owner.
+
+#### Scenario: Admin API Key transfers owner and quota
+- **GIVEN** the configured Admin API Key is `admin-live`
+- **AND** API key `456` exists and is owned by user `10`
+- **AND** user `123` exists
+- **WHEN** an external system sends `POST /api/v1/admin/api-keys/456/transfer`
+- **AND** the request includes header `x-api-key: admin-live`
+- **AND** the request body includes `target_user_id` equal to `123`
+- **AND** the request body includes `quota` equal to `50`
+- **AND** the request body includes `reset_quota` equal to `true`
+- **THEN** the system SHALL persist `api_keys.user_id` as `123`
+- **AND** it SHALL persist `api_keys.quota` as `50`
+- **AND** it SHALL persist `api_keys.quota_used` as `0`
+- **AND** it SHALL return `data.api_key.user_id` equal to `123`
+- **AND** it SHALL return `data.api_key.quota` equal to `50`
+- **AND** it SHALL return `data.api_key.quota_used` equal to `0`
+
+#### Scenario: Transfer selects target owner from body
+- **WHEN** an external system sends `POST /api/v1/admin/api-keys/456/transfer`
+- **AND** the request body includes `target_user_id` equal to `123`
+- **THEN** the system SHALL treat `123` as the target owner ID
+- **AND** the endpoint SHALL NOT accept owner transfer through the existing `PUT /api/v1/admin/api-keys/456` group update body
+
+#### Scenario: Invalid Admin API Key cannot transfer owner
+- **GIVEN** the configured Admin API Key is `admin-live`
+- **WHEN** an external system sends `POST /api/v1/admin/api-keys/456/transfer`
+- **AND** the request includes an invalid `x-api-key`
+- **THEN** the system SHALL reject the request
+- **AND** the API key owner, group, quota, quota usage, and status SHALL remain unchanged
+
+### Requirement: Admin key transfer SHALL validate target user and group access
+The transfer endpoint SHALL validate the target owner and requested group binding before persisting the transfer.
+
+#### Scenario: Missing target user is rejected
+- **GIVEN** API key `456` exists
+- **AND** user `999` does not exist
+- **WHEN** an admin-authenticated request transfers key `456` with `target_user_id` equal to `999`
+- **THEN** the system SHALL reject the request
+- **AND** the API key owner SHALL remain unchanged
+
+#### Scenario: Exclusive standard group access is auto-granted to target owner
+- **GIVEN** API key `456` exists
+- **AND** user `123` exists without access to exclusive standard group `20`
+- **WHEN** an admin-authenticated request transfers key `456` with `target_user_id` equal to `123`
+- **AND** the request body includes `target_group_id` equal to `20`
+- **THEN** the system SHALL add group `20` to user `123` allowed groups
+- **AND** it SHALL bind API key `456` to group `20`
+- **AND** it SHALL return `auto_granted_group_access` as `true`
+
+#### Scenario: Subscription group requires target owner's active subscription
+- **GIVEN** API key `456` exists
+- **AND** user `123` has no active subscription for subscription group `30`
+- **WHEN** an admin-authenticated request transfers key `456` with `target_user_id` equal to `123`
+- **AND** the request body includes `target_group_id` equal to `30`
+- **THEN** the system SHALL reject the request with a subscription-required business error
+- **AND** it SHALL NOT transfer the key
+- **AND** it SHALL NOT grant group access as a side effect
+
+#### Scenario: Inactive target group is rejected
+- **GIVEN** group `40` is inactive
+- **WHEN** an admin-authenticated request transfers key `456` with `target_group_id` equal to `40`
+- **THEN** the system SHALL reject the request
+- **AND** the API key owner and group SHALL remain unchanged
+
+### Requirement: Admin key transfer SHALL update cache-visible quota state atomically
+The transfer endpoint SHALL update owner, group, quota, quota usage, and quota-exhausted status in the same durable operation and invalidate gateway authentication caches after commit.
+
+#### Scenario: Reset quota reactivates a quota-exhausted key
+- **GIVEN** API key `456` has status `quota_exhausted`
+- **AND** API key `456` has `quota_used` greater than or equal to its quota
+- **WHEN** an admin-authenticated request transfers key `456`
+- **AND** the request body includes `reset_quota` equal to `true`
+- **AND** the resulting quota is unlimited or greater than `0`
+- **THEN** the system SHALL set `quota_used` to `0`
+- **AND** it SHALL restore the API key status to active unless another non-quota terminal status must be preserved
+
+#### Scenario: Transfer without quota reset preserves quota usage
+- **GIVEN** API key `456` has `quota_used` equal to `12`
+- **WHEN** an admin-authenticated request transfers key `456`
+- **AND** the request body omits `reset_quota`
+- **THEN** the system SHALL preserve `quota_used` equal to `12`
+
+#### Scenario: Auth cache reflects transferred owner
+- **GIVEN** API key `456` has an existing gateway authentication cache entry owned by user `10`
+- **WHEN** an admin-authenticated transfer of key `456` to user `123` succeeds
+- **THEN** the system SHALL invalidate the authentication cache for the key value
+- **AND** subsequent gateway authentication SHALL load user `123` and the updated quota fields from storage
+
+### Requirement: Admin key transfer SHALL be retry-safe
+The transfer endpoint SHALL participate in the existing admin idempotency mechanism.
+
+#### Scenario: Retried transfer uses the same idempotency key
+- **GIVEN** an admin-authenticated request transfers API key `456` with `Idempotency-Key: transfer-api-key-456-order-1`
+- **WHEN** the external system retries the same request with the same idempotency key and payload
+- **THEN** the system SHALL return the same logical result
+- **AND** the API key SHALL remain assigned to the same target owner with the same group and quota state

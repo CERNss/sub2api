@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"math"
 	"net/http"
@@ -1566,6 +1567,150 @@ func TestAdminCreateUserAPIKeyWithAdminAPIKeyMockData(t *testing.T) {
 	})
 }
 
+func TestAdminTransferAPIKeyWithAdminAPIKeyMockData(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	service.SetDefaultIdempotencyCoordinator(nil)
+
+	now := time.Date(2026, 5, 20, 12, 0, 0, 0, time.UTC)
+	adminKey := "admin-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	sourceUserID := int64(10)
+	targetUserID := int64(100)
+
+	userRepo := &stubUserRepo{
+		users: map[int64]*service.User{
+			1: {
+				ID:          1,
+				Email:       "admin@example.com",
+				Role:        service.RoleAdmin,
+				Status:      service.StatusActive,
+				Concurrency: 9,
+				CreatedAt:   now,
+				UpdatedAt:   now,
+			},
+			sourceUserID: {
+				ID:        sourceUserID,
+				Email:     "source@example.com",
+				Role:      service.RoleUser,
+				Status:    service.StatusActive,
+				CreatedAt: now,
+				UpdatedAt: now,
+			},
+			targetUserID: {
+				ID:        targetUserID,
+				Email:     "target@example.com",
+				Role:      service.RoleUser,
+				Status:    service.StatusActive,
+				CreatedAt: now,
+				UpdatedAt: now,
+			},
+		},
+	}
+	groupRepo := &stubGroupRepo{}
+	apiKeyRepo := newStubApiKeyRepo(now)
+	transferKey := &service.APIKey{
+		UserID:    sourceUserID,
+		Key:       "sk-transfer-mock",
+		Name:      "mock-transfer",
+		Status:    service.StatusAPIKeyQuotaExhausted,
+		Quota:     10,
+		QuotaUsed: 10,
+	}
+	require.NoError(t, apiKeyRepo.Create(context.Background(), transferKey))
+
+	cfg := &config.Config{Default: config.DefaultConfig{APIKeyPrefix: "sk-"}}
+	apiKeyService := service.NewAPIKeyService(apiKeyRepo, userRepo, groupRepo, &stubUserSubscriptionRepo{}, nil, stubApiKeyCache{}, cfg)
+	adminService := service.NewAdminService(
+		userRepo,
+		groupRepo,
+		&stubAccountRepo{},
+		stubProxyRepo{},
+		apiKeyRepo,
+		&stubRedeemCodeRepo{},
+		nil,
+		nil,
+		apiKeyService,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		service.NewSettingService(newStubSettingRepo(), cfg),
+		nil,
+		&stubUserSubscriptionRepo{},
+		nil,
+		nil,
+	)
+
+	settingRepo := newStubSettingRepo()
+	require.NoError(t, settingRepo.Set(context.Background(), service.SettingKeyAdminAPIKey, adminKey))
+	settingService := service.NewSettingService(settingRepo, cfg)
+	userService := service.NewUserService(userRepo, nil, nil, nil)
+	adminAuth := middleware.NewAdminAuthMiddleware(nil, userService, settingService)
+
+	router := gin.New()
+	adminGroup := router.Group("/api/v1/admin")
+	adminGroup.Use(gin.HandlerFunc(adminAuth))
+	adminGroup.POST("/api-keys/:id/transfer", adminhandler.NewAdminAPIKeyHandler(adminService).Transfer)
+
+	t.Run("invalid admin api key is rejected", func(t *testing.T) {
+		path := fmt.Sprintf("/api/v1/admin/api-keys/%d/transfer", transferKey.ID)
+		status, body := doRequest(t, router, http.MethodPost, path, `{"target_user_id":100}`, map[string]string{
+			"Content-Type":    "application/json",
+			"x-api-key":       "admin-wrong",
+			"Idempotency-Key": "mock-transfer-wrong-key",
+		})
+
+		require.Equal(t, http.StatusUnauthorized, status)
+		require.Contains(t, body, "INVALID_ADMIN_KEY")
+	})
+
+	t.Run("admin api key transfers owner and resets quota", func(t *testing.T) {
+		path := fmt.Sprintf("/api/v1/admin/api-keys/%d/transfer", transferKey.ID)
+		status, body := doRequest(t, router, http.MethodPost, path, `{
+			"target_user_id":100,
+			"target_group_id":0,
+			"quota":50,
+			"reset_quota":true
+		}`, map[string]string{
+			"Content-Type":    "application/json",
+			"x-api-key":       adminKey,
+			"Idempotency-Key": "mock-transfer-key-1",
+		})
+
+		require.Equal(t, http.StatusOK, status, body)
+
+		var resp struct {
+			Code int `json:"code"`
+			Data struct {
+				APIKey struct {
+					ID        int64   `json:"id"`
+					UserID    int64   `json:"user_id"`
+					Key       string  `json:"key"`
+					GroupID   *int64  `json:"group_id"`
+					Quota     float64 `json:"quota"`
+					QuotaUsed float64 `json:"quota_used"`
+					Status    string  `json:"status"`
+				} `json:"api_key"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(body), &resp))
+		require.Equal(t, 0, resp.Code)
+		require.Equal(t, targetUserID, resp.Data.APIKey.UserID)
+		require.Equal(t, "sk-transfer-mock", resp.Data.APIKey.Key)
+		require.Nil(t, resp.Data.APIKey.GroupID)
+		require.Equal(t, 50.0, resp.Data.APIKey.Quota)
+		require.Equal(t, 0.0, resp.Data.APIKey.QuotaUsed)
+		require.Equal(t, service.StatusActive, resp.Data.APIKey.Status)
+
+		updated, err := apiKeyRepo.GetByKey(context.Background(), "sk-transfer-mock")
+		require.NoError(t, err)
+		require.Equal(t, targetUserID, updated.UserID)
+		require.Equal(t, 50.0, updated.Quota)
+		require.Equal(t, 0.0, updated.QuotaUsed)
+		require.Equal(t, service.StatusActive, updated.Status)
+	})
+}
+
 type contractDeps struct {
 	now         time.Time
 	router      http.Handler
@@ -2564,6 +2709,10 @@ func (r *stubApiKeyRepo) Update(ctx context.Context, key *service.APIKey, _ serv
 	r.byID[clone.ID] = &clone
 	r.byKey[clone.Key] = &clone
 	return nil
+}
+
+func (r *stubApiKeyRepo) TransferUpdate(ctx context.Context, key *service.APIKey) error {
+	return r.Update(ctx, key)
 }
 
 func (r *stubApiKeyRepo) Delete(ctx context.Context, id int64) error {

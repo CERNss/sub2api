@@ -343,6 +343,34 @@ func (r *apiKeyRepository) Update(ctx context.Context, key *service.APIKey, fiel
 	return nil
 }
 
+func (r *apiKeyRepository) TransferUpdate(ctx context.Context, key *service.APIKey) error {
+	client := clientFromContext(ctx, r.client)
+	now := time.Now()
+	builder := client.APIKey.Update().
+		Where(apikey.IDEQ(key.ID), apikey.DeletedAtIsNil()).
+		SetUserID(key.UserID).
+		SetStatus(key.Status).
+		SetQuota(key.Quota).
+		SetQuotaUsed(key.QuotaUsed).
+		SetUpdatedAt(now)
+	if key.GroupID != nil {
+		builder.SetGroupID(*key.GroupID)
+	} else {
+		builder.ClearGroupID()
+	}
+
+	affected, err := builder.Save(ctx)
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return service.ErrAPIKeyNotFound
+	}
+
+	key.UpdatedAt = now
+	return nil
+}
+
 func (r *apiKeyRepository) Delete(ctx context.Context, id int64) error {
 	// 存在唯一键约束 生成tombstone key 用来释放原key，长度远小于 128，满足 schema 限制
 	tombstoneKey := fmt.Sprintf("__deleted__%d__%d", id, time.Now().UnixNano())

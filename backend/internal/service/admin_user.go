@@ -617,7 +617,7 @@ func (s *adminServiceImpl) CreateUserAPIKey(ctx context.Context, userID int64, i
 	}
 
 	result := &CreateUserAPIKeyResult{}
-	var createCtx context.Context = ctx
+	createCtx := ctx
 	var tx *dbent.Tx
 
 	if input.GroupID != nil && *input.GroupID > 0 {
@@ -664,18 +664,7 @@ func (s *adminServiceImpl) CreateUserAPIKey(ctx context.Context, userID int64, i
 		return nil, infraerrors.InternalServer("API_KEY_SERVICE_UNAVAILABLE", "api key service is not configured")
 	}
 
-	apiKey, err := s.apiKeyService.createForUser(createCtx, user, CreateAPIKeyRequest{
-		Name:          input.Name,
-		GroupID:       input.GroupID,
-		CustomKey:     input.CustomKey,
-		IPWhitelist:   input.IPWhitelist,
-		IPBlacklist:   input.IPBlacklist,
-		Quota:         input.Quota,
-		ExpiresInDays: input.ExpiresInDays,
-		RateLimit5h:   input.RateLimit5h,
-		RateLimit1d:   input.RateLimit1d,
-		RateLimit7d:   input.RateLimit7d,
-	})
+	apiKey, err := s.apiKeyService.createForUser(createCtx, user, CreateAPIKeyRequest(input))
 	if err != nil {
 		return nil, err
 	}
@@ -684,6 +673,117 @@ func (s *adminServiceImpl) CreateUserAPIKey(ctx context.Context, userID int64, i
 		if err := tx.Commit(); err != nil {
 			return nil, fmt.Errorf("commit transaction: %w", err)
 		}
+	}
+
+	result.APIKey = apiKey
+	return result, nil
+}
+
+func (s *adminServiceImpl) TransferAPIKey(ctx context.Context, keyID int64, input TransferAPIKeyInput) (*TransferAPIKeyResult, error) {
+	if input.TargetUserID <= 0 {
+		return nil, infraerrors.BadRequest("INVALID_TARGET_USER_ID", "target_user_id must be positive")
+	}
+
+	apiKey, err := s.apiKeyRepo.GetByID(ctx, keyID)
+	if err != nil {
+		return nil, err
+	}
+
+	targetUser, err := s.userRepo.GetByID(ctx, input.TargetUserID)
+	if err != nil {
+		return nil, err
+	}
+
+	result := &TransferAPIKeyResult{}
+	opCtx := ctx
+	var tx *dbent.Tx
+
+	var targetGroup *Group
+	var finalGroupID *int64
+	switch {
+	case input.TargetGroupID != nil && *input.TargetGroupID < 0:
+		return nil, infraerrors.BadRequest("INVALID_GROUP_ID", "target_group_id must be non-negative")
+	case input.TargetGroupID != nil && *input.TargetGroupID == 0:
+		apiKey.GroupID = nil
+		apiKey.Group = nil
+	case input.TargetGroupID != nil:
+		gid := *input.TargetGroupID
+		finalGroupID = &gid
+	default:
+		finalGroupID = apiKey.GroupID
+	}
+
+	if finalGroupID != nil {
+		group, err := s.groupRepo.GetByID(ctx, *finalGroupID)
+		if err != nil {
+			return nil, err
+		}
+		if group.Status != StatusActive {
+			return nil, infraerrors.BadRequest("GROUP_NOT_ACTIVE", "target group is not active")
+		}
+		if group.IsSubscriptionType() {
+			if s.userSubRepo == nil {
+				return nil, infraerrors.InternalServer("SUBSCRIPTION_REPOSITORY_UNAVAILABLE", "subscription repository is not configured")
+			}
+			if _, err := s.userSubRepo.GetActiveByUserIDAndGroupID(ctx, input.TargetUserID, group.ID); err != nil {
+				if errors.Is(err, ErrSubscriptionNotFound) {
+					return nil, infraerrors.BadRequest("SUBSCRIPTION_REQUIRED", "user does not have an active subscription for this group")
+				}
+				return nil, err
+			}
+		} else if group.IsExclusive && !targetUser.CanBindGroup(group.ID, group.IsExclusive) {
+			if s.entClient == nil {
+				logger.LegacyPrintf("service.admin", "Warning: entClient is nil, transferring API key without transaction protection for exclusive group auto-grant")
+			} else {
+				tx, err = s.entClient.Tx(ctx)
+				if err != nil {
+					return nil, fmt.Errorf("begin transaction: %w", err)
+				}
+				defer func() { _ = tx.Rollback() }()
+				opCtx = dbent.NewTxContext(ctx, tx)
+			}
+
+			if err := s.userRepo.AddGroupToAllowedGroups(opCtx, input.TargetUserID, group.ID); err != nil {
+				return nil, fmt.Errorf("add group to user allowed groups: %w", err)
+			}
+			targetUser.AllowedGroups = append(targetUser.AllowedGroups, group.ID)
+			result.AutoGrantedGroupAccess = true
+			result.GrantedGroupID = &group.ID
+			result.GrantedGroupName = group.Name
+		}
+
+		gid := group.ID
+		apiKey.GroupID = &gid
+		apiKey.Group = group
+		targetGroup = group
+	}
+
+	apiKey.UserID = input.TargetUserID
+	apiKey.User = targetUser
+	if targetGroup != nil {
+		apiKey.Group = targetGroup
+	}
+	if input.Quota != nil {
+		apiKey.Quota = *input.Quota
+	}
+	if input.ResetQuota {
+		apiKey.QuotaUsed = 0
+		if apiKey.Status == StatusAPIKeyQuotaExhausted {
+			apiKey.Status = StatusActive
+		}
+	}
+
+	if err := s.apiKeyRepo.TransferUpdate(opCtx, apiKey); err != nil {
+		return nil, fmt.Errorf("transfer api key: %w", err)
+	}
+	if tx != nil {
+		if err := tx.Commit(); err != nil {
+			return nil, fmt.Errorf("commit transaction: %w", err)
+		}
+	}
+
+	if s.authCacheInvalidator != nil {
+		s.authCacheInvalidator.InvalidateAuthCacheByKey(ctx, apiKey.Key)
 	}
 
 	result.APIKey = apiKey

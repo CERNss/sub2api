@@ -25,7 +25,7 @@
 
 | # | ID | 状态 | 一句话 | 新增文件 | 上游补丁文件 |
 |---|----|------|-------|---------|-------------|
-| 1 | `add-admin-user-api-key-creation`         | 🟢 active   | Admin 通过 Admin API Key 为指定用户创建 API key | 0 | 12 |
+| 1 | `add-admin-user-api-key-creation`         | 🟢 active   | Admin 通过 Admin API Key 为指定用户创建/转移 API key | 0 | 14 |
 | 2 | `add-external-custom-menu-token-open`     | 🟢 active   | 自定义菜单支持以 `external` 方式新开页并透传 JWT | 2 | 11 |
 | 3 | `control-oidc-local-email-verification`   | 🟢 active   | OIDC 专用开关跳过二次本地邮箱验证                | 0 | 19 |
 | 4 | `refine-pending-oauth-account-resolution` | 🟢 active   | OAuth 回调跳过 chooser、邮箱预填规则             | 0 | 6 |
@@ -42,9 +42,9 @@
 
 ### 1. `add-admin-user-api-key-creation`
 
-- **Capability:** `admin-user-api-key-creation`
-- **意图:** 让外部支付/开通系统以 Admin API Key 身份为目标用户创建 API key，而不需扮演该用户。
-- **触发场景:** 支付完成后的自动开通、批量预置租户。
+- **Capabilities:** `admin-user-api-key-creation`、`admin-user-api-key-transfer`
+- **意图:** 让外部支付/开通系统以 Admin API Key 身份为目标用户创建 API key，或把误归属的现有 API key 转移到正确用户，而不需扮演该用户。
+- **触发场景:** 支付完成后的自动开通、批量预置租户、sidecar 修复 key owner/清理 quota。
 - **Spec 路径:** `openspec/changes/add-admin-user-api-key-creation/`
 
 #### 新增文件
@@ -54,15 +54,17 @@ _无。本 change 全部为对上游文件的补丁。_
 | 路径 | 改动要点 |
 |------|---------|
 | `backend/cmd/server/wire_gen.go` | wire 重新生成，注入新 handler 依赖 |
-| `backend/internal/handler/admin/apikey_handler.go` | 新增 `AdminAPIKeyHandler.CreateForUser` 方法 + `AdminCreateUserAPIKeyRequest` DTO |
-| `backend/internal/handler/admin/admin_basic_handlers_test.go` | 增加路由测试 |
-| `backend/internal/handler/admin/admin_service_stub_test.go` | 测试 stub 接口扩展 `CreateUserAPIKey` |
-| `backend/internal/server/routes/admin.go` | 注册 `POST /api/v1/admin/users/:id/api-keys`（在 `users.POST("/:id/api-keys", h.Admin.APIKey.CreateForUser)` 这一行） |
-| `backend/internal/server/api_contract_test.go` | 契约测试新增条目 |
-| `backend/internal/service/admin_service.go` | 新增 `adminServiceImpl.CreateUserAPIKey` 方法 + `CreateUserAPIKeyInput` / `CreateUserAPIKeyResult` 类型 |
-| `backend/internal/service/admin_service_apikey_test.go` | service 层单测 |
-| `backend/internal/service/api_key_service.go` | 暴露共享创建逻辑给 admin path |
-| `docs/ADMIN_PAYMENT_INTEGRATION_API.md` | 文档新增端点说明 |
+| `backend/internal/handler/admin/apikey_handler.go` | 新增 `AdminAPIKeyHandler.CreateForUser` / `Transfer` 方法 + 创建/转移 DTO |
+| `backend/internal/handler/admin/admin_basic_handlers_test.go` | 增加创建与转移路由测试 |
+| `backend/internal/handler/admin/admin_service_stub_test.go` | 测试 stub 接口扩展 `CreateUserAPIKey` / `TransferAPIKey` |
+| `backend/internal/repository/api_key_repo.go` | 新增显式 transfer 更新路径，可原子写 owner/group/quota/quota_used/status |
+| `backend/internal/repository/api_key_repo_integration_test.go` | 验证普通 `Update` 仍不改 owner，transfer 路径能改 owner/quota |
+| `backend/internal/server/routes/admin.go` | 注册 `POST /api/v1/admin/users/:id/api-keys` 与 `POST /api/v1/admin/api-keys/:id/transfer` |
+| `backend/internal/server/api_contract_test.go` | 契约测试新增创建/转移条目 |
+| `backend/internal/service/admin_service.go` | 新增 `CreateUserAPIKey` / `TransferAPIKey` 方法与输入/结果类型 |
+| `backend/internal/service/admin_service_apikey_test.go` | service 层单测覆盖创建、分组更新、转移、quota reset、缓存失效 |
+| `backend/internal/service/api_key_service.go` | 暴露共享创建逻辑给 admin path，并扩展 API key repo contract |
+| `docs/ADMIN_PAYMENT_INTEGRATION_API.md` | 文档新增创建与转移端点说明 |
 | `README.md` | 功能简述段落 |
 | `README_CN.md` | 中文文档同步 |
 

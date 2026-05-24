@@ -132,7 +132,37 @@ curl -X POST "${BASE}/api/v1/admin/users/123/api-keys" \
   }'
 ```
 
-### 5) 购买页 / 自定义页面 URL Query 透传（iframe / 新窗口一致）
+### 5) 转移用户 API Key
+`POST /api/v1/admin/api-keys/:id/transfer`
+
+用途：外部 sidecar 通过 Admin API Key 将已存在的 API Key 转移给目标用户，并可同步改分组、改配额或清零已用配额。
+
+请求头：
+- `x-api-key`
+- `Idempotency-Key`
+
+请求体字段：
+- `target_user_id`：必填，目标用户 ID
+- `target_group_id`：可选；不传表示保留当前分组，`0` 表示解绑，正数表示绑定目标分组
+- `quota`：可选；不传表示保留当前配额，`0` 表示不限，正数表示新配额
+- `reset_quota`：可选；`true` 时将 `quota_used` 清零，并把仅因 quota 耗尽的 Key 恢复为 active
+
+响应会在 `data.api_key.user_id`、`data.api_key.group_id`、`data.api_key.quota`、`data.api_key.quota_used` 中确认最终状态。接口会校验目标用户、目标分组、订阅分组权限；专属标准分组可自动授予目标用户并返回 `auto_granted_group_access=true`。成功后会失效 API Key 认证缓存。
+
+```bash
+curl -X POST "${BASE}/api/v1/admin/api-keys/456/transfer" \
+  -H "x-api-key: ${KEY}" \
+  -H "Idempotency-Key: transfer-api-key-456-cm1234567890" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "target_user_id":123,
+    "target_group_id":2,
+    "quota":50.00,
+    "reset_quota":true
+  }'
+```
+
+### 6) 购买页 / 自定义页面 URL Query 透传（iframe / 新窗口一致）
 当 Sub2API 打开 `purchase_subscription_url` 或用户侧自定义页面 iframe URL 时，会统一追加：
 - `user_id`
 - `token`
@@ -145,13 +175,13 @@ curl -X POST "${BASE}/api/v1/admin/users/123/api-keys" \
 https://pay.example.com/pay?user_id=123&token=<jwt>&theme=light&lang=zh&ui_mode=embedded
 ```
 
-### 6) 失败处理建议
+### 7) 失败处理建议
 - 支付成功与充值成功分状态落库
 - 回调验签成功后立即标记“支付成功”
 - 支付成功但充值失败的订单允许后续重试
 - 重试保持相同 `code`，并使用新的 `Idempotency-Key`
 
-### 7) `doc_url` 配置建议
+### 8) `doc_url` 配置建议
 - 查看链接：`https://github.com/Wei-Shaw/sub2api/blob/main/docs/ADMIN_PAYMENT_INTEGRATION_API.md`
 - 下载链接：`https://raw.githubusercontent.com/Wei-Shaw/sub2api/main/docs/ADMIN_PAYMENT_INTEGRATION_API.md`
 
@@ -285,7 +315,37 @@ curl -X POST "${BASE}/api/v1/admin/users/123/api-keys" \
   }'
 ```
 
-### 5) Purchase / Custom Page URL query forwarding (iframe and new tab)
+### 5) Transfer a user API key
+`POST /api/v1/admin/api-keys/:id/transfer`
+
+Use this endpoint when an external sidecar needs to move an existing API key to a target user, optionally update group binding, update quota, or clear used quota.
+
+Headers:
+- `x-api-key`
+- `Idempotency-Key`
+
+Request fields:
+- `target_user_id`: required target user ID
+- `target_group_id`: optional; omitted keeps the current group, `0` unbinds, positive values bind the target group
+- `quota`: optional; omitted keeps the current quota, `0` means unlimited, positive values set the new quota
+- `reset_quota`: optional; `true` clears `quota_used` and reactivates keys that were only disabled by quota exhaustion
+
+The response confirms final state in `data.api_key.user_id`, `data.api_key.group_id`, `data.api_key.quota`, and `data.api_key.quota_used`. The endpoint validates the target user, target group, and subscription-group access. Exclusive standard groups can be auto-granted to the target user and return `auto_granted_group_access=true`. Successful transfer invalidates API key auth cache.
+
+```bash
+curl -X POST "${BASE}/api/v1/admin/api-keys/456/transfer" \
+  -H "x-api-key: ${KEY}" \
+  -H "Idempotency-Key: transfer-api-key-456-cm1234567890" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "target_user_id":123,
+    "target_group_id":2,
+    "quota":50.00,
+    "reset_quota":true
+  }'
+```
+
+### 6) Purchase / Custom Page URL query forwarding (iframe and new tab)
 When Sub2API opens `purchase_subscription_url` or a user-facing custom page iframe URL, it appends:
 - `user_id`
 - `token`
@@ -298,12 +358,12 @@ Example:
 https://pay.example.com/pay?user_id=123&token=<jwt>&theme=light&lang=zh&ui_mode=embedded
 ```
 
-### 6) Failure handling recommendations
+### 7) Failure handling recommendations
 - Persist payment success and recharge success as separate states
 - Mark payment as successful immediately after verified callback
 - Allow retry for orders with payment success but recharge failure
 - Keep the same `code` for retry, and use a new `Idempotency-Key`
 
-### 7) Recommended `doc_url`
+### 8) Recommended `doc_url`
 - View URL: `https://github.com/Wei-Shaw/sub2api/blob/main/docs/ADMIN_PAYMENT_INTEGRATION_API.md`
 - Download URL: `https://raw.githubusercontent.com/Wei-Shaw/sub2api/main/docs/ADMIN_PAYMENT_INTEGRATION_API.md`
