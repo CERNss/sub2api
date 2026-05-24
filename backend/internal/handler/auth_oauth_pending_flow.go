@@ -542,6 +542,25 @@ func cloneOAuthMetadata(values map[string]any) map[string]any {
 	return cloned
 }
 
+func pendingOAuthIdentityMetadata(session *dbent.PendingAuthSession) map[string]any {
+	if session == nil {
+		return map[string]any{}
+	}
+	metadata := cloneOAuthMetadata(session.UpstreamIdentityClaims)
+	if !strings.EqualFold(strings.TrimSpace(session.ProviderType), "oidc") {
+		return metadata
+	}
+	trustedEmail := pendingOIDCTrustedEmail(session.UpstreamIdentityClaims)
+	if trustedEmail == "" || !pendingSessionBoolValue(session.UpstreamIdentityClaims, "email_verified") {
+		return metadata
+	}
+	if syntheticEmail := strings.TrimSpace(pendingSessionStringValue(metadata, "email")); syntheticEmail != "" && !strings.EqualFold(syntheticEmail, trustedEmail) {
+		metadata["synthetic_email"] = syntheticEmail
+	}
+	metadata["email"] = trustedEmail
+	return metadata
+}
+
 func mergeOAuthMetadata(base map[string]any, overlay map[string]any) map[string]any {
 	merged := cloneOAuthMetadata(base)
 	for key, value := range overlay {
@@ -928,7 +947,7 @@ func ensurePendingOAuthIdentityForUser(ctx context.Context, tx *dbent.Tx, sessio
 		SetProviderType(strings.TrimSpace(session.ProviderType)).
 		SetProviderKey(strings.TrimSpace(session.ProviderKey)).
 		SetProviderSubject(strings.TrimSpace(session.ProviderSubject)).
-		SetMetadata(cloneOAuthMetadata(session.UpstreamIdentityClaims))
+		SetMetadata(pendingOAuthIdentityMetadata(session))
 	if issuer := oauthIdentityIssuer(session); issuer != nil {
 		create = create.SetIssuer(strings.TrimSpace(*issuer))
 	}
@@ -944,7 +963,7 @@ func ensurePendingWeChatOAuthIdentityForUser(ctx context.Context, tx *dbent.Tx, 
 	channel := strings.TrimSpace(pendingSessionStringValue(session.UpstreamIdentityClaims, "channel"))
 	channelAppID := strings.TrimSpace(pendingSessionStringValue(session.UpstreamIdentityClaims, "channel_app_id"))
 	channelSubject := strings.TrimSpace(pendingSessionStringValue(session.UpstreamIdentityClaims, "channel_subject"))
-	metadata := cloneOAuthMetadata(session.UpstreamIdentityClaims)
+	metadata := pendingOAuthIdentityMetadata(session)
 
 	identityRecords, err := client.AuthIdentity.Query().
 		Where(
@@ -1280,7 +1299,7 @@ func applyPendingOAuthBindingTx(
 	}
 
 	metadata := cloneOAuthMetadata(identity.Metadata)
-	for key, value := range session.UpstreamIdentityClaims {
+	for key, value := range pendingOAuthIdentityMetadata(session) {
 		metadata[key] = value
 	}
 	if decision != nil && decision.AdoptDisplayName && adoptedDisplayName != "" {

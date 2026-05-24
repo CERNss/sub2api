@@ -23,6 +23,7 @@ type AdminService interface {
 	BatchUpdateLimits(ctx context.Context, userIDs []int64, concurrency, rpmLimit *int) (int, error)
 	GetUserAPIKeys(ctx context.Context, userID int64, page, pageSize int, sortBy, sortOrder string) ([]APIKey, int64, error)
 	CreateUserAPIKey(ctx context.Context, userID int64, input CreateUserAPIKeyInput) (*CreateUserAPIKeyResult, error)
+	TransferAPIKey(ctx context.Context, keyID int64, input TransferAPIKeyInput) (*TransferAPIKeyResult, error)
 	GetUserUsageStats(ctx context.Context, userID int64, period string) (any, error)
 	GetUserRPMStatus(ctx context.Context, userID int64) (*UserRPMStatus, error)
 	// GetUserBalanceHistory returns paginated balance/concurrency change records for a user.
@@ -185,6 +186,20 @@ type CreateUserAPIKeyInput struct {
 }
 
 type CreateUserAPIKeyResult struct {
+	APIKey                 *APIKey
+	AutoGrantedGroupAccess bool
+	GrantedGroupID         *int64
+	GrantedGroupName       string
+}
+
+type TransferAPIKeyInput struct {
+	TargetUserID  int64
+	TargetGroupID *int64
+	Quota         *float64
+	ResetQuota    bool
+}
+
+type TransferAPIKeyResult struct {
 	APIKey                 *APIKey
 	AutoGrantedGroupAccess bool
 	GrantedGroupID         *int64
