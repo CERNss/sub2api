@@ -46,11 +46,11 @@ External sidecars also need to repair or migrate keys that were originally creat
 - `backend/internal/handler/admin/apikey_handler.go`: adds `AdminAPIKeyHandler.CreateForUser`, `AdminAPIKeyHandler.Transfer`, `AdminCreateUserAPIKeyRequest`, and `AdminTransferAPIKeyRequest` DTOs.
 - `backend/internal/handler/admin/admin_basic_handlers_test.go`: route coverage for the new create and transfer endpoints.
 - `backend/internal/handler/admin/admin_service_stub_test.go`: stub interface extended with `CreateUserAPIKey` and `TransferAPIKey`.
-- `backend/internal/repository/api_key_repo.go`: adds a transfer-safe update path that can persist owner, group, quota, quota usage, and status together.
+- `backend/internal/repository/api_key_repo.go`: adds a transfer-safe update path that can persist owner, group, quota, quota usage, and status together; `Create` resolves its client via `clientFromContext` so the admin exclusive-group auto-grant and the key insert commit (or roll back) in the same transaction.
 - `backend/internal/repository/api_key_repo_integration_test.go`: verifies normal `Update` still preserves owner while the new transfer path can change owner and quota fields.
 - `backend/internal/server/routes/admin.go`: registers `POST /api/v1/admin/users/:id/api-keys` (`users.POST("/:id/api-keys", h.Admin.APIKey.CreateForUser)`) and `POST /api/v1/admin/api-keys/:id/transfer`.
 - `backend/internal/server/api_contract_test.go`: contract rows for the new admin endpoints.
-- `backend/internal/service/admin_service.go`: adds `adminServiceImpl.CreateUserAPIKey`, `CreateUserAPIKeyInput`, `CreateUserAPIKeyResult`, `TransferAPIKeyInput`, and `TransferAPIKeyResult`.
+- `backend/internal/service/admin_service.go`: adds `adminServiceImpl.CreateUserAPIKey`, `CreateUserAPIKeyInput`, `CreateUserAPIKeyResult`, `TransferAPIKeyInput`, and `TransferAPIKeyResult`; both create and transfer reject a negative `quota` (which would otherwise be silently treated as unlimited by `IsQuotaExhausted`).
 - `backend/internal/service/admin_service_apikey_test.go`: service unit tests for creation, group update, transfer validation, quota reset, and cache invalidation.
 - `backend/internal/service/api_key_service.go`: exposes shared creation core so admin path can reuse it without acting as the user, and extends repository contracts for transfer.
 - `docs/ADMIN_PAYMENT_INTEGRATION_API.md`: endpoint documentation for payment integrators and sidecars.
