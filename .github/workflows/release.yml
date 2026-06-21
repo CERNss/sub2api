@@ -558,14 +558,17 @@ jobs:
           unset GOROOT || true
           hash -r
 
-          TOOLCACHE_GO="$(which -a go | grep '/_work/_tool/go/' | head -n1 || true)"
+          TOOLCACHE_GO="$(which -a go | awk '/\/(_work\/_tool|hostedtoolcache)\/go\// { print; exit }')"
+          if [ -z "${TOOLCACHE_GO}" ]; then
+            TOOLCACHE_GO="$(command -v go || true)"
+          fi
           if [ -z "${TOOLCACHE_GO}" ]; then
             echo "Unable to find setup-go toolchain in PATH"
             which -a go || true
             exit 1
           fi
 
-          GO_ROOT="$(cd "$(dirname "${TOOLCACHE_GO}")/.." && pwd)"
+          GO_ROOT="$("${TOOLCACHE_GO}" env GOROOT)"
           echo "${GO_ROOT}/bin" >> "${GITHUB_PATH}"
           {
             echo "GOROOT=${GO_ROOT}"
@@ -817,14 +820,17 @@ jobs:
           unset GOROOT || true
           hash -r
 
-          TOOLCACHE_GO="$(which -a go | grep '/_work/_tool/go/' | head -n1 || true)"
+          TOOLCACHE_GO="$(which -a go | awk '/\/(_work\/_tool|hostedtoolcache)\/go\// { print; exit }')"
+          if [ -z "${TOOLCACHE_GO}" ]; then
+            TOOLCACHE_GO="$(command -v go || true)"
+          fi
           if [ -z "${TOOLCACHE_GO}" ]; then
             echo "Unable to find setup-go toolchain in PATH"
             which -a go || true
             exit 1
           fi
 
-          GO_ROOT="$(cd "$(dirname "${TOOLCACHE_GO}")/.." && pwd)"
+          GO_ROOT="$("${TOOLCACHE_GO}" env GOROOT)"
           echo "${GO_ROOT}/bin" >> "${GITHUB_PATH}"
           {
             echo "GOROOT=${GO_ROOT}"
