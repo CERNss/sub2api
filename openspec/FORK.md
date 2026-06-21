@@ -57,11 +57,11 @@ _无。本 change 全部为对上游文件的补丁。_
 | `backend/internal/handler/admin/apikey_handler.go` | 新增 `AdminAPIKeyHandler.CreateForUser` / `Transfer` 方法 + 创建/转移 DTO |
 | `backend/internal/handler/admin/admin_basic_handlers_test.go` | 增加创建与转移路由测试 |
 | `backend/internal/handler/admin/admin_service_stub_test.go` | 测试 stub 接口扩展 `CreateUserAPIKey` / `TransferAPIKey` |
-| `backend/internal/repository/api_key_repo.go` | 新增显式 transfer 更新路径，可原子写 owner/group/quota/quota_used/status |
+| `backend/internal/repository/api_key_repo.go` | 新增显式 transfer 更新路径，可原子写 owner/group/quota/quota_used/status；`Create` 改用 `clientFromContext`，使独占组自动授权与 key 写入同事务提交/回滚 |
 | `backend/internal/repository/api_key_repo_integration_test.go` | 验证普通 `Update` 仍不改 owner，transfer 路径能改 owner/quota |
 | `backend/internal/server/routes/admin.go` | 注册 `POST /api/v1/admin/users/:id/api-keys` 与 `POST /api/v1/admin/api-keys/:id/transfer` |
 | `backend/internal/server/api_contract_test.go` | 契约测试新增创建/转移条目 |
-| `backend/internal/service/admin_service.go` | 新增 `CreateUserAPIKey` / `TransferAPIKey` 方法与输入/结果类型 |
+| `backend/internal/service/admin_service.go` | 新增 `CreateUserAPIKey` / `TransferAPIKey` 方法与输入/结果类型；创建与转移均拒绝负数 quota（否则会被静默当作无限额）|
 | `backend/internal/service/admin_service_apikey_test.go` | service 层单测覆盖创建、分组更新、转移、quota reset、缓存失效 |
 | `backend/internal/service/api_key_service.go` | 暴露共享创建逻辑给 admin path，并扩展 API key repo contract |
 | `docs/ADMIN_PAYMENT_INTEGRATION_API.md` | 文档新增创建与转移端点说明 |
@@ -137,9 +137,9 @@ _无。_
 #### 上游补丁
 | 路径 | 改动要点 |
 |------|---------|
-| `backend/internal/handler/auth_oidc_oauth.go` | OIDC 回调返回 `local_email_verification_required` |
-| `backend/internal/handler/auth_oidc_oauth_test.go` | 测试 |
-| `backend/internal/handler/auth_oauth_pending_flow.go` | pending session 携带 verification 状态 |
+| `backend/internal/handler/auth_oidc_oauth.go` | OIDC 回调返回 `local_email_verification_required`；`email_verified` 经 `oidcVerifiedFlagForEmail` 绑定到实际采用的 `compat_email` 来源，杜绝跨邮箱误判已验证 |
+| `backend/internal/handler/auth_oidc_oauth_test.go` | 测试（含 `oidcVerifiedFlagForEmail` 跨源绑定）|
+| `backend/internal/handler/auth_oauth_pending_flow.go` | pending session 携带 verification 状态；`pendingOAuthLocalEmailVerificationRequired` 在全局 `email_verify_enabled` 关闭时也跳过本地验证，与前端隐藏验证码控件一致（修复 rebase 易碎的死路：前端隐藏、后端仍强制要码）|
 | `backend/internal/handler/auth_oauth_pending_flow_test.go` | 测试 |
 | `backend/internal/service/auth_oauth_email_flow.go` | `RegisterOAuthEmailAccount` 信任邮箱跳过逻辑 |
 | `backend/internal/service/auth_oauth_email_flow_test.go` | 测试 |
@@ -150,7 +150,7 @@ _无。_
 | `backend/internal/service/setting_service.go` | 持久化 |
 | `frontend/src/api/admin/settings.ts` | 前端 admin API 类型 |
 | `frontend/src/views/admin/SettingsView.vue` | Admin UI 增加 OIDC 开关 |
-| `frontend/src/components/auth/PendingOAuthCreateAccountForm.vue` | 表单根据 flag 隐藏验证输入 |
+| `frontend/src/components/auth/PendingOAuthCreateAccountForm.vue` | 表单根据 flag 隐藏验证输入；send-code 返回 `auth_result: pending_session`（邮箱已存在）时转入绑定流程，不再谎报"已发送" |
 | `frontend/src/components/auth/__tests__/PendingOAuthCreateAccountForm.spec.ts` | 测试 |
 | `frontend/src/views/auth/OidcCallbackView.vue` | 消费 verification flag |
 | `frontend/src/views/auth/__tests__/OidcCallbackView.spec.ts` | 测试 |

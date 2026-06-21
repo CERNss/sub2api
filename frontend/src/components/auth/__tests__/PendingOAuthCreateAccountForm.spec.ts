@@ -236,6 +236,32 @@ describe('PendingOAuthCreateAccountForm', () => {
     })
   })
 
+  it('routes to the bind flow instead of reporting success when send-code finds the email already registered', async () => {
+    sendPendingOAuthVerifyCode.mockResolvedValue({
+      auth_result: 'pending_session',
+      provider: 'linuxdo',
+      intent: 'login',
+      step: 'choose_account_action_required',
+      email: 'existing@example.com'
+    })
+
+    const wrapper = mount(PendingOAuthCreateAccountForm, {
+      props: {
+        providerName: 'LinuxDo',
+        testIdPrefix: 'linuxdo',
+        initialEmail: '',
+        isSubmitting: false
+      }
+    })
+
+    await wrapper.get('[data-testid="linuxdo-create-account-email"]').setValue('  existing@example.com  ')
+    await wrapper.get('[data-testid="linuxdo-create-account-send-code"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.emitted('switchToBind')).toEqual([['existing@example.com']])
+    expect(wrapper.text()).not.toContain('auth.codeSentSuccess')
+  })
+
   it('hides local verification controls for the trusted OIDC email until the email changes', async () => {
     const wrapper = mount(PendingOAuthCreateAccountForm, {
       props: {
