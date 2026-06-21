@@ -611,6 +611,12 @@ func (s *adminServiceImpl) GetUserAPIKeys(ctx context.Context, userID int64, pag
 }
 
 func (s *adminServiceImpl) CreateUserAPIKey(ctx context.Context, userID int64, input CreateUserAPIKeyInput) (*CreateUserAPIKeyResult, error) {
+	// 负数 quota 会被 APIKey.IsQuotaExhausted（Quota <= 0 视为无限）静默解释为无限额度，
+	// 这对外部开通系统是危险的脚枪，显式拒绝；0 仍表示无限，保持既有语义。
+	if input.Quota < 0 {
+		return nil, infraerrors.BadRequest("INVALID_QUOTA", "quota must be non-negative (0 means unlimited)")
+	}
+
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -682,6 +688,10 @@ func (s *adminServiceImpl) CreateUserAPIKey(ctx context.Context, userID int64, i
 func (s *adminServiceImpl) TransferAPIKey(ctx context.Context, keyID int64, input TransferAPIKeyInput) (*TransferAPIKeyResult, error) {
 	if input.TargetUserID <= 0 {
 		return nil, infraerrors.BadRequest("INVALID_TARGET_USER_ID", "target_user_id must be positive")
+	}
+	// 与创建路径一致：负数 quota 会被静默当作无限额度，显式拒绝。
+	if input.Quota != nil && *input.Quota < 0 {
+		return nil, infraerrors.BadRequest("INVALID_QUOTA", "quota must be non-negative (0 means unlimited)")
 	}
 
 	apiKey, err := s.apiKeyRepo.GetByID(ctx, keyID)

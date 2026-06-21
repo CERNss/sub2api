@@ -51,6 +51,12 @@ The admin endpoint SHALL accept the same key creation controls used by the user 
 - **THEN** the system SHALL enforce the existing custom key format, uniqueness, and IP/CIDR validation rules
 - **AND** invalid input SHALL prevent API key creation
 
+#### Scenario: Negative quota is rejected
+- **WHEN** an admin-authenticated create or transfer request supplies a negative `quota`
+- **THEN** the system SHALL reject the request with an invalid-quota business error
+- **AND** it SHALL NOT create or transfer the API key
+- **AND** it SHALL NOT silently treat the negative value as unlimited
+
 ### Requirement: Admin key creation SHALL respect group access rules
 The admin endpoint SHALL preserve the existing group binding semantics while allowing provisioning-friendly standard exclusive group access.
 
@@ -60,6 +66,7 @@ The admin endpoint SHALL preserve the existing group binding semantics while all
 - **THEN** the system SHALL add group `20` to the user's allowed groups
 - **AND** it SHALL create the API key bound to group `20`
 - **AND** the response SHALL include `auto_granted_group_access` as `true`
+- **AND** it SHALL persist the allowed-group grant and the key insert atomically in one transaction
 
 #### Scenario: Subscription group requires active subscription
 - **GIVEN** user `123` has no active subscription for subscription group `30`

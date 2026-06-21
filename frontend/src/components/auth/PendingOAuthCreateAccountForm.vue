@@ -307,6 +307,13 @@ async function handleSendCode() {
       tencent_captcha_ticket: tencentCaptchaEnabled.value ? turnstileToken.value : undefined,
       tencent_captcha_randstr: tencentCaptchaEnabled.value ? tencentCaptchaRandstr.value : undefined
     })
+    // 当邮箱已被注册时，后端不会真的发码，而是把 pending session 转入 choice/bind 状态并
+    // 返回 { auth_result: 'pending_session', ... }（没有 countdown）。此时必须把用户引导到
+    // 绑定已有账户流程，而不是谎报"验证码已发送"。
+    if ((response as { auth_result?: string }).auth_result === 'pending_session') {
+      emitSwitchToBind()
+      return
+    }
     sendCodeSuccess.value = true
     startCountdown(response.countdown)
   } catch (error: unknown) {

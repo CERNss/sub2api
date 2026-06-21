@@ -43,7 +43,10 @@ func (r *apiKeyRepository) activeQuery() *dbent.APIKeyQuery {
 }
 
 func (r *apiKeyRepository) Create(ctx context.Context, key *service.APIKey) error {
-	builder := r.client.APIKey.Create().
+	// 使用 context 中的事务 client（若存在），确保调用方在事务内创建 key 时，
+	// 该 INSERT 与同事务的其它写入（如 admin 自动授权独占组）能一起提交或回滚。
+	client := clientFromContext(ctx, r.client)
+	builder := client.APIKey.Create().
 		SetUserID(key.UserID).
 		SetKey(key.Key).
 		SetName(key.Name).

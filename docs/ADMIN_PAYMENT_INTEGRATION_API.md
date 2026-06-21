@@ -112,7 +112,7 @@ curl -X POST "${BASE}/api/v1/admin/users/123/balance" \
 - `name`：必填，Key 名称
 - `group_id`：可选，绑定分组 ID
 - `custom_key`：可选，自定义 Key（至少 16 位，仅字母、数字、下划线、连字符）
-- `quota`：可选，Key 配额（USD，`0` 或不传表示不限）
+- `quota`：可选，Key 配额（USD，`0` 或不传表示不限；负数会被拒绝，避免误填静默变成无限额）
 - `expires_in_days`：可选，过期天数
 - `rate_limit_5h` / `rate_limit_1d` / `rate_limit_7d`：可选，滚动窗口限额（USD）
 - `ip_whitelist` / `ip_blacklist`：可选，IP/CIDR 列表
@@ -144,7 +144,7 @@ curl -X POST "${BASE}/api/v1/admin/users/123/api-keys" \
 请求体字段：
 - `target_user_id`：必填，目标用户 ID
 - `target_group_id`：可选；不传表示保留当前分组，`0` 表示解绑，正数表示绑定目标分组
-- `quota`：可选；不传表示保留当前配额，`0` 表示不限，正数表示新配额
+- `quota`：可选；不传表示保留当前配额，`0` 表示不限，正数表示新配额；负数会被拒绝
 - `reset_quota`：可选；`true` 时将 `quota_used` 清零，并把仅因 quota 耗尽的 Key 恢复为 active
 
 响应会在 `data.api_key.user_id`、`data.api_key.group_id`、`data.api_key.quota`、`data.api_key.quota_used` 中确认最终状态。接口会校验目标用户、目标分组、订阅分组权限；专属标准分组可自动授予目标用户并返回 `auto_granted_group_access=true`。成功后会失效 API Key 认证缓存。
@@ -295,7 +295,7 @@ Request fields:
 - `name`: required key name
 - `group_id`: optional group binding
 - `custom_key`: optional custom key, at least 16 characters, letters/numbers/underscore/hyphen only
-- `quota`: optional key quota in USD (`0` or omitted means unlimited)
+- `quota`: optional key quota in USD (`0` or omitted means unlimited; a negative value is rejected so a typo cannot silently become unlimited)
 - `expires_in_days`: optional expiration in days
 - `rate_limit_5h` / `rate_limit_1d` / `rate_limit_7d`: optional rolling-window USD limits
 - `ip_whitelist` / `ip_blacklist`: optional IP/CIDR lists
@@ -327,7 +327,7 @@ Headers:
 Request fields:
 - `target_user_id`: required target user ID
 - `target_group_id`: optional; omitted keeps the current group, `0` unbinds, positive values bind the target group
-- `quota`: optional; omitted keeps the current quota, `0` means unlimited, positive values set the new quota
+- `quota`: optional; omitted keeps the current quota, `0` means unlimited, positive values set the new quota; a negative value is rejected
 - `reset_quota`: optional; `true` clears `quota_used` and reactivates keys that were only disabled by quota exhaustion
 
 The response confirms final state in `data.api_key.user_id`, `data.api_key.group_id`, `data.api_key.quota`, and `data.api_key.quota_used`. The endpoint validates the target user, target group, and subscription-group access. Exclusive standard groups can be auto-granted to the target user and return `auto_granted_group_access=true`. Successful transfer invalidates API key auth cache.
