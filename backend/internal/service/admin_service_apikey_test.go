@@ -682,6 +682,39 @@ func TestAdminService_CreateUserAPIKey_SubscriptionGroupRequiresActiveSubscripti
 	require.False(t, userRepo.addGroupCalled)
 }
 
+func TestAdminService_CreateUserAPIKey_NegativeQuotaRejected(t *testing.T) {
+	userRepo := &userRepoStubForGroupUpdate{}
+	apiKeyRepo := &apiKeyRepoStubForGroupUpdate{}
+	apiKeySvc := &APIKeyService{apiKeyRepo: apiKeyRepo, userRepo: userRepo}
+	svc := &adminServiceImpl{userRepo: userRepo, apiKeyService: apiKeySvc}
+
+	_, err := svc.CreateUserAPIKey(context.Background(), 42, CreateUserAPIKeyInput{
+		Name:  "service-key",
+		Quota: -1,
+	})
+
+	require.Error(t, err)
+	require.Equal(t, "INVALID_QUOTA", infraerrors.Reason(err))
+	require.Nil(t, apiKeyRepo.created)
+}
+
+func TestAdminService_TransferAPIKey_NegativeQuotaRejected(t *testing.T) {
+	existing := &APIKey{ID: 1, UserID: 10, Key: "sk-transfer", Status: StatusActive}
+	apiKeyRepo := &apiKeyRepoStubForGroupUpdate{key: existing}
+	userRepo := &userRepoStubForGroupUpdate{}
+	svc := &adminServiceImpl{apiKeyRepo: apiKeyRepo, userRepo: userRepo}
+	negative := -1.0
+
+	_, err := svc.TransferAPIKey(context.Background(), 1, TransferAPIKeyInput{
+		TargetUserID: 42,
+		Quota:        &negative,
+	})
+
+	require.Error(t, err)
+	require.Equal(t, "INVALID_QUOTA", infraerrors.Reason(err))
+	require.Nil(t, apiKeyRepo.transferUpdated)
+}
+
 func TestAdminService_TransferAPIKey_OwnerQuotaResetAndCacheInvalidation(t *testing.T) {
 	existing := &APIKey{
 		ID:        1,

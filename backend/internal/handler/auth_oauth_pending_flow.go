@@ -374,6 +374,14 @@ func (h *AuthHandler) pendingOIDCLocalEmailVerificationRequired(ctx context.Cont
 }
 
 func (h *AuthHandler) pendingOAuthLocalEmailVerificationRequired(ctx context.Context, session *dbent.PendingAuthSession, email string) bool {
+	// When site-wide email verification is disabled, the pending OAuth account-creation
+	// flow must not demand a local code either: the frontend hides the verify controls in
+	// that case (see PendingOAuthCreateAccountForm), so still requiring a code here would
+	// silently dead-end the signup. The OIDC trusted-email bypass below is a narrower,
+	// additional relaxation layered on top of this site-wide switch.
+	if h != nil && h.authService != nil && !h.authService.IsEmailVerifyEnabled(ctx) {
+		return false
+	}
 	if session == nil || !strings.EqualFold(strings.TrimSpace(session.ProviderType), "oidc") {
 		return true
 	}
