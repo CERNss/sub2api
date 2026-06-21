@@ -94,6 +94,25 @@ type oidcUserInfoClaims struct {
 	AvatarURL     string
 }
 
+// oidcVerifiedFlagForEmail returns the email_verified flag asserted by whichever claim
+// source actually carried `email`, so a verified flag is never applied across two
+// different addresses. It returns nil (treated as unverified) when no source verified that
+// exact address. userinfo is preferred over the id_token because compat_email itself
+// prefers the userinfo address.
+func oidcVerifiedFlagForEmail(userInfo *oidcUserInfoClaims, idClaims *oidcIDTokenClaims, email string) *bool {
+	email = strings.TrimSpace(email)
+	if email == "" {
+		return nil
+	}
+	if userInfo != nil && userInfo.EmailVerified != nil && strings.EqualFold(strings.TrimSpace(userInfo.Email), email) {
+		return userInfo.EmailVerified
+	}
+	if idClaims != nil && idClaims.EmailVerified != nil && strings.EqualFold(strings.TrimSpace(idClaims.Email), email) {
+		return idClaims.EmailVerified
+	}
+	return nil
+}
+
 type oidcJWKSet struct {
 	Keys []oidcJWK `json:"keys"`
 }
@@ -342,10 +361,6 @@ func (h *AuthHandler) OIDCOAuthCallback(c *gin.Context) {
 		return
 	}
 
-	emailVerified := userInfoClaims.EmailVerified
-	if emailVerified == nil && idClaims != nil {
-		emailVerified = idClaims.EmailVerified
-	}
 	if idClaims != nil && userInfoClaims.Subject != "" && idClaims.Subject != "" && strings.TrimSpace(userInfoClaims.Subject) != strings.TrimSpace(idClaims.Subject) {
 		redirectOAuthError(c, frontendCallback, "subject_mismatch", "userinfo subject does not match id_token", "")
 		return
@@ -356,6 +371,12 @@ func (h *AuthHandler) OIDCOAuthCallback(c *gin.Context) {
 	if compatEmail == "" && idClaims != nil {
 		compatEmail = strings.TrimSpace(idClaims.Email)
 	}
+	// Bind email_verified to the address actually adopted as compat_email. Choosing the
+	// verified flag and the email independently let a verified=true from one claim source
+	// (e.g. the id_token) attach to a different, unverified email taken from another source
+	// (e.g. userinfo), which would wrongly let the pending OAuth flow skip local email
+	// verification for an address the user never proved they own.
+	emailVerified := oidcVerifiedFlagForEmail(userInfoClaims, idClaims, compatEmail)
 	email := oidcSyntheticEmailFromIdentityKey(identityKey)
 	username := firstNonEmpty(
 		userInfoClaims.Username,

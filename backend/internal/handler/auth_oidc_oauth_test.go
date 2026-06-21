@@ -456,6 +456,30 @@ func TestOIDCOAuthCallbackCreatesBindPendingSessionForCompatEmailUser(t *testing
 	require.False(t, hasAccessToken)
 }
 
+func TestOIDCVerifiedFlagForEmail_BindsVerifiedToEmailSource(t *testing.T) {
+	// userinfo carries an email with no verified flag; the id_token verified a DIFFERENT
+	// address. The verified flag must never leak onto the userinfo email, which would let
+	// an unproven address skip local email verification downstream.
+	userInfo := &oidcUserInfoClaims{Email: "attacker@evil.example"}
+	idClaims := &oidcIDTokenClaims{Email: "owner@corp.example", EmailVerified: boolPtr(true)}
+
+	require.Nil(t, oidcVerifiedFlagForEmail(userInfo, idClaims, "attacker@evil.example"))
+
+	// When the verified flag's source matches the adopted email, it is honored.
+	got := oidcVerifiedFlagForEmail(userInfo, idClaims, "owner@corp.example")
+	require.NotNil(t, got)
+	require.True(t, *got)
+
+	// A verified userinfo email for the same adopted address is honored too.
+	uiVerified := &oidcUserInfoClaims{Email: "user@corp.example", EmailVerified: boolPtr(true)}
+	got = oidcVerifiedFlagForEmail(uiVerified, nil, "user@corp.example")
+	require.NotNil(t, got)
+	require.True(t, *got)
+
+	// An empty adopted email is never treated as verified.
+	require.Nil(t, oidcVerifiedFlagForEmail(uiVerified, idClaims, ""))
+}
+
 func TestOIDCOAuthCallbackAllowsCompatEmailBindWhenUpstreamEmailIsUnverified(t *testing.T) {
 	cfg, cleanup := newOIDCTestProvider(t, oidcProviderFixture{
 		Subject:           "oidc-subject-unverified-compat",
