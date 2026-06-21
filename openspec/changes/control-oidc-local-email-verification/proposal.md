@@ -33,9 +33,9 @@ The pending OIDC signup flow currently performs a second local email-code verifi
 - _None._
 
 ### Upstream Patch Files
-- `backend/internal/handler/auth_oidc_oauth.go`: OIDC callback returns `local_email_verification_required`.
+- `backend/internal/handler/auth_oidc_oauth.go`: OIDC callback returns `local_email_verification_required`; binds `email_verified` to the adopted `compat_email` source via `oidcVerifiedFlagForEmail` so a verified flag from a different upstream email cannot suppress local verification.
 - `backend/internal/handler/auth_oidc_oauth_test.go`: callback behavior tests.
-- `backend/internal/handler/auth_oauth_pending_flow.go`: pending session carries verification state to the frontend.
+- `backend/internal/handler/auth_oauth_pending_flow.go`: pending session carries verification state to the frontend; `pendingOAuthLocalEmailVerificationRequired` also suppresses local verification when site-wide `email_verify_enabled` is off, matching the client which hides the verify controls (prevents the rebase-fragile dead-end where the client hides the code field but the backend still demands a code).
 - `backend/internal/handler/auth_oauth_pending_flow_test.go`: pending session tests.
 - `backend/internal/service/auth_oauth_email_flow.go`: `RegisterOAuthEmailAccount` trusts upstream-verified emails per documented rule.
 - `backend/internal/service/auth_oauth_email_flow_test.go`: trusted-bypass coverage.
@@ -46,7 +46,7 @@ The pending OIDC signup flow currently performs a second local email-code verifi
 - `backend/internal/service/setting_service.go`: persistence of the new toggle.
 - `frontend/src/api/admin/settings.ts`: typings for the admin API field.
 - `frontend/src/views/admin/SettingsView.vue`: admin UI exposes the new OIDC toggle.
-- `frontend/src/components/auth/PendingOAuthCreateAccountForm.vue`: hides local verification input when flag says so.
+- `frontend/src/components/auth/PendingOAuthCreateAccountForm.vue`: hides local verification input when flag says so; when send-code returns an `auth_result: pending_session` (email already registered) it routes to the bind flow instead of falsely reporting "code sent".
 - `frontend/src/components/auth/__tests__/PendingOAuthCreateAccountForm.spec.ts`: form tests.
 - `frontend/src/views/auth/OidcCallbackView.vue`: consumes the verification flag.
 - `frontend/src/views/auth/__tests__/OidcCallbackView.spec.ts`: callback view tests.

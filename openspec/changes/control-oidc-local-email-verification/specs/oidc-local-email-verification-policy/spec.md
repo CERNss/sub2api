@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: The backend SHALL decide whether pending OIDC account creation still requires local email verification
-The backend SHALL evaluate pending OIDC account creation with an OIDC-specific policy. Local email verification SHALL remain required unless all of the following are true: the provider type is OIDC, the admin setting `oidc_connect_require_local_email_verification` is `false`, the upstream OIDC claims mark the email as verified, a non-synthetic trusted `compat_email` exists, and the submitted local email matches that trusted email.
+The backend SHALL evaluate pending OIDC account creation with an OIDC-specific policy. Local email verification SHALL remain required unless all of the following are true: the provider type is OIDC, the admin setting `oidc_connect_require_local_email_verification` is `false`, the upstream OIDC claims mark the email as verified, a non-synthetic trusted `compat_email` exists, and the submitted local email matches that trusted email. This OIDC-specific policy is evaluated only while site-wide email verification (`email_verify_enabled`) is enabled: when email verification is disabled site-wide, pending account creation SHALL NOT require a local verification code for any provider, matching the client which hides the verification controls. When upstream verification is consulted, the `email_verified` flag SHALL be the one asserted for the adopted `compat_email` address, never a verified flag carried by a different upstream email.
 
 #### Scenario: Default policy keeps local verification enabled
 - **WHEN** the setting `oidc_connect_require_local_email_verification` is absent or `true`
@@ -19,6 +19,16 @@ The backend SHALL evaluate pending OIDC account creation with an OIDC-specific p
 #### Scenario: Changing the email restores local verification
 - **WHEN** the setting is `false`, upstream OIDC claims include a verified non-synthetic `compat_email`, and the user submits a different email address
 - **THEN** pending OIDC account creation SHALL require a local email verification code for the new email
+
+#### Scenario: Site-wide email verification disabled skips local verification
+- **WHEN** the site-wide `email_verify_enabled` setting is `false`
+- **THEN** pending account creation SHALL NOT require a local email verification code
+- **AND** the backend SHALL skip local verification regardless of the OIDC-specific setting
+
+#### Scenario: A verified flag from a different upstream email is not trusted
+- **WHEN** the userinfo and id_token claims carry different email addresses and only the address that is not adopted as `compat_email` is marked verified
+- **THEN** the adopted `compat_email` SHALL be treated as unverified
+- **AND** pending OIDC account creation SHALL require a local email verification code
 
 ### Requirement: Pending OIDC completion responses SHALL expose the local verification requirement to the client
 When the backend returns a pending OIDC completion response for create-account or chooser flows, it SHALL include the session-specific field `local_email_verification_required` so the client can render the correct verification UI for the current trusted email state.
