@@ -143,6 +143,8 @@ docs/*
 !docs/COMPOSITE_GROUPS.md
 !docs/PLUGIN_DEVELOPMENT.md
 !docs/channel-monitor-v2-safe-defaults.md
+!docs/fork-snapshots/
+!docs/fork-snapshots/**
 !docs/legal/
 !docs/legal/*.md
 !docs/screenshots/
