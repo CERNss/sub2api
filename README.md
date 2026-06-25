@@ -47,6 +47,90 @@ POST /api/v1/admin/api-keys/:id/transfer
 
 The transfer response confirms `data.api_key.user_id`, `quota`, and `quota_used`, and successful transfers invalidate API key auth cache.
 
+### User Token API Key Automation
+
+External user-side tools can log in as a normal user, exchange the login for a JWT token pair, and then call the same user API key endpoints that the web dashboard uses. The capability scope is identical to that user account: group binding is limited to the user's available groups, and Turnstile, backend-mode login restrictions, account status checks, and TOTP 2FA still apply.
+
+```bash
+POST /api/v1/auth/token
+```
+
+Request body:
+
+```json
+{
+  "email": "user@example.com",
+  "password": "password",
+  "turnstile_token": "optional-turnstile-token"
+}
+```
+
+When 2FA is enabled, the login response contains `requires_2fa` and `temp_token`. Complete the exchange with:
+
+```bash
+POST /api/v1/auth/token/2fa
+```
+
+```json
+{
+  "temp_token": "temp-token-from-login",
+  "totp_code": "123456"
+}
+```
+
+Refresh the access/refresh token pair with:
+
+```bash
+POST /api/v1/auth/token/refresh
+```
+
+```json
+{
+  "refresh_token": "refresh-token-from-login"
+}
+```
+
+Use the returned access token for user API calls:
+
+```bash
+Authorization: Bearer <access_token>
+```
+
+Available key-management endpoints for this flow:
+
+```bash
+GET  /api/v1/groups/available
+POST /api/v1/keys
+PUT  /api/v1/keys/:id/group
+```
+
+Create a key with the same controls as the user dashboard:
+
+```json
+{
+  "name": "sidecar-key",
+  "group_id": 123,
+  "custom_key": "optional-custom-key",
+  "ip_whitelist": ["203.0.113.10"],
+  "ip_blacklist": [],
+  "quota": 20,
+  "expires_in_days": 30,
+  "rate_limit_5h": 100,
+  "rate_limit_1d": 300,
+  "rate_limit_7d": 1000
+}
+```
+
+Rotate only the key's group without changing the key value, quota, expiration, IP ACLs, status, or rate-limit settings:
+
+```json
+{
+  "group_id": 456
+}
+```
+
+Use `group_id: 0` to unbind the key from any group. The generated API key is still the credential used for model gateway requests; the login JWT is only for user REST API automation and key management.
+
 ### External Custom Menu Launch
 
 Custom admin menu entries can now choose between the existing iframe mode and an external launch mode. External entries open the configured absolute URL in a new tab and append the current Sub2API JWT as a `token` query parameter, so sidecar admin tools can bootstrap their own session.
