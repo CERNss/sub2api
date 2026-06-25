@@ -101,6 +101,11 @@ func validateAPIKeyUpdateRequest(req UpdateAPIKeyRequest) error {
 	return nil
 }
 
+// UpdateAPIKeyGroupRequest represents a narrow group rotation request.
+type UpdateAPIKeyGroupRequest struct {
+	GroupID *int64 `json:"group_id" binding:"required"`
+}
+
 // List handles listing user's API keys with pagination
 // GET /api/v1/api-keys
 func (h *APIKeyHandler) List(c *gin.Context) {
@@ -285,6 +290,36 @@ func (h *APIKeyHandler) Update(c *gin.Context) {
 	}
 
 	key, err := h.apiKeyService.Update(c.Request.Context(), keyID, subject.UserID, svcReq)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, dto.APIKeyFromService(key))
+}
+
+// UpdateGroup handles rotating a user's API key group without touching other key fields.
+// PUT /api/v1/keys/:id/group
+func (h *APIKeyHandler) UpdateGroup(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+
+	keyID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid key ID")
+		return
+	}
+
+	var req UpdateAPIKeyGroupRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	key, err := h.apiKeyService.UpdateGroup(c.Request.Context(), keyID, subject.UserID, req.GroupID)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
