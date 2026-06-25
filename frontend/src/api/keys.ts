@@ -112,6 +112,17 @@ export async function update(id: number, updates: UpdateApiKeyRequest): Promise<
 }
 
 /**
+ * Rotate API key group without changing other key fields.
+ * Use groupId 0 or null to unbind the key from a group.
+ */
+export async function updateGroup(id: number, groupId: number | null): Promise<ApiKey> {
+  const { data } = await apiClient.put<ApiKey>(`/keys/${id}/group`, {
+    group_id: groupId === null ? 0 : groupId
+  })
+  return data
+}
+
+/**
  * Delete API key
  * @param id - API key ID
  * @returns Success confirmation
@@ -136,6 +147,7 @@ export const keysAPI = {
   getById,
   create,
   update,
+  updateGroup,
   delete: deleteKey,
   toggleStatus
 }
