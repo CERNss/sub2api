@@ -107,6 +107,14 @@ export async function login(credentials: LoginRequest): Promise<LoginResponse> {
 }
 
 /**
+ * Exchange email/password credentials for a token pair through the machine-oriented alias.
+ */
+export async function exchangeToken(credentials: LoginRequest): Promise<LoginResponse> {
+  const { data } = await apiClient.post<LoginResponse>('/auth/token', credentials)
+  return data
+}
+
+/**
  * Complete login with 2FA code
  * @param request - Temp token and TOTP code
  * @returns Authentication response with token and user data
@@ -124,6 +132,14 @@ export async function login2FA(request: TotpLogin2FARequest): Promise<AuthRespon
   }
   localStorage.setItem('auth_user', JSON.stringify(data.user))
 
+  return data
+}
+
+/**
+ * Complete token exchange with 2FA through the machine-oriented alias.
+ */
+export async function exchangeToken2FA(request: TotpLogin2FARequest): Promise<AuthResponse> {
+  const { data } = await apiClient.post<AuthResponse>('/auth/token/2fa', request)
   return data
 }
 
@@ -307,6 +323,18 @@ export async function refreshToken(): Promise<RefreshTokenResponse> {
   setRefreshToken(data.refresh_token)
   setTokenExpiresAt(data.expires_in)
 
+  return data
+}
+
+/**
+ * Refresh a token pair through the machine-oriented alias.
+ */
+export async function refreshTokenViaTokenEndpoint(
+  currentRefreshToken: string
+): Promise<RefreshTokenResponse> {
+  const { data } = await apiClient.post<RefreshTokenResponse>('/auth/token/refresh', {
+    refresh_token: currentRefreshToken
+  })
   return data
 }
 
@@ -659,7 +687,9 @@ export async function exchangePendingOAuthCompletion(
 
 export const authAPI = {
   login,
+  exchangeToken,
   login2FA,
+  exchangeToken2FA,
   isTotp2FARequired,
   register,
   getCurrentUser,
@@ -680,6 +710,7 @@ export const authAPI = {
   forgotPassword,
   resetPassword,
   refreshToken,
+  refreshTokenViaTokenEndpoint,
   revokeAllSessions,
   getPendingOAuthBindLoginKind,
   isPendingOAuthCreateAccountRequired,
