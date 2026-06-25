@@ -14,8 +14,9 @@
   - [2. add-external-custom-menu-token-open](#2-add-external-custom-menu-token-open)
   - [3. control-oidc-local-email-verification](#3-control-oidc-local-email-verification)
   - [4. refine-pending-oauth-account-resolution](#4-refine-pending-oauth-account-resolution)
+  - [5. user-token-api-key-automation](#5-user-token-api-key-automation)
 - [Archived changes](#archived-changes)
-  - [5. support-mounted-frontend-client-templates](#5-support-mounted-frontend-client-templates)
+  - [6. support-mounted-frontend-client-templates](#6-support-mounted-frontend-client-templates)
 - [未纳入 OpenSpec 的客制化](#未纳入-openspec-的客制化)
 - [维护约定](#维护约定)
 
@@ -29,7 +30,8 @@
 | 2 | `add-external-custom-menu-token-open`     | 🟢 active   | 自定义菜单支持以 `external` 方式新开页并透传 JWT | 2 | 11 |
 | 3 | `control-oidc-local-email-verification`   | 🟢 active   | OIDC 专用开关跳过二次本地邮箱验证                | 0 | 19 |
 | 4 | `refine-pending-oauth-account-resolution` | 🟢 active   | OAuth 回调跳过 chooser、邮箱预填规则             | 0 | 6 |
-| 5 | `support-mounted-frontend-client-templates` | 📦 archived | 前端 `client-templates.json` 挂载渲染 Codex/OpenCode/CCS | 9 | ~6 |
+| 5 | `user-token-api-key-automation`           | 🟢 active   | 用户登录换 JWT 后创建 API key 并安全轮换 key 分组 | 1 | 8 |
+| 6 | `support-mounted-frontend-client-templates` | 📦 archived | 前端 `client-templates.json` 挂载渲染 Codex/OpenCode/CCS | 9 | ~6 |
 
 **状态图例**
 
@@ -205,11 +207,47 @@ _无。_
 
 ---
 
+### 5. `user-token-api-key-automation`
+
+- **Capabilities:** `user-token-api-key-automation`、`user-api-key-group-rotation`
+- **意图:** 让外部用户侧 sidecar / 自助开通系统以普通用户身份登录换取 JWT，并在该用户现有权限范围内创建 API key、查询可用分组、仅轮换 key 的绑定分组。
+- **触发场景:** 用户自助授权外部工具、非 admin 的自动化开通、需要拿用户 token 调用 REST API 但最终仍生成普通模型网关 API key 的集成。
+- **权限边界:** 能力范围与当前登录用户一致；保留 Turnstile、TOTP 2FA、backend-mode、用户状态校验、用户可用分组校验。`PUT /api/v1/keys/:id/group` 只改 `group_id`，不改 key 值、quota、expiration、IP ACL、status、rate limit。
+- **Spec 路径:** _暂无；当前作为 fork overlay 记录，后续如补 OpenSpec change 使用 `user-token-api-key-automation`。_
+
+#### 新增文件
+| 路径 | 用途 |
+|------|------|
+| `backend/internal/service/api_key_service_group_test.go` | 用户 key 分组轮换 service 单测 |
+
+#### 上游补丁
+| 路径 | 改动要点 |
+|------|---------|
+| `backend/internal/server/routes/auth.go` | 注册 `POST /api/v1/auth/token`、`POST /api/v1/auth/token/2fa`、`POST /api/v1/auth/token/refresh` 作为自动化友好的登录/token alias |
+| `backend/internal/server/routes/user.go` | 注册 `PUT /api/v1/keys/:id/group`，用于用户侧 key 分组轮换 |
+| `backend/internal/handler/api_key_handler.go` | 新增 `UpdateGroup` handler 与 `group_id` 请求 DTO |
+| `backend/internal/service/api_key_service.go` | 新增 `UpdateGroup`，校验 key owner、非负 group_id、用户可用分组，并保持其它 key 字段不变 |
+| `backend/internal/server/api_contract_test.go` | API 契约测试覆盖 token alias 与 key group rotation endpoint |
+| `frontend/src/api/auth.ts` | 新增 `exchangeToken`、`exchangeToken2FA`、`refreshTokenViaTokenEndpoint` helper |
+| `frontend/src/api/keys.ts` | 新增 `updateGroup` helper |
+| `README.md` | 新增用户 token 自动化流程、可用接口、创建 key 与分组轮换说明 |
+
+#### ⚠ 跨 change 共享文件
+> 以下文件本 change 修改，**同时也被其他 change 修改**。rebase 解决冲突时，必须同时核对本 change 与对方 change 的修改是否都已包含。
+- `backend/internal/service/api_key_service.go` → 也属于 #1
+- `backend/internal/server/api_contract_test.go` → 也属于 #1
+- `README.md` → 也属于 #1、#2
+
+#### 关联 commits
+_待提交。_
+
+---
+
 ## Archived changes
 
 > 已 archive 的 change 也仍然存在于 `develop` 上，上游 rebase 同样会冲突。在彻底进入上游之前必须照顾。
 
-### 5. `support-mounted-frontend-client-templates`
+### 6. `support-mounted-frontend-client-templates`
 
 - **Capabilities:** `frontend-client-template-loading`、`key-client-template-rendering`
 - **意图:** 让前端无需后端配合就能加载 mount 在 `/client-templates.json` 的运行时模板，并据此渲染 Codex / Codex WS / OpenCode / CCS 导入。
