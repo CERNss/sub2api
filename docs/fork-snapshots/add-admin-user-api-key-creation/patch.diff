@@ -1,0 +1,3152 @@
+diff --git a/backend/cmd/server/wire_gen.go b/backend/cmd/server/wire_gen.go
+index eefd228e..980877f2 100644
+--- a/backend/cmd/server/wire_gen.go
++++ b/backend/cmd/server/wire_gen.go
+@@ -63,9 +63,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
+ 	apiKeyRepository := repository.NewAPIKeyRepository(client, db)
+ 	userRPMCache := repository.NewUserRPMCache(redisClient)
+ 	userGroupRateRepository := repository.NewUserGroupRateRepository(db)
+-	userPlatformQuotaRepository := repository.NewUserPlatformQuotaRepository(client)
+-	serviceUserPlatformQuotaRepository := repository.NewUserPlatformQuotaServiceAdapter(userPlatformQuotaRepository)
+-	billingCacheService := service.ProvideBillingCacheService(billingCache, userRepository, userSubscriptionRepository, apiKeyRepository, userRPMCache, userGroupRateRepository, configConfig, serviceUserPlatformQuotaRepository)
++	billingCacheService := service.ProvideBillingCacheService(billingCache, userRepository, userSubscriptionRepository, apiKeyRepository, userRPMCache, userGroupRateRepository, configConfig)
+ 	apiKeyCache := repository.NewAPIKeyCache(redisClient)
+ 	apiKeyService := service.ProvideAPIKeyService(apiKeyRepository, userRepository, groupRepository, userSubscriptionRepository, userGroupRateRepository, apiKeyCache, configConfig, billingCacheService)
+ 	apiKeyAuthCacheInvalidator := service.ProvideAPIKeyAuthCacheInvalidator(apiKeyService)
+@@ -73,7 +71,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
+ 	subscriptionService := service.NewSubscriptionService(groupRepository, userSubscriptionRepository, billingCacheService, client, configConfig)
+ 	affiliateRepository := repository.NewAffiliateRepository(client, db)
+ 	affiliateService := service.NewAffiliateService(affiliateRepository, settingService, apiKeyAuthCacheInvalidator, billingCacheService)
+-	authService := service.NewAuthService(client, userRepository, redeemCodeRepository, refreshTokenCache, configConfig, settingService, emailService, turnstileService, emailQueueService, promoService, subscriptionService, affiliateService, serviceUserPlatformQuotaRepository)
++	authService := service.NewAuthService(client, userRepository, redeemCodeRepository, refreshTokenCache, configConfig, settingService, emailService, turnstileService, emailQueueService, promoService, subscriptionService, affiliateService)
+ 	userService := service.NewUserService(userRepository, settingRepository, apiKeyAuthCacheInvalidator, billingCache)
+ 	redeemCache := repository.NewRedeemCache(redisClient)
+ 	redeemService := service.NewRedeemService(redeemCodeRepository, userRepository, subscriptionService, redeemCache, billingCacheService, client, apiKeyAuthCacheInvalidator, affiliateService)
+@@ -87,19 +85,40 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
+ 	userAttributeValueRepository := repository.NewUserAttributeValueRepository(client)
+ 	userAttributeService := service.NewUserAttributeService(userAttributeDefinitionRepository, userAttributeValueRepository)
+ 	authHandler := handler.NewAuthHandler(configConfig, authService, userService, settingService, promoService, redeemService, totpService, userAttributeService)
+-	userHandler := handler.NewUserHandler(userService, authService, emailService, emailCache, affiliateService, serviceUserPlatformQuotaRepository)
++	userHandler := handler.NewUserHandler(userService, authService, emailService, emailCache, affiliateService)
+ 	apiKeyHandler := handler.NewAPIKeyHandler(apiKeyService)
+ 	usageLogRepository := repository.NewUsageLogRepository(client, db)
+ 	usageService := service.NewUsageService(usageLogRepository, userRepository, client, apiKeyAuthCacheInvalidator)
+-	opsRepository := repository.NewOpsRepository(db)
++	usageHandler := handler.NewUsageHandler(usageService, apiKeyService)
++	redeemHandler := handler.NewRedeemHandler(redeemService)
++	subscriptionHandler := handler.NewSubscriptionHandler(subscriptionService)
++	announcementRepository := repository.NewAnnouncementRepository(client)
++	announcementReadRepository := repository.NewAnnouncementReadRepository(client)
++	announcementService := service.NewAnnouncementService(announcementRepository, announcementReadRepository, userRepository, userSubscriptionRepository)
++	announcementHandler := handler.NewAnnouncementHandler(announcementService)
++	channelMonitorRepository := repository.NewChannelMonitorRepository(client, db)
++	channelMonitorService := service.ProvideChannelMonitorService(channelMonitorRepository, secretEncryptor)
++	channelMonitorUserHandler := handler.NewChannelMonitorUserHandler(channelMonitorService, settingService)
++	dashboardAggregationRepository := repository.NewDashboardAggregationRepository(db)
++	dashboardStatsCache := repository.NewDashboardCache(redisClient, configConfig)
++	dashboardService := service.NewDashboardService(usageLogRepository, dashboardAggregationRepository, dashboardStatsCache, configConfig)
++	timingWheelService, err := service.ProvideTimingWheelService()
++	if err != nil {
++		return nil, err
++	}
++	dashboardAggregationService := service.ProvideDashboardAggregationService(dashboardAggregationRepository, timingWheelService, configConfig)
++	dashboardHandler := admin.NewDashboardHandler(dashboardService, dashboardAggregationService)
+ 	schedulerCache := repository.ProvideSchedulerCache(redisClient, configConfig)
+ 	accountRepository := repository.NewAccountRepository(client, db, schedulerCache)
+-	concurrencyCache := repository.ProvideConcurrencyCache(redisClient, configConfig)
+-	concurrencyService := service.ProvideConcurrencyService(concurrencyCache, accountRepository, configConfig)
++	proxyExitInfoProber := repository.NewProxyExitInfoProber(configConfig)
++	proxyLatencyCache := repository.NewProxyLatencyCache(redisClient)
++	privacyClientFactory := providePrivacyClientFactory()
+ 	usageBillingRepository := repository.NewUsageBillingRepository(client, db)
+ 	gatewayCache := repository.NewGatewayCache(redisClient)
+ 	schedulerOutboxRepository := repository.NewSchedulerOutboxRepository(db)
+ 	schedulerSnapshotService := service.ProvideSchedulerSnapshotService(schedulerCache, schedulerOutboxRepository, accountRepository, groupRepository, configConfig)
++	concurrencyCache := repository.ProvideConcurrencyCache(redisClient, configConfig)
++	concurrencyService := service.ProvideConcurrencyService(concurrencyCache, accountRepository, configConfig)
+ 	pricingRemoteClient := repository.ProvidePricingRemoteClient(configConfig)
+ 	pricingService, err := service.ProvidePricingService(configConfig, pricingRemoteClient)
+ 	if err != nil {
+@@ -113,73 +132,44 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
+ 	geminiTokenCache := repository.NewGeminiTokenCache(redisClient)
+ 	compositeTokenCacheInvalidator := service.NewCompositeTokenCacheInvalidator(geminiTokenCache)
+ 	rateLimitService := service.ProvideRateLimitService(accountRepository, usageLogRepository, configConfig, geminiQuotaService, tempUnschedCache, timeoutCounterCache, openAI403CounterCache, settingService, compositeTokenCacheInvalidator)
+-	identityCache := repository.NewIdentityCache(redisClient)
+-	identityService := service.NewIdentityService(identityCache)
+ 	httpUpstream := repository.NewHTTPUpstream(configConfig)
+-	timingWheelService, err := service.ProvideTimingWheelService()
+-	if err != nil {
+-		return nil, err
+-	}
+ 	deferredService := service.ProvideDeferredService(accountRepository, timingWheelService)
+-	claudeOAuthClient := repository.NewClaudeOAuthClient()
+-	oAuthService := service.NewOAuthService(proxyRepository, claudeOAuthClient)
++	openAIOAuthClient := repository.NewOpenAIOAuthClient()
++	openAIOAuthService := service.NewOpenAIOAuthService(proxyRepository, openAIOAuthClient)
+ 	oAuthRefreshAPI := service.ProvideOAuthRefreshAPI(accountRepository, geminiTokenCache)
+-	claudeTokenProvider := service.ProvideClaudeTokenProvider(accountRepository, geminiTokenCache, oAuthService, oAuthRefreshAPI)
+-	sessionLimitCache := repository.ProvideSessionLimitCache(redisClient, configConfig)
+-	rpmCache := repository.NewRPMCache(redisClient)
+-	digestSessionStore := service.NewDigestSessionStore()
+-	tlsFingerprintProfileRepository := repository.NewTLSFingerprintProfileRepository(client)
+-	tlsFingerprintProfileCache := repository.NewTLSFingerprintProfileCache(redisClient)
+-	tlsFingerprintProfileService := service.NewTLSFingerprintProfileService(tlsFingerprintProfileRepository, tlsFingerprintProfileCache)
++	openAITokenProvider := service.ProvideOpenAITokenProvider(accountRepository, geminiTokenCache, openAIOAuthService, oAuthRefreshAPI)
+ 	channelRepository := repository.NewChannelRepository(db)
+ 	channelService := service.NewChannelService(channelRepository, groupRepository, apiKeyAuthCacheInvalidator, pricingService)
+ 	modelPricingResolver := service.NewModelPricingResolver(channelService, billingService)
+ 	notificationEmailService := service.NewNotificationEmailService(settingRepository, emailService)
+ 	balanceNotifyService := service.ProvideBalanceNotifyService(emailService, settingRepository, accountRepository, notificationEmailService)
+-	gatewayService := service.NewGatewayService(accountRepository, groupRepository, usageLogRepository, usageBillingRepository, userRepository, userSubscriptionRepository, userGroupRateRepository, gatewayCache, configConfig, schedulerSnapshotService, concurrencyService, billingService, rateLimitService, billingCacheService, identityService, httpUpstream, deferredService, claudeTokenProvider, sessionLimitCache, rpmCache, digestSessionStore, settingService, tlsFingerprintProfileService, channelService, modelPricingResolver, balanceNotifyService, serviceUserPlatformQuotaRepository)
+-	openAIOAuthClient := repository.NewOpenAIOAuthClient()
+-	privacyClientFactory := providePrivacyClientFactory()
+-	openAIOAuthService := service.ProvideOpenAIOAuthService(proxyRepository, openAIOAuthClient, privacyClientFactory)
+-	openAITokenProvider := service.ProvideOpenAITokenProvider(accountRepository, geminiTokenCache, openAIOAuthService, oAuthRefreshAPI)
+-	openAIGatewayService := service.NewOpenAIGatewayService(accountRepository, usageLogRepository, usageBillingRepository, userRepository, userSubscriptionRepository, userGroupRateRepository, gatewayCache, configConfig, schedulerSnapshotService, concurrencyService, billingService, rateLimitService, billingCacheService, httpUpstream, deferredService, openAITokenProvider, modelPricingResolver, channelService, balanceNotifyService, settingService, serviceUserPlatformQuotaRepository)
++	openAIGatewayService := service.NewOpenAIGatewayService(accountRepository, usageLogRepository, usageBillingRepository, userRepository, userSubscriptionRepository, userGroupRateRepository, gatewayCache, configConfig, schedulerSnapshotService, concurrencyService, billingService, rateLimitService, billingCacheService, httpUpstream, deferredService, openAITokenProvider, modelPricingResolver, channelService, balanceNotifyService, settingService)
++	adminService := service.NewAdminService(userRepository, groupRepository, accountRepository, proxyRepository, apiKeyRepository, redeemCodeRepository, userGroupRateRepository, userRPMCache, apiKeyService, billingCacheService, proxyExitInfoProber, proxyLatencyCache, apiKeyAuthCacheInvalidator, client, settingService, subscriptionService, userSubscriptionRepository, privacyClientFactory, openAIGatewayService)
++	adminUserHandler := admin.NewUserHandler(adminService, concurrencyService)
++	sessionLimitCache := repository.ProvideSessionLimitCache(redisClient, configConfig)
++	rpmCache := repository.NewRPMCache(redisClient)
++	groupCapacityService := service.NewGroupCapacityService(accountRepository, groupRepository, concurrencyService, sessionLimitCache, rpmCache)
++	groupHandler := admin.NewGroupHandler(adminService, dashboardService, groupCapacityService)
++	claudeOAuthClient := repository.NewClaudeOAuthClient()
++	oAuthService := service.NewOAuthService(proxyRepository, claudeOAuthClient)
+ 	geminiOAuthClient := repository.NewGeminiOAuthClient(configConfig)
+ 	geminiCliCodeAssistClient := repository.NewGeminiCliCodeAssistClient()
+ 	driveClient := repository.NewGeminiDriveClient()
+ 	geminiOAuthService := service.NewGeminiOAuthService(proxyRepository, geminiOAuthClient, geminiCliCodeAssistClient, driveClient, configConfig)
+-	geminiTokenProvider := service.ProvideGeminiTokenProvider(accountRepository, geminiTokenCache, geminiOAuthService, oAuthRefreshAPI)
+ 	antigravityOAuthService := service.NewAntigravityOAuthService(proxyRepository)
+-	antigravityTokenProvider := service.ProvideAntigravityTokenProvider(accountRepository, geminiTokenCache, antigravityOAuthService, oAuthRefreshAPI, tempUnschedCache)
+-	internal500CounterCache := repository.NewInternal500CounterCache(redisClient)
+-	antigravityGatewayService := service.NewAntigravityGatewayService(accountRepository, gatewayCache, schedulerSnapshotService, antigravityTokenProvider, rateLimitService, httpUpstream, settingService, internal500CounterCache)
+-	geminiMessagesCompatService := service.NewGeminiMessagesCompatService(accountRepository, groupRepository, gatewayCache, schedulerSnapshotService, geminiTokenProvider, rateLimitService, httpUpstream, antigravityGatewayService, configConfig)
+-	opsSystemLogSink := service.ProvideOpsSystemLogSink(opsRepository)
+-	opsService := service.ProvideOpsService(opsRepository, settingRepository, configConfig, accountRepository, userRepository, concurrencyService, gatewayService, openAIGatewayService, geminiMessagesCompatService, antigravityGatewayService, opsSystemLogSink, settingService)
+-	usageHandler := handler.NewUsageHandler(usageService, apiKeyService, opsService, settingService)
+-	redeemHandler := handler.NewRedeemHandler(redeemService)
+-	subscriptionHandler := handler.NewSubscriptionHandler(subscriptionService)
+-	announcementRepository := repository.NewAnnouncementRepository(client)
+-	announcementReadRepository := repository.NewAnnouncementReadRepository(client)
+-	announcementService := service.NewAnnouncementService(announcementRepository, announcementReadRepository, userRepository, userSubscriptionRepository)
+-	announcementHandler := handler.NewAnnouncementHandler(announcementService)
+-	channelMonitorRepository := repository.NewChannelMonitorRepository(client, db)
+-	channelMonitorService := service.ProvideChannelMonitorService(channelMonitorRepository, secretEncryptor)
+-	channelMonitorUserHandler := handler.NewChannelMonitorUserHandler(channelMonitorService, settingService)
+-	dashboardAggregationRepository := repository.NewDashboardAggregationRepository(db)
+-	dashboardStatsCache := repository.NewDashboardCache(redisClient, configConfig)
+-	dashboardService := service.NewDashboardService(usageLogRepository, dashboardAggregationRepository, dashboardStatsCache, configConfig)
+-	leaderLockCache := repository.NewLeaderLockCache(redisClient)
+-	dashboardAggregationService := service.ProvideDashboardAggregationService(dashboardAggregationRepository, timingWheelService, leaderLockCache, db, configConfig)
+-	dashboardHandler := admin.NewDashboardHandler(dashboardService, dashboardAggregationService)
+-	proxyExitInfoProber := repository.NewProxyExitInfoProber(configConfig)
+-	proxyLatencyCache := repository.NewProxyLatencyCache(redisClient)
+-	adminService := service.NewAdminService(userRepository, groupRepository, accountRepository, proxyRepository, apiKeyRepository, redeemCodeRepository, userGroupRateRepository, userRPMCache, billingCacheService, proxyExitInfoProber, proxyLatencyCache, apiKeyAuthCacheInvalidator, client, settingService, subscriptionService, userSubscriptionRepository, privacyClientFactory, openAIGatewayService)
+-	adminUserHandler := admin.NewUserHandler(adminService, concurrencyService, serviceUserPlatformQuotaRepository, billingCache)
+-	groupCapacityService := service.NewGroupCapacityService(accountRepository, groupRepository, concurrencyService, sessionLimitCache, rpmCache)
+-	groupHandler := admin.NewGroupHandler(adminService, dashboardService, groupCapacityService)
+ 	claudeUsageFetcher := repository.NewClaudeUsageFetcher(httpUpstream)
+ 	antigravityQuotaFetcher := service.NewAntigravityQuotaFetcher(proxyRepository)
+ 	usageCache := service.NewUsageCache()
++	identityCache := repository.NewIdentityCache(redisClient)
++	tlsFingerprintProfileRepository := repository.NewTLSFingerprintProfileRepository(client)
++	tlsFingerprintProfileCache := repository.NewTLSFingerprintProfileCache(redisClient)
++	tlsFingerprintProfileService := service.NewTLSFingerprintProfileService(tlsFingerprintProfileRepository, tlsFingerprintProfileCache)
+ 	accountUsageService := service.NewAccountUsageService(accountRepository, usageLogRepository, claudeUsageFetcher, geminiQuotaService, antigravityQuotaFetcher, usageCache, identityCache, tlsFingerprintProfileService)
++	geminiTokenProvider := service.ProvideGeminiTokenProvider(accountRepository, geminiTokenCache, geminiOAuthService, oAuthRefreshAPI)
++	claudeTokenProvider := service.ProvideClaudeTokenProvider(accountRepository, geminiTokenCache, oAuthService, oAuthRefreshAPI)
++	antigravityTokenProvider := service.ProvideAntigravityTokenProvider(accountRepository, geminiTokenCache, antigravityOAuthService, oAuthRefreshAPI, tempUnschedCache)
++	internal500CounterCache := repository.NewInternal500CounterCache(redisClient)
++	antigravityGatewayService := service.NewAntigravityGatewayService(accountRepository, gatewayCache, schedulerSnapshotService, antigravityTokenProvider, rateLimitService, httpUpstream, settingService, internal500CounterCache)
+ 	accountTestService := service.NewAccountTestService(accountRepository, geminiTokenProvider, claudeTokenProvider, antigravityGatewayService, httpUpstream, configConfig, tlsFingerprintProfileService)
+ 	crsSyncService := service.NewCRSSyncService(accountRepository, proxyRepository, oAuthService, openAIOAuthService, geminiOAuthService, configConfig)
+ 	accountHandler := admin.NewAccountHandler(adminService, oAuthService, openAIOAuthService, geminiOAuthService, antigravityOAuthService, rateLimitService, accountUsageService, accountTestService, concurrencyService, crsSyncService, sessionLimitCache, rpmCache, compositeTokenCacheInvalidator)
+@@ -191,13 +181,19 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
+ 	backupService := service.ProvideBackupService(settingRepository, configConfig, secretEncryptor, backupObjectStoreFactory, dbDumper)
+ 	backupHandler := admin.NewBackupHandler(backupService, userService)
+ 	oAuthHandler := admin.NewOAuthHandler(oAuthService)
+-	openAIQuotaService := service.ProvideOpenAIQuotaService(accountRepository, proxyRepository, openAITokenProvider, privacyClientFactory)
+-	openAIOAuthHandler := admin.NewOpenAIOAuthHandler(openAIOAuthService, adminService, openAIQuotaService)
++	openAIOAuthHandler := admin.NewOpenAIOAuthHandler(openAIOAuthService, adminService)
+ 	geminiOAuthHandler := admin.NewGeminiOAuthHandler(geminiOAuthService)
+ 	antigravityOAuthHandler := admin.NewAntigravityOAuthHandler(antigravityOAuthService)
+ 	proxyHandler := admin.NewProxyHandler(adminService)
+ 	adminRedeemHandler := admin.NewRedeemHandler(adminService, redeemService)
+ 	promoHandler := admin.NewPromoHandler(promoService)
++	opsRepository := repository.NewOpsRepository(db)
++	identityService := service.NewIdentityService(identityCache)
++	digestSessionStore := service.NewDigestSessionStore()
++	gatewayService := service.NewGatewayService(accountRepository, groupRepository, usageLogRepository, usageBillingRepository, userRepository, userSubscriptionRepository, userGroupRateRepository, gatewayCache, configConfig, schedulerSnapshotService, concurrencyService, billingService, rateLimitService, billingCacheService, identityService, httpUpstream, deferredService, claudeTokenProvider, sessionLimitCache, rpmCache, digestSessionStore, settingService, tlsFingerprintProfileService, channelService, modelPricingResolver, balanceNotifyService)
++	geminiMessagesCompatService := service.NewGeminiMessagesCompatService(accountRepository, groupRepository, gatewayCache, schedulerSnapshotService, geminiTokenProvider, rateLimitService, httpUpstream, antigravityGatewayService, configConfig)
++	opsSystemLogSink := service.ProvideOpsSystemLogSink(opsRepository)
++	opsService := service.NewOpsService(opsRepository, settingRepository, configConfig, accountRepository, userRepository, concurrencyService, gatewayService, openAIGatewayService, geminiMessagesCompatService, antigravityGatewayService, opsSystemLogSink)
+ 	encryptionKey, err := payment.ProvideEncryptionKey(configConfig)
+ 	if err != nil {
+ 		return nil, err
+@@ -241,13 +237,12 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
+ 	contentModerationHandler := admin.NewContentModerationHandler(contentModerationService)
+ 	paymentHandler := admin.NewPaymentHandler(paymentService, paymentConfigService)
+ 	affiliateHandler := admin.NewAffiliateHandler(affiliateService, adminService)
+-	complianceHandler := admin.NewComplianceHandler(settingService)
+-	adminHandlers := handler.ProvideAdminHandlers(dashboardHandler, adminUserHandler, groupHandler, accountHandler, adminAnnouncementHandler, dataManagementHandler, backupHandler, oAuthHandler, openAIOAuthHandler, geminiOAuthHandler, antigravityOAuthHandler, proxyHandler, adminRedeemHandler, promoHandler, settingHandler, opsHandler, systemHandler, adminSubscriptionHandler, adminUsageHandler, userAttributeHandler, errorPassthroughHandler, tlsFingerprintProfileHandler, adminAPIKeyHandler, scheduledTestHandler, channelHandler, channelMonitorHandler, channelMonitorRequestTemplateHandler, contentModerationHandler, paymentHandler, affiliateHandler, complianceHandler)
++	adminHandlers := handler.ProvideAdminHandlers(dashboardHandler, adminUserHandler, groupHandler, accountHandler, adminAnnouncementHandler, dataManagementHandler, backupHandler, oAuthHandler, openAIOAuthHandler, geminiOAuthHandler, antigravityOAuthHandler, proxyHandler, adminRedeemHandler, promoHandler, settingHandler, opsHandler, systemHandler, adminSubscriptionHandler, adminUsageHandler, userAttributeHandler, errorPassthroughHandler, tlsFingerprintProfileHandler, adminAPIKeyHandler, scheduledTestHandler, channelHandler, channelMonitorHandler, channelMonitorRequestTemplateHandler, contentModerationHandler, paymentHandler, affiliateHandler)
+ 	usageRecordWorkerPool := service.NewUsageRecordWorkerPool(configConfig)
+ 	userMsgQueueCache := repository.NewUserMsgQueueCache(redisClient)
+ 	userMessageQueueService := service.ProvideUserMessageQueueService(userMsgQueueCache, rpmCache, configConfig)
+ 	gatewayHandler := handler.NewGatewayHandler(gatewayService, geminiMessagesCompatService, antigravityGatewayService, userService, concurrencyService, billingCacheService, usageService, apiKeyService, usageRecordWorkerPool, errorPassthroughService, contentModerationService, userMessageQueueService, configConfig, settingService)
+-	openAIGatewayHandler := handler.NewOpenAIGatewayHandler(openAIGatewayService, concurrencyService, billingCacheService, apiKeyService, usageRecordWorkerPool, errorPassthroughService, contentModerationService, opsService, configConfig)
++	openAIGatewayHandler := handler.NewOpenAIGatewayHandler(openAIGatewayService, concurrencyService, billingCacheService, apiKeyService, usageRecordWorkerPool, errorPassthroughService, contentModerationService, configConfig)
+ 	handlerSettingHandler := handler.ProvideSettingHandler(settingService, buildInfo, notificationEmailService)
+ 	totpHandler := handler.NewTotpHandler(totpService)
+ 	handlerPaymentHandler := handler.NewPaymentHandler(paymentService, paymentConfigService, channelService)
+@@ -263,18 +258,16 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
+ 	httpServer := server.ProvideHTTPServer(configConfig, engine)
+ 	opsMetricsCollector := service.ProvideOpsMetricsCollector(opsRepository, settingRepository, accountRepository, concurrencyService, db, redisClient, configConfig)
+ 	opsAggregationService := service.ProvideOpsAggregationService(opsRepository, settingRepository, db, redisClient, configConfig)
+-	opsAlertEvaluatorService := service.ProvideOpsAlertEvaluatorService(opsService, opsRepository, emailService, redisClient, configConfig, proxyRepository)
++	opsAlertEvaluatorService := service.ProvideOpsAlertEvaluatorService(opsService, opsRepository, emailService, redisClient, configConfig)
+ 	opsCleanupService := service.ProvideOpsCleanupService(opsRepository, db, redisClient, configConfig, channelMonitorService, settingRepository, opsService)
+ 	opsScheduledReportService := service.ProvideOpsScheduledReportService(opsService, userService, emailService, redisClient, configConfig)
+ 	tokenRefreshService := service.ProvideTokenRefreshService(accountRepository, oAuthService, openAIOAuthService, geminiOAuthService, antigravityOAuthService, compositeTokenCacheInvalidator, schedulerCache, configConfig, tempUnschedCache, privacyClientFactory, proxyRepository, oAuthRefreshAPI, openAIGatewayService)
+ 	accountExpiryService := service.ProvideAccountExpiryService(accountRepository)
+-	proxyExpiryService := service.ProvideProxyExpiryService(proxyRepository)
+-	subscriptionExpiryService := service.ProvideSubscriptionExpiryService(userSubscriptionRepository, settingRepository, notificationEmailService, leaderLockCache, db)
++	subscriptionExpiryService := service.ProvideSubscriptionExpiryService(userSubscriptionRepository, settingRepository, notificationEmailService)
+ 	scheduledTestRunnerService := service.ProvideScheduledTestRunnerService(scheduledTestPlanRepository, scheduledTestService, accountTestService, rateLimitService, configConfig)
+-	paymentOrderExpiryService := service.ProvidePaymentOrderExpiryService(paymentService, leaderLockCache, db)
++	paymentOrderExpiryService := service.ProvidePaymentOrderExpiryService(paymentService)
+ 	channelMonitorRunner := service.ProvideChannelMonitorRunner(channelMonitorService, settingService)
+-	userPlatformQuotaUsageFlusher := service.ProvideUserPlatformQuotaUsageFlusher(configConfig, billingCache, serviceUserPlatformQuotaRepository, timingWheelService)
+-	v := provideCleanup(client, redisClient, opsMetricsCollector, opsAggregationService, opsAlertEvaluatorService, opsCleanupService, opsScheduledReportService, opsSystemLogSink, schedulerSnapshotService, tokenRefreshService, accountExpiryService, proxyExpiryService, subscriptionExpiryService, usageCleanupService, idempotencyCleanupService, pricingService, emailQueueService, billingCacheService, usageRecordWorkerPool, subscriptionService, oAuthService, openAIOAuthService, geminiOAuthService, antigravityOAuthService, openAIGatewayService, scheduledTestRunnerService, backupService, paymentOrderExpiryService, channelMonitorRunner, userPlatformQuotaUsageFlusher)
++	v := provideCleanup(client, redisClient, opsMetricsCollector, opsAggregationService, opsAlertEvaluatorService, opsCleanupService, opsScheduledReportService, opsSystemLogSink, schedulerSnapshotService, tokenRefreshService, accountExpiryService, subscriptionExpiryService, usageCleanupService, idempotencyCleanupService, pricingService, emailQueueService, billingCacheService, usageRecordWorkerPool, subscriptionService, oAuthService, openAIOAuthService, geminiOAuthService, antigravityOAuthService, openAIGatewayService, scheduledTestRunnerService, backupService, paymentOrderExpiryService, channelMonitorRunner)
+ 	application := &Application{
+ 		Server:  httpServer,
+ 		Cleanup: v,
+@@ -312,7 +305,6 @@ func provideCleanup(
+ 	schedulerSnapshot *service.SchedulerSnapshotService,
+ 	tokenRefresh *service.TokenRefreshService,
+ 	accountExpiry *service.AccountExpiryService,
+-	proxyExpiry *service.ProxyExpiryService,
+ 	subscriptionExpiry *service.SubscriptionExpiryService,
+ 	usageCleanup *service.UsageCleanupService,
+ 	idempotencyCleanup *service.IdempotencyCleanupService,
+@@ -330,7 +322,6 @@ func provideCleanup(
+ 	backupSvc *service.BackupService,
+ 	paymentOrderExpiry *service.PaymentOrderExpiryService,
+ 	channelMonitorRunner *service.ChannelMonitorRunner,
+-	quotaFlusher *service.UserPlatformQuotaUsageFlusher,
+ ) func() {
+ 	return func() {
+ 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+@@ -404,10 +395,6 @@ func provideCleanup(
+ 				accountExpiry.Stop()
+ 				return nil
+ 			}},
+-			{"ProxyExpiryService", func() error {
+-				proxyExpiry.Stop()
+-				return nil
+-			}},
+ 			{"SubscriptionExpiryService", func() error {
+ 				subscriptionExpiry.Stop()
+ 				return nil
+@@ -482,12 +469,6 @@ func provideCleanup(
+ 				}
+ 				return nil
+ 			}},
+-			{"UserPlatformQuotaUsageFlusher", func() error {
+-				if quotaFlusher != nil {
+-					quotaFlusher.Stop()
+-				}
+-				return nil
+-			}},
+ 		}
+ 
+ 		infraSteps := []cleanupStep{
+diff --git a/backend/internal/handler/admin/admin_basic_handlers_test.go b/backend/internal/handler/admin/admin_basic_handlers_test.go
+index bffddc8a..bbfe00c4 100644
+--- a/backend/internal/handler/admin/admin_basic_handlers_test.go
++++ b/backend/internal/handler/admin/admin_basic_handlers_test.go
+@@ -16,7 +16,7 @@ func setupAdminRouter() (*gin.Engine, *stubAdminService) {
+ 	router := gin.New()
+ 	adminSvc := newStubAdminService()
+ 
+-	userHandler := NewUserHandler(adminSvc, nil, nil, nil)
++	userHandler := NewUserHandler(adminSvc, nil)
+ 	groupHandler := NewGroupHandler(adminSvc, nil, nil)
+ 	proxyHandler := NewProxyHandler(adminSvc)
+ 	redeemHandler := NewRedeemHandler(adminSvc, nil)
+@@ -29,11 +29,12 @@ func setupAdminRouter() (*gin.Engine, *stubAdminService) {
+ 	router.DELETE("/api/v1/admin/users/:id", userHandler.Delete)
+ 	router.POST("/api/v1/admin/users/:id/balance", userHandler.UpdateBalance)
+ 	router.GET("/api/v1/admin/users/:id/api-keys", userHandler.GetUserAPIKeys)
++	router.POST("/api/v1/admin/users/:id/api-keys", NewAdminAPIKeyHandler(adminSvc).CreateForUser)
++	router.POST("/api/v1/admin/api-keys/:id/transfer", NewAdminAPIKeyHandler(adminSvc).Transfer)
+ 	router.GET("/api/v1/admin/users/:id/usage", userHandler.GetUserUsage)
+ 
+ 	router.GET("/api/v1/admin/groups", groupHandler.List)
+ 	router.GET("/api/v1/admin/groups/all", groupHandler.GetAll)
+-	router.GET("/api/v1/admin/groups/:id/models-list-candidates", groupHandler.GetModelsListCandidates)
+ 	router.GET("/api/v1/admin/groups/:id", groupHandler.GetByID)
+ 	router.POST("/api/v1/admin/groups", groupHandler.Create)
+ 	router.PUT("/api/v1/admin/groups/:id", groupHandler.Update)
+@@ -127,6 +128,52 @@ func TestUserHandlerEndpoints(t *testing.T) {
+ 	router.ServeHTTP(rec, req)
+ 	require.Equal(t, http.StatusOK, rec.Code)
+ 
++	rec = httptest.NewRecorder()
++	req = httptest.NewRequest(http.MethodPost, "/api/v1/admin/users/1/api-keys", bytes.NewBufferString(`{"name":"svc","custom_key":"sk-custom-created","quota":12.5,"rate_limit_1d":3}`))
++	req.Header.Set("Content-Type", "application/json")
++	router.ServeHTTP(rec, req)
++	require.Equal(t, http.StatusOK, rec.Code)
++
++	var keyResp struct {
++		Data struct {
++			APIKey struct {
++				UserID      int64   `json:"user_id"`
++				Key         string  `json:"key"`
++				Name        string  `json:"name"`
++				Quota       float64 `json:"quota"`
++				RateLimit1d float64 `json:"rate_limit_1d"`
++			} `json:"api_key"`
++		} `json:"data"`
++	}
++	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &keyResp))
++	require.Equal(t, int64(1), keyResp.Data.APIKey.UserID)
++	require.Equal(t, "sk-custom-created", keyResp.Data.APIKey.Key)
++	require.Equal(t, "svc", keyResp.Data.APIKey.Name)
++	require.Equal(t, 12.5, keyResp.Data.APIKey.Quota)
++	require.Equal(t, 3.0, keyResp.Data.APIKey.RateLimit1d)
++
++	rec = httptest.NewRecorder()
++	req = httptest.NewRequest(http.MethodPost, "/api/v1/admin/api-keys/10/transfer", bytes.NewBufferString(`{"target_user_id":2,"target_group_id":0,"quota":20.5,"reset_quota":true}`))
++	req.Header.Set("Content-Type", "application/json")
++	router.ServeHTTP(rec, req)
++	require.Equal(t, http.StatusOK, rec.Code)
++
++	var transferResp struct {
++		Data struct {
++			APIKey struct {
++				UserID    int64   `json:"user_id"`
++				GroupID   *int64  `json:"group_id"`
++				Quota     float64 `json:"quota"`
++				QuotaUsed float64 `json:"quota_used"`
++			} `json:"api_key"`
++		} `json:"data"`
++	}
++	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &transferResp))
++	require.Equal(t, int64(2), transferResp.Data.APIKey.UserID)
++	require.Nil(t, transferResp.Data.APIKey.GroupID)
++	require.Equal(t, 20.5, transferResp.Data.APIKey.Quota)
++	require.Equal(t, 0.0, transferResp.Data.APIKey.QuotaUsed)
++
+ 	rec = httptest.NewRecorder()
+ 	req = httptest.NewRequest(http.MethodGet, "/api/v1/admin/users/1/usage?period=today", nil)
+ 	router.ServeHTTP(rec, req)
+@@ -178,12 +225,6 @@ func TestGroupHandlerEndpoints(t *testing.T) {
+ 	router.ServeHTTP(rec, req)
+ 	require.Equal(t, http.StatusOK, rec.Code)
+ 
+-	rec = httptest.NewRecorder()
+-	req = httptest.NewRequest(http.MethodGet, "/api/v1/admin/groups/0/models-list-candidates?platform=openai", nil)
+-	router.ServeHTTP(rec, req)
+-	require.Equal(t, http.StatusOK, rec.Code)
+-	require.Contains(t, rec.Body.String(), "gpt-5.5")
+-
+ 	body, _ := json.Marshal(map[string]any{"name": "new", "platform": "anthropic", "subscription_type": "standard"})
+ 	rec = httptest.NewRecorder()
+ 	req = httptest.NewRequest(http.MethodPost, "/api/v1/admin/groups", bytes.NewReader(body))
+diff --git a/backend/internal/handler/admin/admin_service_stub_test.go b/backend/internal/handler/admin/admin_service_stub_test.go
+index 41b9b862..e435ce17 100644
+--- a/backend/internal/handler/admin/admin_service_stub_test.go
++++ b/backend/internal/handler/admin/admin_service_stub_test.go
+@@ -24,7 +24,6 @@ type stubAdminService struct {
+ 	updatedProxyIDs      []int64
+ 	updatedProxies       []*service.UpdateProxyInput
+ 	testedProxyIDs       []int64
+-	getUserErr           error
+ 	createAccountErr     error
+ 	updateAccountErr     error
+ 	bulkUpdateAccountErr error
+@@ -148,9 +147,6 @@ func (s *stubAdminService) ListUsers(ctx context.Context, page, pageSize int, fi
+ }
+ 
+ func (s *stubAdminService) GetUser(ctx context.Context, id int64) (*service.User, error) {
+-	if s.getUserErr != nil {
+-		return nil, s.getUserErr
+-	}
+ 	for i := range s.users {
+ 		if s.users[i].ID == id {
+ 			return &s.users[i], nil
+@@ -160,10 +156,6 @@ func (s *stubAdminService) GetUser(ctx context.Context, id int64) (*service.User
+ 	return &user, nil
+ }
+ 
+-func (s *stubAdminService) GetUserIncludeDeleted(ctx context.Context, id int64) (*service.User, error) {
+-	return s.GetUser(ctx, id)
+-}
+-
+ func (s *stubAdminService) CreateUser(ctx context.Context, input *service.CreateUserInput) (*service.User, error) {
+ 	user := service.User{ID: 100, Email: input.Email, Status: service.StatusActive}
+ 	return &user, nil
+@@ -191,6 +183,59 @@ func (s *stubAdminService) GetUserAPIKeys(ctx context.Context, userID int64, pag
+ 	return s.apiKeys, int64(len(s.apiKeys)), nil
+ }
+ 
++func (s *stubAdminService) CreateUserAPIKey(ctx context.Context, userID int64, input service.CreateUserAPIKeyInput) (*service.CreateUserAPIKeyResult, error) {
++	key := service.APIKey{
++		ID:          11,
++		UserID:      userID,
++		Key:         "sk-created",
++		Name:        input.Name,
++		GroupID:     input.GroupID,
++		Status:      service.StatusAPIKeyActive,
++		IPWhitelist: input.IPWhitelist,
++		IPBlacklist: input.IPBlacklist,
++		Quota:       input.Quota,
++		RateLimit5h: input.RateLimit5h,
++		RateLimit1d: input.RateLimit1d,
++		RateLimit7d: input.RateLimit7d,
++		CreatedAt:   time.Now().UTC(),
++		UpdatedAt:   time.Now().UTC(),
++	}
++	if input.CustomKey != nil && *input.CustomKey != "" {
++		key.Key = *input.CustomKey
++	}
++	s.apiKeys = append(s.apiKeys, key)
++	return &service.CreateUserAPIKeyResult{APIKey: &key}, nil
++}
++
++func (s *stubAdminService) TransferAPIKey(ctx context.Context, keyID int64, input service.TransferAPIKeyInput) (*service.TransferAPIKeyResult, error) {
++	for i := range s.apiKeys {
++		if s.apiKeys[i].ID != keyID {
++			continue
++		}
++		s.apiKeys[i].UserID = input.TargetUserID
++		if input.TargetGroupID != nil {
++			if *input.TargetGroupID == 0 {
++				s.apiKeys[i].GroupID = nil
++			} else {
++				gid := *input.TargetGroupID
++				s.apiKeys[i].GroupID = &gid
++			}
++		}
++		if input.Quota != nil {
++			s.apiKeys[i].Quota = *input.Quota
++		}
++		if input.ResetQuota {
++			s.apiKeys[i].QuotaUsed = 0
++			if s.apiKeys[i].Status == service.StatusAPIKeyQuotaExhausted {
++				s.apiKeys[i].Status = service.StatusActive
++			}
++		}
++		key := s.apiKeys[i]
++		return &service.TransferAPIKeyResult{APIKey: &key}, nil
++	}
++	return nil, service.ErrAPIKeyNotFound
++}
++
+ func (s *stubAdminService) GetUserUsageStats(ctx context.Context, userID int64, period string) (any, error) {
+ 	return map[string]any{"user_id": userID}, nil
+ }
+@@ -264,22 +309,11 @@ func (s *stubAdminService) GetAllGroupsByPlatform(ctx context.Context, platform
+ 	return s.groups, nil
+ }
+ 
+-func (s *stubAdminService) GetAllGroupsIncludingInactive(ctx context.Context) ([]service.Group, error) {
+-	return s.groups, nil
+-}
+-
+ func (s *stubAdminService) GetGroup(ctx context.Context, id int64) (*service.Group, error) {
+ 	group := service.Group{ID: id, Name: "group", Status: service.StatusActive}
+ 	return &group, nil
+ }
+ 
+-func (s *stubAdminService) GetGroupModelsListCandidates(ctx context.Context, id int64, platform string) ([]string, error) {
+-	if platform == service.PlatformOpenAI {
+-		return []string{"gpt-5.5", "gpt-5.4"}, nil
+-	}
+-	return []string{"claude-sonnet-4-6"}, nil
+-}
+-
+ func (s *stubAdminService) CreateGroup(ctx context.Context, input *service.CreateGroupInput) (*service.Group, error) {
+ 	group := service.Group{ID: 200, Name: input.Name, Status: service.StatusActive}
+ 	return &group, nil
+@@ -364,10 +398,6 @@ func (s *stubAdminService) UpdateAccount(ctx context.Context, id int64, input *s
+ 	return &account, nil
+ }
+ 
+-func (s *stubAdminService) UpdateAccountExtra(ctx context.Context, id int64, updates map[string]any) error {
+-	return nil
+-}
+-
+ func (s *stubAdminService) DeleteAccount(ctx context.Context, id int64) error {
+ 	return nil
+ }
+@@ -632,9 +662,5 @@ func (s *stubAdminService) ReplaceUserGroup(ctx context.Context, userID, oldGrou
+ 	return &service.ReplaceUserGroupResult{MigratedKeys: 0}, nil
+ }
+ 
+-func (s *stubAdminService) RevertAccountProxyFallback(ctx context.Context, id int64) error {
+-	return nil
+-}
+-
+ // Ensure stub implements interface.
+ var _ service.AdminService = (*stubAdminService)(nil)
+diff --git a/backend/internal/handler/admin/apikey_handler.go b/backend/internal/handler/admin/apikey_handler.go
+index 5e405bdd..1388942b 100644
+--- a/backend/internal/handler/admin/apikey_handler.go
++++ b/backend/internal/handler/admin/apikey_handler.go
+@@ -1,6 +1,7 @@
+ package admin
+ 
+ import (
++	"context"
+ 	"strconv"
+ 
+ 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
+@@ -28,6 +29,118 @@ type AdminUpdateAPIKeyGroupRequest struct {
+ 	ResetRateLimitUsage *bool  `json:"reset_rate_limit_usage"` // true=重置 5h/1d/7d 限速用量
+ }
+ 
++// AdminCreateUserAPIKeyRequest represents the request to create a user API key.
++type AdminCreateUserAPIKeyRequest struct {
++	Name          string   `json:"name" binding:"required"`
++	GroupID       *int64   `json:"group_id"`
++	CustomKey     *string  `json:"custom_key"`
++	IPWhitelist   []string `json:"ip_whitelist"`
++	IPBlacklist   []string `json:"ip_blacklist"`
++	Quota         *float64 `json:"quota"`
++	ExpiresInDays *int     `json:"expires_in_days"`
++	RateLimit5h   *float64 `json:"rate_limit_5h"`
++	RateLimit1d   *float64 `json:"rate_limit_1d"`
++	RateLimit7d   *float64 `json:"rate_limit_7d"`
++}
++
++// AdminTransferAPIKeyRequest represents the request to transfer an API key.
++type AdminTransferAPIKeyRequest struct {
++	TargetUserID  int64    `json:"target_user_id" binding:"required"`
++	TargetGroupID *int64   `json:"target_group_id"`
++	Quota         *float64 `json:"quota"`
++	ResetQuota    *bool    `json:"reset_quota"`
++}
++
++// CreateForUser handles creating an API key for a target user.
++// POST /api/v1/admin/users/:id/api-keys
++func (h *AdminAPIKeyHandler) CreateForUser(c *gin.Context) {
++	userID, err := strconv.ParseInt(c.Param("id"), 10, 64)
++	if err != nil {
++		response.BadRequest(c, "Invalid user ID")
++		return
++	}
++
++	var req AdminCreateUserAPIKeyRequest
++	if err := c.ShouldBindJSON(&req); err != nil {
++		response.BadRequest(c, "Invalid request: "+err.Error())
++		return
++	}
++
++	input := service.CreateUserAPIKeyInput{
++		Name:          req.Name,
++		GroupID:       req.GroupID,
++		CustomKey:     req.CustomKey,
++		IPWhitelist:   req.IPWhitelist,
++		IPBlacklist:   req.IPBlacklist,
++		ExpiresInDays: req.ExpiresInDays,
++	}
++	if req.Quota != nil {
++		input.Quota = *req.Quota
++	}
++	if req.RateLimit5h != nil {
++		input.RateLimit5h = *req.RateLimit5h
++	}
++	if req.RateLimit1d != nil {
++		input.RateLimit1d = *req.RateLimit1d
++	}
++	if req.RateLimit7d != nil {
++		input.RateLimit7d = *req.RateLimit7d
++	}
++
++	idempotencyPayload := struct {
++		UserID int64                        `json:"user_id"`
++		Body   AdminCreateUserAPIKeyRequest `json:"body"`
++	}{
++		UserID: userID,
++		Body:   req,
++	}
++	executeAdminIdempotentJSON(c, "admin.users.api_keys.create", idempotencyPayload, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
++		result, execErr := h.adminService.CreateUserAPIKey(ctx, userID, input)
++		if execErr != nil {
++			return nil, execErr
++		}
++		return adminCreateAPIKeyResponse(result), nil
++	})
++}
++
++// Transfer handles transferring an API key to a target user.
++// POST /api/v1/admin/api-keys/:id/transfer
++func (h *AdminAPIKeyHandler) Transfer(c *gin.Context) {
++	keyID, err := strconv.ParseInt(c.Param("id"), 10, 64)
++	if err != nil {
++		response.BadRequest(c, "Invalid API key ID")
++		return
++	}
++
++	var req AdminTransferAPIKeyRequest
++	if err := c.ShouldBindJSON(&req); err != nil {
++		response.BadRequest(c, "Invalid request: "+err.Error())
++		return
++	}
++
++	input := service.TransferAPIKeyInput{
++		TargetUserID:  req.TargetUserID,
++		TargetGroupID: req.TargetGroupID,
++		Quota:         req.Quota,
++		ResetQuota:    req.ResetQuota != nil && *req.ResetQuota,
++	}
++
++	idempotencyPayload := struct {
++		KeyID int64                      `json:"key_id"`
++		Body  AdminTransferAPIKeyRequest `json:"body"`
++	}{
++		KeyID: keyID,
++		Body:  req,
++	}
++	executeAdminIdempotentJSON(c, "admin.api_keys.transfer", idempotencyPayload, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
++		result, execErr := h.adminService.TransferAPIKey(ctx, keyID, input)
++		if execErr != nil {
++			return nil, execErr
++		}
++		return adminTransferAPIKeyResponse(result), nil
++	})
++}
++
+ // UpdateGroup handles updating an API key's admin-managed fields.
+ // PUT /api/v1/admin/api-keys/:id
+ func (h *AdminAPIKeyHandler) UpdateGroup(c *gin.Context) {
+@@ -74,3 +187,37 @@ func (h *AdminAPIKeyHandler) UpdateGroup(c *gin.Context) {
+ 	}
+ 	response.Success(c, resp)
+ }
++
++func adminCreateAPIKeyResponse(result *service.CreateUserAPIKeyResult) any {
++	if result == nil {
++		return nil
++	}
++	return struct {
++		APIKey                 *dto.APIKey `json:"api_key"`
++		AutoGrantedGroupAccess bool        `json:"auto_granted_group_access"`
++		GrantedGroupID         *int64      `json:"granted_group_id,omitempty"`
++		GrantedGroupName       string      `json:"granted_group_name,omitempty"`
++	}{
++		APIKey:                 dto.APIKeyFromService(result.APIKey),
++		AutoGrantedGroupAccess: result.AutoGrantedGroupAccess,
++		GrantedGroupID:         result.GrantedGroupID,
++		GrantedGroupName:       result.GrantedGroupName,
++	}
++}
++
++func adminTransferAPIKeyResponse(result *service.TransferAPIKeyResult) any {
++	if result == nil {
++		return nil
++	}
++	return struct {
++		APIKey                 *dto.APIKey `json:"api_key"`
++		AutoGrantedGroupAccess bool        `json:"auto_granted_group_access"`
++		GrantedGroupID         *int64      `json:"granted_group_id,omitempty"`
++		GrantedGroupName       string      `json:"granted_group_name,omitempty"`
++	}{
++		APIKey:                 dto.APIKeyFromService(result.APIKey),
++		AutoGrantedGroupAccess: result.AutoGrantedGroupAccess,
++		GrantedGroupID:         result.GrantedGroupID,
++		GrantedGroupName:       result.GrantedGroupName,
++	}
++}
+diff --git a/backend/internal/repository/api_key_repo.go b/backend/internal/repository/api_key_repo.go
+index e5eb34db..dcee497c 100644
+--- a/backend/internal/repository/api_key_repo.go
++++ b/backend/internal/repository/api_key_repo.go
+@@ -3,7 +3,6 @@ package repository
+ import (
+ 	"context"
+ 	"database/sql"
+-	"errors"
+ 	"fmt"
+ 	"strings"
+ 	"time"
+@@ -107,11 +106,7 @@ func (r *apiKeyRepository) GetKeyAndOwnerID(ctx context.Context, id int64) (stri
+ func (r *apiKeyRepository) GetByKey(ctx context.Context, key string) (*service.APIKey, error) {
+ 	m, err := r.activeQuery().
+ 		Where(apikey.KeyEQ(key)).
+-		WithUser(func(q *dbent.UserQuery) {
+-			q.WithAllowedGroups(func(gq *dbent.GroupQuery) {
+-				gq.Select(group.FieldID)
+-			})
+-		}).
++		WithUser().
+ 		WithGroup().
+ 		Only(ctx)
+ 	if err != nil {
+@@ -160,16 +155,12 @@ func (r *apiKeyRepository) GetByKeyForAuth(ctx context.Context, key string) (*se
+ 				user.FieldLastActiveAt,
+ 				user.FieldRpmLimit,
+ 			)
+-			q.WithAllowedGroups(func(gq *dbent.GroupQuery) {
+-				gq.Select(group.FieldID)
+-			})
+ 		}).
+ 		WithGroup(func(q *dbent.GroupQuery) {
+ 			q.Select(
+ 				group.FieldID,
+ 				group.FieldName,
+ 				group.FieldPlatform,
+-				group.FieldIsExclusive,
+ 				group.FieldStatus,
+ 				group.FieldSubscriptionType,
+ 				group.FieldRateMultiplier,
+@@ -192,7 +183,6 @@ func (r *apiKeyRepository) GetByKeyForAuth(ctx context.Context, key string) (*se
+ 				group.FieldAllowMessagesDispatch,
+ 				group.FieldDefaultMappedModel,
+ 				group.FieldMessagesDispatchModelConfig,
+-				group.FieldModelsListConfig,
+ 				group.FieldRpmLimit,
+ 			)
+ 		}).
+@@ -283,6 +273,34 @@ func (r *apiKeyRepository) Update(ctx context.Context, key *service.APIKey) erro
+ 	return nil
+ }
+ 
++func (r *apiKeyRepository) TransferUpdate(ctx context.Context, key *service.APIKey) error {
++	client := clientFromContext(ctx, r.client)
++	now := time.Now()
++	builder := client.APIKey.Update().
++		Where(apikey.IDEQ(key.ID), apikey.DeletedAtIsNil()).
++		SetUserID(key.UserID).
++		SetStatus(key.Status).
++		SetQuota(key.Quota).
++		SetQuotaUsed(key.QuotaUsed).
++		SetUpdatedAt(now)
++	if key.GroupID != nil {
++		builder.SetGroupID(*key.GroupID)
++	} else {
++		builder.ClearGroupID()
++	}
++
++	affected, err := builder.Save(ctx)
++	if err != nil {
++		return err
++	}
++	if affected == 0 {
++		return service.ErrAPIKeyNotFound
++	}
++
++	key.UpdatedAt = now
++	return nil
++}
++
+ func (r *apiKeyRepository) Delete(ctx context.Context, id int64) error {
+ 	// 存在唯一键约束 生成tombstone key 用来释放原key，长度远小于 128，满足 schema 限制
+ 	tombstoneKey := fmt.Sprintf("__deleted__%d__%d", id, time.Now().UnixNano())
+@@ -313,76 +331,6 @@ func (r *apiKeyRepository) Delete(ctx context.Context, id int64) error {
+ 	return nil
+ }
+ 
+-// DeleteWithAudit 在同一事务内:
+-//  1. 把(明文 key、所有者、key 名称)写入 deleted_api_key_audits;
+-//  2. 软删除该 key(tombstone 覆盖 key 列以释放唯一约束)。
+-//
+-// 保证"被删除的 key 一定能反查到所有者"。事务模式与 group_repo.DeleteCascade 一致。
+-func (r *apiKeyRepository) DeleteWithAudit(ctx context.Context, id int64) error {
+-	tombstoneKey := fmt.Sprintf("__deleted__%d__%d", id, time.Now().UnixNano())
+-
+-	if existingTx := dbent.TxFromContext(ctx); existingTx != nil {
+-		return r.deleteWithAudit(ctx, existingTx.Client(), id, tombstoneKey)
+-	}
+-
+-	tx, err := r.client.Tx(ctx)
+-	if err != nil && !errors.Is(err, dbent.ErrTxStarted) {
+-		return err
+-	}
+-	exec := r.client
+-	if err == nil {
+-		defer func() { _ = tx.Rollback() }()
+-		exec = tx.Client()
+-	}
+-
+-	if err := r.deleteWithAudit(ctx, exec, id, tombstoneKey); err != nil {
+-		return err
+-	}
+-
+-	if tx != nil {
+-		return tx.Commit()
+-	}
+-	return nil
+-}
+-
+-func (r *apiKeyRepository) deleteWithAudit(ctx context.Context, exec *dbent.Client, id int64, tombstoneKey string) error {
+-	// 1. 审计:数据源即 api_keys 当前行;WHERE deleted_at IS NULL 保证只对未删除行写一次。
+-	if _, err := exec.ExecContext(ctx, `
+-		INSERT INTO deleted_api_key_audits (key, api_key_id, user_id, key_name, deleted_at)
+-		SELECT key, id, user_id, name, NOW()
+-		FROM api_keys
+-		WHERE id = $1 AND deleted_at IS NULL`, id); err != nil {
+-		return err
+-	}
+-
+-	// 2. 软删除(tombstone 覆盖 key)。
+-	res, err := exec.ExecContext(ctx, `
+-		UPDATE api_keys
+-		SET key = $1, deleted_at = NOW(), updated_at = NOW()
+-		WHERE id = $2 AND deleted_at IS NULL`, tombstoneKey, id)
+-	if err != nil {
+-		return err
+-	}
+-	affected, err := res.RowsAffected()
+-	if err != nil {
+-		return err
+-	}
+-	if affected == 0 {
+-		// 并发/重复删除:记录已存在(已软删)则幂等返回 nil(defer 回滚空事务),否则 NotFound。
+-		exists, existErr := r.client.APIKey.Query().
+-			Where(apikey.IDEQ(id)).
+-			Exist(mixins.SkipSoftDelete(ctx))
+-		if existErr != nil {
+-			return existErr
+-		}
+-		if exists {
+-			return nil
+-		}
+-		return service.ErrAPIKeyNotFound
+-	}
+-	return nil
+-}
+-
+ func (r *apiKeyRepository) ListByUserID(ctx context.Context, userID int64, params pagination.PaginationParams, filters service.APIKeyListFilters) ([]service.APIKey, *pagination.PaginationResult, error) {
+ 	q := r.activeQuery().Where(apikey.UserIDEQ(userID))
+ 
+@@ -724,14 +672,6 @@ func apiKeyEntityToService(m *dbent.APIKey) *service.APIKey {
+ 	}
+ 	if m.Edges.User != nil {
+ 		out.User = userEntityToService(m.Edges.User)
+-		if allowed := m.Edges.User.Edges.AllowedGroups; len(allowed) > 0 {
+-			out.User.AllowedGroups = make([]int64, 0, len(allowed))
+-			for _, g := range allowed {
+-				if g != nil {
+-					out.User.AllowedGroups = append(out.User.AllowedGroups, g.ID)
+-				}
+-			}
+-		}
+ 	}
+ 	if m.Edges.Group != nil {
+ 		out.Group = groupEntityToService(m.Edges.Group)
+@@ -766,7 +706,6 @@ func userEntityToService(u *dbent.User) *service.User {
+ 		RPMLimit:                   u.RpmLimit,
+ 		CreatedAt:                  u.CreatedAt,
+ 		UpdatedAt:                  u.UpdatedAt,
+-		DeletedAt:                  u.DeletedAt,
+ 	}
+ 	// Parse extra emails JSON (supports both old []string and new []NotifyEmailEntry format)
+ 	if u.BalanceNotifyExtraEmails != "" && u.BalanceNotifyExtraEmails != "[]" {
+@@ -812,7 +751,6 @@ func groupEntityToService(g *dbent.Group) *service.Group {
+ 		RequirePrivacySet:               g.RequirePrivacySet,
+ 		DefaultMappedModel:              g.DefaultMappedModel,
+ 		MessagesDispatchModelConfig:     g.MessagesDispatchModelConfig,
+-		ModelsListConfig:                g.ModelsListConfig,
+ 		RPMLimit:                        g.RpmLimit,
+ 		CreatedAt:                       g.CreatedAt,
+ 		UpdatedAt:                       g.UpdatedAt,
+diff --git a/backend/internal/repository/api_key_repo_integration_test.go b/backend/internal/repository/api_key_repo_integration_test.go
+index fdf9bc83..82a79d34 100644
+--- a/backend/internal/repository/api_key_repo_integration_test.go
++++ b/backend/internal/repository/api_key_repo_integration_test.go
+@@ -129,6 +129,7 @@ func (s *APIKeyRepoSuite) TestGetByKeyForAuth_PreservesMessagesDispatchModelConf
+ 
+ func (s *APIKeyRepoSuite) TestUpdate() {
+ 	user := s.mustCreateUser("update@test.com")
++	otherUser := s.mustCreateUser("update-other@test.com")
+ 	key := &service.APIKey{
+ 		UserID: user.ID,
+ 		Key:    "sk-update",
+@@ -139,6 +140,7 @@ func (s *APIKeyRepoSuite) TestUpdate() {
+ 
+ 	key.Name = "Renamed"
+ 	key.Status = service.StatusDisabled
++	key.UserID = otherUser.ID
+ 	err := s.repo.Update(s.ctx, key)
+ 	s.Require().NoError(err, "Update")
+ 
+@@ -150,6 +152,38 @@ func (s *APIKeyRepoSuite) TestUpdate() {
+ 	s.Require().Equal(service.StatusDisabled, got.Status)
+ }
+ 
++func (s *APIKeyRepoSuite) TestTransferUpdate_ChangesOwnerGroupQuotaAndStatus() {
++	sourceUser := s.mustCreateUser("transfer-source@test.com")
++	targetUser := s.mustCreateUser("transfer-target@test.com")
++	group := s.mustCreateGroup("g-transfer")
++	key := &service.APIKey{
++		UserID:    sourceUser.ID,
++		Key:       "sk-transfer-update",
++		Name:      "Transfer",
++		Status:    service.StatusAPIKeyQuotaExhausted,
++		Quota:     10,
++		QuotaUsed: 10,
++	}
++	s.Require().NoError(s.repo.Create(s.ctx, key))
++
++	key.UserID = targetUser.ID
++	key.GroupID = &group.ID
++	key.Quota = 50
++	key.QuotaUsed = 0
++	key.Status = service.StatusActive
++	err := s.repo.TransferUpdate(s.ctx, key)
++	s.Require().NoError(err, "TransferUpdate")
++
++	got, err := s.repo.GetByID(s.ctx, key.ID)
++	s.Require().NoError(err, "GetByID after TransferUpdate")
++	s.Require().Equal(targetUser.ID, got.UserID)
++	s.Require().NotNil(got.GroupID)
++	s.Require().Equal(group.ID, *got.GroupID)
++	s.Require().Equal(50.0, got.Quota)
++	s.Require().Equal(0.0, got.QuotaUsed)
++	s.Require().Equal(service.StatusActive, got.Status)
++}
++
+ func (s *APIKeyRepoSuite) TestUpdate_ClearGroupID() {
+ 	user := s.mustCreateUser("cleargroup@test.com")
+ 	group := s.mustCreateGroup("g-clear")
+@@ -555,46 +589,3 @@ func TestIncrementQuotaUsed_Concurrent(t *testing.T) {
+ 	require.Equal(t, float64(goroutines)*increment, got.QuotaUsed,
+ 		"并发递增后总和应为 %v，实际为 %v", float64(goroutines)*increment, got.QuotaUsed)
+ }
+-
+-func (s *APIKeyRepoSuite) TestDeleteWithAudit_WritesAuditAndSoftDeletes() {
+-	user := s.mustCreateUser("delwithaudit@test.com")
+-	key := &service.APIKey{
+-		UserID: user.ID,
+-		Key:    "sk-del-audit-1",
+-		Name:   "Audit Me",
+-		Status: service.StatusActive,
+-	}
+-	s.Require().NoError(s.repo.Create(s.ctx, key))
+-
+-	s.Require().NoError(s.repo.DeleteWithAudit(s.ctx, key.ID))
+-
+-	_, err := s.repo.GetByID(s.ctx, key.ID)
+-	s.Require().Error(err)
+-
+-	rows, qErr := s.client.QueryContext(s.ctx,
+-		`SELECT key, key_name, user_id, api_key_id FROM deleted_api_key_audits WHERE api_key_id = $1`, key.ID)
+-	s.Require().NoError(qErr)
+-	defer rows.Close()
+-	s.Require().True(rows.Next(), "expected one audit row")
+-	var auditKey, auditName string
+-	var auditUserID, auditAPIKeyID int64
+-	s.Require().NoError(rows.Scan(&auditKey, &auditName, &auditUserID, &auditAPIKeyID))
+-	s.Require().Equal("sk-del-audit-1", auditKey)
+-	s.Require().Equal("Audit Me", auditName)
+-	s.Require().Equal(user.ID, auditUserID)
+-	s.Require().Equal(key.ID, auditAPIKeyID)
+-}
+-
+-func (s *APIKeyRepoSuite) TestDeleteWithAudit_RepeatIsIdempotent() {
+-	user := s.mustCreateUser("delwithaudit-idem@test.com")
+-	key := &service.APIKey{UserID: user.ID, Key: "sk-del-audit-2", Name: "K", Status: service.StatusActive}
+-	s.Require().NoError(s.repo.Create(s.ctx, key))
+-
+-	s.Require().NoError(s.repo.DeleteWithAudit(s.ctx, key.ID))
+-	s.Require().NoError(s.repo.DeleteWithAudit(s.ctx, key.ID))
+-}
+-
+-func (s *APIKeyRepoSuite) TestDeleteWithAudit_NotFound() {
+-	err := s.repo.DeleteWithAudit(s.ctx, 999999)
+-	s.Require().ErrorIs(err, service.ErrAPIKeyNotFound)
+-}
+diff --git a/backend/internal/server/api_contract_test.go b/backend/internal/server/api_contract_test.go
+index 57d20926..3d40e8b3 100644
+--- a/backend/internal/server/api_contract_test.go
++++ b/backend/internal/server/api_contract_test.go
+@@ -5,7 +5,9 @@ package server_test
+ import (
+ 	"bytes"
+ 	"context"
++	"encoding/json"
+ 	"errors"
++	"fmt"
+ 	"io"
+ 	"math"
+ 	"net/http"
+@@ -506,8 +508,6 @@ func TestAPIContracts(t *testing.T) {
+ 					"total_input_tokens": 15,
+ 					"total_output_tokens": 35,
+ 					"total_cache_tokens": 3,
+-					"total_cache_creation_tokens": 1,
+-					"total_cache_read_tokens": 2,
+ 					"total_tokens": 53,
+ 					"total_cost": 0.75,
+ 					"total_actual_cost": 0.75,
+@@ -583,8 +583,6 @@ func TestAPIContracts(t *testing.T) {
+ 							"image_size": null,
+ 							"image_input_size": null,
+ 							"image_output_size": null,
+-							"image_output_tokens": 0,
+-							"image_output_cost": 0,
+ 							"image_size_source": null,
+ 							"image_size_breakdown": null,
+ 							"media_type": null,
+@@ -740,6 +738,7 @@ func TestAPIContracts(t *testing.T) {
+ 						"oidc_connect_allowed_signing_algs": "RS256,ES256,PS256",
+ 						"oidc_connect_clock_skew_seconds": 120,
+ 						"oidc_connect_require_email_verified": false,
++						"oidc_connect_require_local_email_verification": true,
+ 						"oidc_connect_userinfo_email_path": "",
+ 						"oidc_connect_userinfo_id_path": "",
+ 						"oidc_connect_userinfo_username_path": "",
+@@ -802,14 +801,6 @@ func TestAPIContracts(t *testing.T) {
+ 					"force_email_on_third_party_signup": false,
+ 					"default_concurrency": 5,
+ 					"default_balance": 1.25,
+-					"default_platform_quotas": {"anthropic":{"daily":null,"weekly":null,"monthly":null},"antigravity":{"daily":null,"weekly":null,"monthly":null},"gemini":{"daily":null,"weekly":null,"monthly":null},"openai":{"daily":null,"weekly":null,"monthly":null}},
+-					"auth_source_default_email_platform_quotas": null,
+-					"auth_source_default_github_platform_quotas": null,
+-					"auth_source_default_google_platform_quotas": null,
+-					"auth_source_default_linuxdo_platform_quotas": null,
+-					"auth_source_default_oidc_platform_quotas": null,
+-					"auth_source_default_wechat_platform_quotas": null,
+-					"auth_source_default_dingtalk_platform_quotas": null,
+ 					"affiliate_rebate_rate": 20,
+ 					"affiliate_rebate_freeze_hours": 0,
+ 					"affiliate_rebate_duration_days": 0,
+@@ -835,9 +826,6 @@ func TestAPIContracts(t *testing.T) {
+ 					"allow_ungrouped_key_scheduling": false,
+ 					"backend_mode_enabled": false,
+ 					"enable_cch_signing": false,
+-					"enable_claude_oauth_system_prompt_injection": true,
+-					"claude_oauth_system_prompt": "",
+-					"claude_oauth_system_prompt_blocks": "",
+ 					"enable_anthropic_cache_ttl_1h_injection": false,
+ 					"rewrite_message_cache_control": false,
+ 					"antigravity_user_agent_version": "",
+@@ -850,7 +838,6 @@ func TestAPIContracts(t *testing.T) {
+ 					"payment_visible_method_wxpay_enabled": false,
+ 					"openai_advanced_scheduler_enabled": true,
+ 					"openai_codex_user_agent":           "",
+-					"openai_allow_claude_code_codex_plugin": false,
+ 					"openai_fast_policy_settings": {
+ 						"rules": []
+ 					},
+@@ -887,8 +874,6 @@ func TestAPIContracts(t *testing.T) {
+ 					"channel_monitor_default_interval_seconds": 60,
+ 					"available_channels_enabled": false,
+ 					"risk_control_enabled": false,
+-					"cyber_session_block_enabled": false,
+-					"cyber_session_block_ttl_seconds": 3600,
+ 					"affiliate_enabled": false,
+ 					"wechat_connect_enabled": false,
+ 					"wechat_connect_app_id": "",
+@@ -905,8 +890,7 @@ func TestAPIContracts(t *testing.T) {
+ 					"wechat_connect_mobile_app_secret_configured": false,
+ 					"wechat_connect_redirect_url": "",
+ 					"wechat_connect_frontend_redirect_url": "/auth/wechat/callback",
+-					"wechat_connect_scopes": "snsapi_login",
+-					"allow_user_view_error_requests": false
++					"wechat_connect_scopes": "snsapi_login"
+ 				}
+ 			}`,
+ 		},
+@@ -1018,6 +1002,7 @@ func TestAPIContracts(t *testing.T) {
+ 					"oidc_connect_allowed_signing_algs": "RS256,ES256,PS256",
+ 					"oidc_connect_clock_skew_seconds": 120,
+ 					"oidc_connect_require_email_verified": false,
++					"oidc_connect_require_local_email_verification": true,
+ 					"oidc_connect_userinfo_email_path": "",
+ 					"oidc_connect_userinfo_id_path": "",
+ 					"oidc_connect_userinfo_username_path": "",
+@@ -1044,14 +1029,6 @@ func TestAPIContracts(t *testing.T) {
+ 					"purchase_subscription_url": "",
+ 					"table_default_page_size": 20,
+ 					"table_page_size_options": [10, 20, 50],
+-					"default_platform_quotas": {"anthropic":{"daily":null,"weekly":null,"monthly":null},"antigravity":{"daily":null,"weekly":null,"monthly":null},"gemini":{"daily":null,"weekly":null,"monthly":null},"openai":{"daily":null,"weekly":null,"monthly":null}},
+-					"auth_source_default_email_platform_quotas": null,
+-					"auth_source_default_github_platform_quotas": null,
+-					"auth_source_default_google_platform_quotas": null,
+-					"auth_source_default_linuxdo_platform_quotas": null,
+-					"auth_source_default_oidc_platform_quotas": null,
+-					"auth_source_default_wechat_platform_quotas": null,
+-					"auth_source_default_dingtalk_platform_quotas": null,
+ 					"custom_menu_items": [],
+ 					"custom_endpoints": [],
+ 					"default_concurrency": 0,
+@@ -1080,9 +1057,6 @@ func TestAPIContracts(t *testing.T) {
+ 					"enable_fingerprint_unification": true,
+ 					"enable_metadata_passthrough": false,
+ 					"enable_cch_signing": false,
+-					"enable_claude_oauth_system_prompt_injection": true,
+-					"claude_oauth_system_prompt": "",
+-					"claude_oauth_system_prompt_blocks": "",
+ 					"enable_anthropic_cache_ttl_1h_injection": false,
+ 					"rewrite_message_cache_control": false,
+ 					"antigravity_user_agent_version": "",
+@@ -1093,7 +1067,6 @@ func TestAPIContracts(t *testing.T) {
+ 					"payment_visible_method_wxpay_enabled": false,
+ 					"openai_advanced_scheduler_enabled": false,
+ 					"openai_codex_user_agent":           "",
+-					"openai_allow_claude_code_codex_plugin": false,
+ 					"openai_fast_policy_settings": {
+ 						"rules": []
+ 					},
+@@ -1128,8 +1101,6 @@ func TestAPIContracts(t *testing.T) {
+ 					"channel_monitor_default_interval_seconds": 60,
+ 					"available_channels_enabled": false,
+ 					"risk_control_enabled": false,
+-					"cyber_session_block_enabled": false,
+-					"cyber_session_block_ttl_seconds": 3600,
+ 					"affiliate_enabled": false,
+ 					"wechat_connect_enabled": true,
+ 					"wechat_connect_app_id": "wx-open-config",
+@@ -1182,8 +1153,7 @@ func TestAPIContracts(t *testing.T) {
+ 					"auth_source_default_dingtalk_subscriptions": [],
+ 					"auth_source_default_dingtalk_grant_on_signup": false,
+ 					"auth_source_default_dingtalk_grant_on_first_bind": false,
+-					"force_email_on_third_party_signup": false,
+-					"allow_user_view_error_requests": false
++					"force_email_on_third_party_signup": false
+ 				}
+ 			}`,
+ 		},
+@@ -1227,6 +1197,302 @@ func TestAPIContracts(t *testing.T) {
+ 	}
+ }
+ 
++func TestAdminCreateUserAPIKeyWithAdminAPIKeyMockData(t *testing.T) {
++	gin.SetMode(gin.TestMode)
++	service.SetDefaultIdempotencyCoordinator(nil)
++
++	now := time.Date(2026, 5, 19, 12, 0, 0, 0, time.UTC)
++	adminKey := "admin-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
++	targetGroupID := int64(20)
++	targetUserID := int64(100)
++
++	userRepo := &stubUserRepo{
++		users: map[int64]*service.User{
++			1: {
++				ID:          1,
++				Email:       "admin@example.com",
++				Role:        service.RoleAdmin,
++				Status:      service.StatusActive,
++				Concurrency: 9,
++				CreatedAt:   now,
++				UpdatedAt:   now,
++			},
++			targetUserID: {
++				ID:            targetUserID,
++				Email:         "mock-user@example.com",
++				Role:          service.RoleUser,
++				Status:        service.StatusActive,
++				AllowedGroups: nil,
++				CreatedAt:     now,
++				UpdatedAt:     now,
++			},
++		},
++	}
++
++	groupRepo := &stubGroupRepo{}
++	groupRepo.SetByID([]service.Group{{
++		ID:               targetGroupID,
++		Name:             "Mock Exclusive",
++		Platform:         service.PlatformAnthropic,
++		Status:           service.StatusActive,
++		IsExclusive:      true,
++		SubscriptionType: service.SubscriptionTypeStandard,
++		CreatedAt:        now,
++		UpdatedAt:        now,
++	}})
++
++	apiKeyRepo := newStubApiKeyRepo(now)
++	userSubRepo := &stubUserSubscriptionRepo{}
++	cfg := &config.Config{Default: config.DefaultConfig{APIKeyPrefix: "sk-"}}
++	apiKeyService := service.NewAPIKeyService(apiKeyRepo, userRepo, groupRepo, userSubRepo, nil, stubApiKeyCache{}, cfg)
++	adminService := service.NewAdminService(
++		userRepo,
++		groupRepo,
++		&stubAccountRepo{},
++		stubProxyRepo{},
++		apiKeyRepo,
++		&stubRedeemCodeRepo{},
++		nil,
++		nil,
++		apiKeyService,
++		nil,
++		nil,
++		nil,
++		nil,
++		nil,
++		service.NewSettingService(newStubSettingRepo(), cfg),
++		nil,
++		userSubRepo,
++		nil,
++		nil,
++	)
++
++	settingRepo := newStubSettingRepo()
++	require.NoError(t, settingRepo.Set(context.Background(), service.SettingKeyAdminAPIKey, adminKey))
++	settingService := service.NewSettingService(settingRepo, cfg)
++	userService := service.NewUserService(userRepo, nil, nil, nil)
++	adminAuth := middleware.NewAdminAuthMiddleware(nil, userService, settingService)
++
++	router := gin.New()
++	adminGroup := router.Group("/api/v1/admin")
++	adminGroup.Use(gin.HandlerFunc(adminAuth))
++	adminGroup.POST("/users/:id/api-keys", adminhandler.NewAdminAPIKeyHandler(adminService).CreateForUser)
++
++	t.Run("invalid admin api key is rejected", func(t *testing.T) {
++		status, body := doRequest(t, router, http.MethodPost, "/api/v1/admin/users/100/api-keys", `{"name":"mock"}`, map[string]string{
++			"Content-Type":    "application/json",
++			"x-api-key":       "admin-wrong",
++			"Idempotency-Key": "mock-create-wrong-key",
++		})
++
++		require.Equal(t, http.StatusUnauthorized, status)
++		require.Contains(t, body, "INVALID_ADMIN_KEY")
++	})
++
++	t.Run("admin api key creates ai usable user key", func(t *testing.T) {
++		status, body := doRequest(t, router, http.MethodPost, "/api/v1/admin/users/100/api-keys", `{
++			"name":"mock-created-key",
++			"group_id":20,
++			"custom_key":"sk-mock-created-key",
++			"quota":25.5,
++			"rate_limit_1d":7.25,
++			"ip_whitelist":["10.0.0.0/8"]
++		}`, map[string]string{
++			"Content-Type":    "application/json",
++			"x-api-key":       adminKey,
++			"Idempotency-Key": "mock-create-user-100-key",
++		})
++
++		require.Equal(t, http.StatusOK, status, body)
++
++		var resp struct {
++			Code int `json:"code"`
++			Data struct {
++				APIKey struct {
++					ID          int64    `json:"id"`
++					UserID      int64    `json:"user_id"`
++					Key         string   `json:"key"`
++					Name        string   `json:"name"`
++					GroupID     *int64   `json:"group_id"`
++					Quota       float64  `json:"quota"`
++					RateLimit1d float64  `json:"rate_limit_1d"`
++					IPWhitelist []string `json:"ip_whitelist"`
++					Status      string   `json:"status"`
++				} `json:"api_key"`
++				AutoGrantedGroupAccess bool   `json:"auto_granted_group_access"`
++				GrantedGroupID         *int64 `json:"granted_group_id"`
++				GrantedGroupName       string `json:"granted_group_name"`
++			} `json:"data"`
++		}
++		require.NoError(t, json.Unmarshal([]byte(body), &resp))
++		require.Equal(t, 0, resp.Code)
++		require.Equal(t, targetUserID, resp.Data.APIKey.UserID)
++		require.Equal(t, "sk-mock-created-key", resp.Data.APIKey.Key)
++		require.Equal(t, "mock-created-key", resp.Data.APIKey.Name)
++		require.Equal(t, service.StatusAPIKeyActive, resp.Data.APIKey.Status)
++		require.NotNil(t, resp.Data.APIKey.GroupID)
++		require.Equal(t, targetGroupID, *resp.Data.APIKey.GroupID)
++		require.Equal(t, 25.5, resp.Data.APIKey.Quota)
++		require.Equal(t, 7.25, resp.Data.APIKey.RateLimit1d)
++		require.Equal(t, []string{"10.0.0.0/8"}, resp.Data.APIKey.IPWhitelist)
++		require.True(t, resp.Data.AutoGrantedGroupAccess)
++		require.NotNil(t, resp.Data.GrantedGroupID)
++		require.Equal(t, targetGroupID, *resp.Data.GrantedGroupID)
++		require.Equal(t, "Mock Exclusive", resp.Data.GrantedGroupName)
++
++		created, err := apiKeyRepo.GetByKey(context.Background(), "sk-mock-created-key")
++		require.NoError(t, err)
++		require.Equal(t, targetUserID, created.UserID)
++		require.NotNil(t, created.GroupID)
++		require.Equal(t, targetGroupID, *created.GroupID)
++		require.Contains(t, userRepo.users[targetUserID].AllowedGroups, targetGroupID)
++	})
++}
++
++func TestAdminTransferAPIKeyWithAdminAPIKeyMockData(t *testing.T) {
++	gin.SetMode(gin.TestMode)
++	service.SetDefaultIdempotencyCoordinator(nil)
++
++	now := time.Date(2026, 5, 20, 12, 0, 0, 0, time.UTC)
++	adminKey := "admin-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
++	sourceUserID := int64(10)
++	targetUserID := int64(100)
++
++	userRepo := &stubUserRepo{
++		users: map[int64]*service.User{
++			1: {
++				ID:          1,
++				Email:       "admin@example.com",
++				Role:        service.RoleAdmin,
++				Status:      service.StatusActive,
++				Concurrency: 9,
++				CreatedAt:   now,
++				UpdatedAt:   now,
++			},
++			sourceUserID: {
++				ID:        sourceUserID,
++				Email:     "source@example.com",
++				Role:      service.RoleUser,
++				Status:    service.StatusActive,
++				CreatedAt: now,
++				UpdatedAt: now,
++			},
++			targetUserID: {
++				ID:        targetUserID,
++				Email:     "target@example.com",
++				Role:      service.RoleUser,
++				Status:    service.StatusActive,
++				CreatedAt: now,
++				UpdatedAt: now,
++			},
++		},
++	}
++	groupRepo := &stubGroupRepo{}
++	apiKeyRepo := newStubApiKeyRepo(now)
++	transferKey := &service.APIKey{
++		UserID:    sourceUserID,
++		Key:       "sk-transfer-mock",
++		Name:      "mock-transfer",
++		Status:    service.StatusAPIKeyQuotaExhausted,
++		Quota:     10,
++		QuotaUsed: 10,
++	}
++	require.NoError(t, apiKeyRepo.Create(context.Background(), transferKey))
++
++	cfg := &config.Config{Default: config.DefaultConfig{APIKeyPrefix: "sk-"}}
++	apiKeyService := service.NewAPIKeyService(apiKeyRepo, userRepo, groupRepo, &stubUserSubscriptionRepo{}, nil, stubApiKeyCache{}, cfg)
++	adminService := service.NewAdminService(
++		userRepo,
++		groupRepo,
++		&stubAccountRepo{},
++		stubProxyRepo{},
++		apiKeyRepo,
++		&stubRedeemCodeRepo{},
++		nil,
++		nil,
++		apiKeyService,
++		nil,
++		nil,
++		nil,
++		nil,
++		nil,
++		service.NewSettingService(newStubSettingRepo(), cfg),
++		nil,
++		&stubUserSubscriptionRepo{},
++		nil,
++		nil,
++	)
++
++	settingRepo := newStubSettingRepo()
++	require.NoError(t, settingRepo.Set(context.Background(), service.SettingKeyAdminAPIKey, adminKey))
++	settingService := service.NewSettingService(settingRepo, cfg)
++	userService := service.NewUserService(userRepo, nil, nil, nil)
++	adminAuth := middleware.NewAdminAuthMiddleware(nil, userService, settingService)
++
++	router := gin.New()
++	adminGroup := router.Group("/api/v1/admin")
++	adminGroup.Use(gin.HandlerFunc(adminAuth))
++	adminGroup.POST("/api-keys/:id/transfer", adminhandler.NewAdminAPIKeyHandler(adminService).Transfer)
++
++	t.Run("invalid admin api key is rejected", func(t *testing.T) {
++		path := fmt.Sprintf("/api/v1/admin/api-keys/%d/transfer", transferKey.ID)
++		status, body := doRequest(t, router, http.MethodPost, path, `{"target_user_id":100}`, map[string]string{
++			"Content-Type":    "application/json",
++			"x-api-key":       "admin-wrong",
++			"Idempotency-Key": "mock-transfer-wrong-key",
++		})
++
++		require.Equal(t, http.StatusUnauthorized, status)
++		require.Contains(t, body, "INVALID_ADMIN_KEY")
++	})
++
++	t.Run("admin api key transfers owner and resets quota", func(t *testing.T) {
++		path := fmt.Sprintf("/api/v1/admin/api-keys/%d/transfer", transferKey.ID)
++		status, body := doRequest(t, router, http.MethodPost, path, `{
++			"target_user_id":100,
++			"target_group_id":0,
++			"quota":50,
++			"reset_quota":true
++		}`, map[string]string{
++			"Content-Type":    "application/json",
++			"x-api-key":       adminKey,
++			"Idempotency-Key": "mock-transfer-key-1",
++		})
++
++		require.Equal(t, http.StatusOK, status, body)
++
++		var resp struct {
++			Code int `json:"code"`
++			Data struct {
++				APIKey struct {
++					ID        int64   `json:"id"`
++					UserID    int64   `json:"user_id"`
++					Key       string  `json:"key"`
++					GroupID   *int64  `json:"group_id"`
++					Quota     float64 `json:"quota"`
++					QuotaUsed float64 `json:"quota_used"`
++					Status    string  `json:"status"`
++				} `json:"api_key"`
++			} `json:"data"`
++		}
++		require.NoError(t, json.Unmarshal([]byte(body), &resp))
++		require.Equal(t, 0, resp.Code)
++		require.Equal(t, targetUserID, resp.Data.APIKey.UserID)
++		require.Equal(t, "sk-transfer-mock", resp.Data.APIKey.Key)
++		require.Nil(t, resp.Data.APIKey.GroupID)
++		require.Equal(t, 50.0, resp.Data.APIKey.Quota)
++		require.Equal(t, 0.0, resp.Data.APIKey.QuotaUsed)
++		require.Equal(t, service.StatusActive, resp.Data.APIKey.Status)
++
++		updated, err := apiKeyRepo.GetByKey(context.Background(), "sk-transfer-mock")
++		require.NoError(t, err)
++		require.Equal(t, targetUserID, updated.UserID)
++		require.Equal(t, 50.0, updated.Quota)
++		require.Equal(t, 0.0, updated.QuotaUsed)
++		require.Equal(t, service.StatusActive, updated.Status)
++	})
++}
++
+ type contractDeps struct {
+ 	now         time.Time
+ 	router      http.Handler
+@@ -1292,10 +1558,10 @@ func newContractDeps(t *testing.T) *contractDeps {
+ 	settingRepo := newStubSettingRepo()
+ 	settingService := service.NewSettingService(settingRepo, cfg)
+ 
+-	adminService := service.NewAdminService(userRepo, groupRepo, &accountRepo, proxyRepo, apiKeyRepo, redeemRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
++	adminService := service.NewAdminService(userRepo, groupRepo, &accountRepo, proxyRepo, apiKeyRepo, redeemRepo, nil, nil, apiKeyService, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+ 	authHandler := handler.NewAuthHandler(cfg, nil, userService, settingService, nil, redeemService, nil, nil)
+ 	apiKeyHandler := handler.NewAPIKeyHandler(apiKeyService)
+-	usageHandler := handler.NewUsageHandler(usageService, apiKeyService, nil, nil)
++	usageHandler := handler.NewUsageHandler(usageService, apiKeyService)
+ 	adminSettingHandler := adminhandler.NewSettingHandler(settingService, nil, nil, nil, nil, nil, nil)
+ 	adminAccountHandler := adminhandler.NewAccountHandler(adminService, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+ 
+@@ -1473,7 +1739,17 @@ func (r *stubUserRepo) RemoveGroupFromUserAllowedGroups(ctx context.Context, use
+ }
+ 
+ func (r *stubUserRepo) AddGroupToAllowedGroups(ctx context.Context, userID int64, groupID int64) error {
+-	return errors.New("not implemented")
++	user, ok := r.users[userID]
++	if !ok {
++		return service.ErrUserNotFound
++	}
++	for _, existing := range user.AllowedGroups {
++		if existing == groupID {
++			return nil
++		}
++	}
++	user.AllowedGroups = append(user.AllowedGroups, groupID)
++	return nil
+ }
+ 
+ func (r *stubUserRepo) ListUserAuthIdentities(ctx context.Context, userID int64) ([]service.UserAuthIdentityRecord, error) {
+@@ -1508,10 +1784,6 @@ func (r *stubUserRepo) DisableTotp(ctx context.Context, userID int64) error {
+ 	return errors.New("not implemented")
+ }
+ 
+-func (r *stubUserRepo) GetByIDIncludeDeleted(ctx context.Context, id int64) (*service.User, error) {
+-	panic("unexpected GetByIDIncludeDeleted call")
+-}
+-
+ type stubApiKeyCache struct{}
+ 
+ func (stubApiKeyCache) GetCreateAttemptCount(ctx context.Context, userID int64) (int, error) {
+@@ -1556,22 +1828,35 @@ func (stubApiKeyCache) SubscribeAuthCacheInvalidation(ctx context.Context, handl
+ 
+ type stubGroupRepo struct {
+ 	active []service.Group
++	byID   map[int64]service.Group
+ }
+ 
+ func (r *stubGroupRepo) SetActive(groups []service.Group) {
+ 	r.active = append([]service.Group(nil), groups...)
+ }
+ 
++func (r *stubGroupRepo) SetByID(groups []service.Group) {
++	r.byID = make(map[int64]service.Group, len(groups))
++	for _, group := range groups {
++		r.byID[group.ID] = group
++	}
++}
++
+ func (stubGroupRepo) Create(ctx context.Context, group *service.Group) error {
+ 	return errors.New("not implemented")
+ }
+ 
+-func (stubGroupRepo) GetByID(ctx context.Context, id int64) (*service.Group, error) {
+-	return nil, service.ErrGroupNotFound
++func (r *stubGroupRepo) GetByID(ctx context.Context, id int64) (*service.Group, error) {
++	group, ok := r.byID[id]
++	if !ok {
++		return nil, service.ErrGroupNotFound
++	}
++	clone := group
++	return &clone, nil
+ }
+ 
+-func (stubGroupRepo) GetByIDLite(ctx context.Context, id int64) (*service.Group, error) {
+-	return nil, service.ErrGroupNotFound
++func (r *stubGroupRepo) GetByIDLite(ctx context.Context, id int64) (*service.Group, error) {
++	return r.GetByID(ctx, id)
+ }
+ 
+ func (stubGroupRepo) Update(ctx context.Context, group *service.Group) error {
+@@ -1685,10 +1970,6 @@ func (s *stubAccountRepo) ListActive(ctx context.Context) ([]service.Account, er
+ 	return nil, errors.New("not implemented")
+ }
+ 
+-func (s *stubAccountRepo) ListOAuthRefreshCandidates(ctx context.Context) ([]service.Account, error) {
+-	return nil, errors.New("not implemented")
+-}
+-
+ func (s *stubAccountRepo) ListByPlatform(ctx context.Context, platform string) ([]service.Account, error) {
+ 	return nil, errors.New("not implemented")
+ }
+@@ -1757,7 +2038,7 @@ func (s *stubAccountRepo) SetRateLimited(ctx context.Context, id int64, resetAt
+ 	return errors.New("not implemented")
+ }
+ 
+-func (s *stubAccountRepo) SetModelRateLimit(ctx context.Context, id int64, scope string, resetAt time.Time, reason ...string) error {
++func (s *stubAccountRepo) SetModelRateLimit(ctx context.Context, id int64, scope string, resetAt time.Time) error {
+ 	return errors.New("not implemented")
+ }
+ 
+@@ -1789,10 +2070,6 @@ func (s *stubAccountRepo) UpdateSessionWindow(ctx context.Context, id int64, sta
+ 	return errors.New("not implemented")
+ }
+ 
+-func (s *stubAccountRepo) UpdateSessionWindowEnd(ctx context.Context, id int64, end time.Time) error {
+-	return errors.New("not implemented")
+-}
+-
+ func (s *stubAccountRepo) UpdateExtra(ctx context.Context, id int64, updates map[string]any) error {
+ 	return errors.New("not implemented")
+ }
+@@ -1814,10 +2091,6 @@ func (s *stubAccountRepo) ListCRSAccountIDs(ctx context.Context) (map[string]int
+ 	return nil, errors.New("not implemented")
+ }
+ 
+-func (s *stubAccountRepo) RevertProxyFallback(ctx context.Context, accountID int64) error {
+-	return nil
+-}
+-
+ type stubProxyRepo struct{}
+ 
+ func (stubProxyRepo) Create(ctx context.Context, proxy *service.Proxy) error {
+@@ -1872,22 +2145,6 @@ func (stubProxyRepo) ListAccountSummariesByProxyID(ctx context.Context, proxyID
+ 	return nil, errors.New("not implemented")
+ }
+ 
+-func (stubProxyRepo) SweepExpiredProxies(ctx context.Context, now time.Time) (int64, error) {
+-	return 0, nil
+-}
+-
+-func (stubProxyRepo) ListAllForFallback(ctx context.Context) ([]service.Proxy, error) {
+-	return nil, nil
+-}
+-
+-func (stubProxyRepo) CountExpired(ctx context.Context) (int64, error) {
+-	return 0, nil
+-}
+-
+-func (stubProxyRepo) CountExpiringSoon(ctx context.Context, now time.Time) (int64, error) {
+-	return 0, nil
+-}
+-
+ type stubRedeemCodeRepo struct {
+ 	byUser map[int64][]service.RedeemCode
+ }
+@@ -2136,6 +2393,10 @@ func (r *stubApiKeyRepo) Update(ctx context.Context, key *service.APIKey) error
+ 	return nil
+ }
+ 
++func (r *stubApiKeyRepo) TransferUpdate(ctx context.Context, key *service.APIKey) error {
++	return r.Update(ctx, key)
++}
++
+ func (r *stubApiKeyRepo) Delete(ctx context.Context, id int64) error {
+ 	key, ok := r.byID[id]
+ 	if !ok {
+@@ -2146,10 +2407,6 @@ func (r *stubApiKeyRepo) Delete(ctx context.Context, id int64) error {
+ 	return nil
+ }
+ 
+-func (r *stubApiKeyRepo) DeleteWithAudit(ctx context.Context, id int64) error {
+-	return r.Delete(ctx, id)
+-}
+-
+ func (r *stubApiKeyRepo) ListByUserID(ctx context.Context, userID int64, params pagination.PaginationParams, _ service.APIKeyListFilters) ([]service.APIKey, *pagination.PaginationResult, error) {
+ 	ids := make([]int64, 0, len(r.byID))
+ 	for id := range r.byID {
+@@ -2404,8 +2661,6 @@ func (r *stubUsageLogRepo) GetUserStatsAggregated(ctx context.Context, userID in
+ 	var totalInputTokens int64
+ 	var totalOutputTokens int64
+ 	var totalCacheTokens int64
+-	var totalCacheCreationTokens int64
+-	var totalCacheReadTokens int64
+ 	var totalCost float64
+ 	var totalActualCost float64
+ 	var totalDuration int64
+@@ -2416,8 +2671,6 @@ func (r *stubUsageLogRepo) GetUserStatsAggregated(ctx context.Context, userID in
+ 		totalInputTokens += int64(log.InputTokens)
+ 		totalOutputTokens += int64(log.OutputTokens)
+ 		totalCacheTokens += int64(log.CacheCreationTokens + log.CacheReadTokens)
+-		totalCacheCreationTokens += int64(log.CacheCreationTokens)
+-		totalCacheReadTokens += int64(log.CacheReadTokens)
+ 		totalCost += log.TotalCost
+ 		totalActualCost += log.ActualCost
+ 		if log.DurationMs != nil {
+@@ -2432,16 +2685,14 @@ func (r *stubUsageLogRepo) GetUserStatsAggregated(ctx context.Context, userID in
+ 	}
+ 
+ 	return &usagestats.UsageStats{
+-		TotalRequests:            totalRequests,
+-		TotalInputTokens:         totalInputTokens,
+-		TotalOutputTokens:        totalOutputTokens,
+-		TotalCacheTokens:         totalCacheTokens,
+-		TotalCacheCreationTokens: totalCacheCreationTokens,
+-		TotalCacheReadTokens:     totalCacheReadTokens,
+-		TotalTokens:              totalInputTokens + totalOutputTokens + totalCacheTokens,
+-		TotalCost:                totalCost,
+-		TotalActualCost:          totalActualCost,
+-		AverageDurationMs:        avgDuration,
++		TotalRequests:     totalRequests,
++		TotalInputTokens:  totalInputTokens,
++		TotalOutputTokens: totalOutputTokens,
++		TotalCacheTokens:  totalCacheTokens,
++		TotalTokens:       totalInputTokens + totalOutputTokens + totalCacheTokens,
++		TotalCost:         totalCost,
++		TotalActualCost:   totalActualCost,
++		AverageDurationMs: avgDuration,
+ 	}, nil
+ }
+ 
+diff --git a/backend/internal/server/routes/admin.go b/backend/internal/server/routes/admin.go
+index 24c52acb..c309bb00 100644
+--- a/backend/internal/server/routes/admin.go
++++ b/backend/internal/server/routes/admin.go
+@@ -4,7 +4,6 @@ package routes
+ import (
+ 	"github.com/Wei-Shaw/sub2api/internal/handler"
+ 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
+-	"github.com/Wei-Shaw/sub2api/internal/service"
+ 
+ 	"github.com/gin-gonic/gin"
+ )
+@@ -14,15 +13,10 @@ func RegisterAdminRoutes(
+ 	v1 *gin.RouterGroup,
+ 	h *handler.Handlers,
+ 	adminAuth middleware.AdminAuthMiddleware,
+-	settingService *service.SettingService,
+ ) {
+ 	admin := v1.Group("/admin")
+ 	admin.Use(gin.HandlerFunc(adminAuth))
+-	admin.Use(middleware.AdminComplianceGuard(settingService))
+ 	{
+-		// 部署与运营合规确认
+-		registerAdminComplianceRoutes(admin, h)
+-
+ 		// 仪表盘
+ 		registerDashboardRoutes(admin, h)
+ 
+@@ -106,14 +100,6 @@ func RegisterAdminRoutes(
+ 	}
+ }
+ 
+-func registerAdminComplianceRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+-	compliance := admin.Group("/compliance")
+-	{
+-		compliance.GET("", h.Admin.Compliance.GetStatus)
+-		compliance.POST("/accept", h.Admin.Compliance.Accept)
+-	}
+-}
+-
+ func registerContentModerationRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+ 	risk := admin.Group("/risk-control")
+ 	{
+@@ -132,6 +118,7 @@ func registerAdminAPIKeyRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+ 	apiKeys := admin.Group("/api-keys")
+ 	{
+ 		apiKeys.PUT("/:id", h.Admin.APIKey.UpdateGroup)
++		apiKeys.POST("/:id/transfer", h.Admin.APIKey.Transfer)
+ 	}
+ }
+ 
+@@ -250,14 +237,12 @@ func registerUserManagementRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+ 		users.DELETE("/:id", h.Admin.User.Delete)
+ 		users.POST("/:id/balance", h.Admin.User.UpdateBalance)
+ 		users.GET("/:id/api-keys", h.Admin.User.GetUserAPIKeys)
++		users.POST("/:id/api-keys", h.Admin.APIKey.CreateForUser)
+ 		users.GET("/:id/usage", h.Admin.User.GetUserUsage)
+ 		users.GET("/:id/balance-history", h.Admin.User.GetBalanceHistory)
+ 		users.POST("/:id/replace-group", h.Admin.User.ReplaceGroup)
+ 		users.GET("/:id/rpm-status", h.Admin.User.GetUserRPMStatus)
+ 		users.POST("/batch-concurrency", h.Admin.User.BatchUpdateConcurrency)
+-		users.GET("/:id/platform-quotas", h.Admin.User.GetUserPlatformQuotas)
+-		users.PUT("/:id/platform-quotas", h.Admin.User.UpdateUserPlatformQuotas)
+-		users.POST("/:id/platform-quotas/reset", h.Admin.User.ResetUserPlatformQuotaWindow)
+ 
+ 		// User attribute values
+ 		users.GET("/:id/attributes", h.Admin.UserAttribute.GetUserAttributes)
+@@ -273,7 +258,6 @@ func registerGroupRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+ 		groups.GET("/usage-summary", h.Admin.Group.GetUsageSummary)
+ 		groups.GET("/capacity-summary", h.Admin.Group.GetCapacitySummary)
+ 		groups.PUT("/sort-order", h.Admin.Group.UpdateSortOrder)
+-		groups.GET("/:id/models-list-candidates", h.Admin.Group.GetModelsListCandidates)
+ 		groups.GET("/:id", h.Admin.Group.GetByID)
+ 		groups.POST("", h.Admin.Group.Create)
+ 		groups.PUT("/:id", h.Admin.Group.Update)
+@@ -303,12 +287,10 @@ func registerAccountRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+ 		accounts.POST("/:id/test", h.Admin.Account.Test)
+ 		accounts.POST("/:id/recover-state", h.Admin.Account.RecoverState)
+ 		accounts.POST("/:id/refresh", h.Admin.Account.Refresh)
+-		accounts.POST("/:id/apply-oauth-credentials", h.Admin.Account.ApplyOAuthCredentials)
+ 		accounts.POST("/:id/set-privacy", h.Admin.Account.SetPrivacy)
+ 		accounts.POST("/:id/refresh-tier", h.Admin.Account.RefreshTier)
+ 		accounts.GET("/:id/stats", h.Admin.Account.GetStats)
+ 		accounts.POST("/:id/clear-error", h.Admin.Account.ClearError)
+-		accounts.POST("/:id/revert-proxy-fallback", h.Admin.Account.RevertProxyFallback)
+ 		accounts.GET("/:id/usage", h.Admin.Account.GetUsage)
+ 		accounts.GET("/:id/today-stats", h.Admin.Account.GetTodayStats)
+ 		accounts.POST("/today-stats/batch", h.Admin.Account.GetBatchTodayStats)
+@@ -317,7 +299,6 @@ func registerAccountRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+ 		accounts.GET("/:id/temp-unschedulable", h.Admin.Account.GetTempUnschedulable)
+ 		accounts.DELETE("/:id/temp-unschedulable", h.Admin.Account.ClearTempUnschedulable)
+ 		accounts.POST("/:id/schedulable", h.Admin.Account.SetSchedulable)
+-		accounts.POST("/models/sync-upstream-preview", h.Admin.Account.SyncUpstreamModelsPreview)
+ 		accounts.GET("/:id/models", h.Admin.Account.GetAvailableModels)
+ 		accounts.POST("/:id/models/sync-upstream", h.Admin.Account.SyncUpstreamModels)
+ 		accounts.POST("/batch", h.Admin.Account.BatchCreate)
+@@ -362,8 +343,6 @@ func registerOpenAIOAuthRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+ 		openai.POST("/refresh-token", h.Admin.OpenAIOAuth.RefreshToken)
+ 		openai.POST("/accounts/:id/refresh", h.Admin.OpenAIOAuth.RefreshAccountToken)
+ 		openai.POST("/create-from-oauth", h.Admin.OpenAIOAuth.CreateAccountFromOAuth)
+-		openai.GET("/accounts/:id/quota", h.Admin.OpenAIOAuth.QueryQuota)
+-		openai.POST("/accounts/:id/reset-quota", h.Admin.OpenAIOAuth.ResetQuota)
+ 	}
+ }
+ 
+diff --git a/backend/internal/service/admin_service.go b/backend/internal/service/admin_service.go
+index 5a7c14f0..4319dd75 100644
+--- a/backend/internal/service/admin_service.go
++++ b/backend/internal/service/admin_service.go
+@@ -17,13 +17,9 @@ import (
+ 	dbent "github.com/Wei-Shaw/sub2api/ent"
+ 	"github.com/Wei-Shaw/sub2api/ent/authidentity"
+ 	"github.com/Wei-Shaw/sub2api/ent/authidentitychannel"
+-	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
+-	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
+ 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
+-	"github.com/Wei-Shaw/sub2api/internal/pkg/geminicli"
+ 	"github.com/Wei-Shaw/sub2api/internal/pkg/httpclient"
+ 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+-	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
+ 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
+ 	"github.com/Wei-Shaw/sub2api/internal/util/httputil"
+ )
+@@ -33,12 +29,13 @@ type AdminService interface {
+ 	// User management
+ 	ListUsers(ctx context.Context, page, pageSize int, filters UserListFilters, sortBy, sortOrder string) ([]User, int64, error)
+ 	GetUser(ctx context.Context, id int64) (*User, error)
+-	GetUserIncludeDeleted(ctx context.Context, id int64) (*User, error)
+ 	CreateUser(ctx context.Context, input *CreateUserInput) (*User, error)
+ 	UpdateUser(ctx context.Context, id int64, input *UpdateUserInput) (*User, error)
+ 	DeleteUser(ctx context.Context, id int64) error
+ 	UpdateUserBalance(ctx context.Context, userID int64, balance float64, operation string, notes string) (*User, error)
+ 	BatchUpdateConcurrency(ctx context.Context, userIDs []int64, value int, mode string) (int, error)
++	CreateUserAPIKey(ctx context.Context, userID int64, input CreateUserAPIKeyInput) (*CreateUserAPIKeyResult, error)
++	TransferAPIKey(ctx context.Context, keyID int64, input TransferAPIKeyInput) (*TransferAPIKeyResult, error)
+ 	GetUserAPIKeys(ctx context.Context, userID int64, page, pageSize int, sortBy, sortOrder string) ([]APIKey, int64, error)
+ 	GetUserUsageStats(ctx context.Context, userID int64, period string) (any, error)
+ 	GetUserRPMStatus(ctx context.Context, userID int64) (*UserRPMStatus, error)
+@@ -52,11 +49,7 @@ type AdminService interface {
+ 	ListGroups(ctx context.Context, page, pageSize int, platform, status, search string, isExclusive *bool, sortBy, sortOrder string) ([]Group, int64, error)
+ 	GetAllGroups(ctx context.Context) ([]Group, error)
+ 	GetAllGroupsByPlatform(ctx context.Context, platform string) ([]Group, error)
+-	// GetAllGroupsIncludingInactive returns all groups regardless of status (active + disabled),
+-	// ordered by sort_order then id. Used by the API Key group filter dropdown.
+-	GetAllGroupsIncludingInactive(ctx context.Context) ([]Group, error)
+ 	GetGroup(ctx context.Context, id int64) (*Group, error)
+-	GetGroupModelsListCandidates(ctx context.Context, id int64, platform string) ([]string, error)
+ 	CreateGroup(ctx context.Context, input *CreateGroupInput) (*Group, error)
+ 	UpdateGroup(ctx context.Context, id int64, input *UpdateGroupInput) (*Group, error)
+ 	DeleteGroup(ctx context.Context, id int64) error
+@@ -81,9 +74,6 @@ type AdminService interface {
+ 	GetAccountsByIDs(ctx context.Context, ids []int64) ([]*Account, error)
+ 	CreateAccount(ctx context.Context, input *CreateAccountInput) (*Account, error)
+ 	UpdateAccount(ctx context.Context, id int64, input *UpdateAccountInput) (*Account, error)
+-	// UpdateAccountExtra 仅对 Extra 做 JSONB 增量合并（key 级覆盖），不会影响其它字段或运行态键。
+-	// 用于刷新流程持久化 account_uuid / org_uuid 等少量键，避免被全量快照覆盖。
+-	UpdateAccountExtra(ctx context.Context, id int64, updates map[string]any) error
+ 	DeleteAccount(ctx context.Context, id int64) error
+ 	RefreshAccountCredentials(ctx context.Context, id int64) (*Account, error)
+ 	ClearAccountError(ctx context.Context, id int64) (*Account, error)
+@@ -99,9 +89,6 @@ type AdminService interface {
+ 	SetAccountSchedulable(ctx context.Context, id int64, schedulable bool) (*Account, error)
+ 	BulkUpdateAccounts(ctx context.Context, input *BulkUpdateAccountsInput) (*BulkUpdateAccountsResult, error)
+ 	CheckMixedChannelRisk(ctx context.Context, currentAccountID int64, currentAccountPlatform string, groupIDs []int64) error
+-	// RevertAccountProxyFallback 将账号的 proxy_id 切回 proxy_fallback_origin_id，并清空 origin 字段。
+-	// 若账号不存在返回 ErrAccountNotFound；若账号存在但不在 fallback 状态，返回 ErrAccountNotInFallback。
+-	RevertAccountProxyFallback(ctx context.Context, id int64) error
+ 
+ 	// Proxy management
+ 	ListProxies(ctx context.Context, page, pageSize int, protocol, status, search string, sortBy, sortOrder string) ([]Proxy, int64, error)
+@@ -135,7 +122,7 @@ type CreateUserInput struct {
+ 	Password      string
+ 	Username      string
+ 	Notes         string
+-	Balance       *float64
++	Balance       float64
+ 	Concurrency   int
+ 	RPMLimit      int
+ 	AllowedGroups []int64
+@@ -156,6 +143,40 @@ type UpdateUserInput struct {
+ 	GroupRates map[int64]*float64
+ }
+ 
++type CreateUserAPIKeyInput struct {
++	Name          string
++	GroupID       *int64
++	CustomKey     *string
++	IPWhitelist   []string
++	IPBlacklist   []string
++	Quota         float64
++	ExpiresInDays *int
++	RateLimit5h   float64
++	RateLimit1d   float64
++	RateLimit7d   float64
++}
++
++type CreateUserAPIKeyResult struct {
++	APIKey                 *APIKey
++	AutoGrantedGroupAccess bool
++	GrantedGroupID         *int64
++	GrantedGroupName       string
++}
++
++type TransferAPIKeyInput struct {
++	TargetUserID  int64
++	TargetGroupID *int64
++	Quota         *float64
++	ResetQuota    bool
++}
++
++type TransferAPIKeyResult struct {
++	APIKey                 *APIKey
++	AutoGrantedGroupAccess bool
++	GrantedGroupID         *int64
++	GrantedGroupName       string
++}
++
+ type AdminBindAuthIdentityInput struct {
+ 	ProviderType    string
+ 	ProviderKey     string
+@@ -227,7 +248,6 @@ type CreateGroupInput struct {
+ 	RequireOAuthOnly            bool
+ 	RequirePrivacySet           bool
+ 	MessagesDispatchModelConfig OpenAIMessagesDispatchModelConfig
+-	ModelsListConfig            GroupModelsListConfig
+ 	// RPMLimit 分组 RPM 上限（0 = 不限制）
+ 	RPMLimit int
+ 	// 从指定分组复制账号（创建分组后在同一事务内绑定）
+@@ -236,7 +256,7 @@ type CreateGroupInput struct {
+ 
+ type UpdateGroupInput struct {
+ 	Name             string
+-	Description      *string
++	Description      string
+ 	Platform         string
+ 	RateMultiplier   *float64 // 使用指针以支持设置为0
+ 	IsExclusive      *bool
+@@ -268,7 +288,6 @@ type UpdateGroupInput struct {
+ 	RequireOAuthOnly            *bool
+ 	RequirePrivacySet           *bool
+ 	MessagesDispatchModelConfig *OpenAIMessagesDispatchModelConfig
+-	ModelsListConfig            *GroupModelsListConfig
+ 	// RPMLimit 分组 RPM 上限（0 = 不限制），nil 表示未提供不改动。
+ 	RPMLimit *int
+ 	// 从指定分组复制账号（同步操作：先清空当前分组的账号绑定，再绑定源分组的账号）
+@@ -390,30 +409,22 @@ type BulkUpdateAccountsResult struct {
+ }
+ 
+ type CreateProxyInput struct {
+-	Name           string
+-	Protocol       string
+-	Host           string
+-	Port           int
+-	Username       string
+-	Password       string
+-	ExpiresAt      *time.Time
+-	FallbackMode   string
+-	BackupProxyID  *int64
+-	ExpiryWarnDays int
++	Name     string
++	Protocol string
++	Host     string
++	Port     int
++	Username string
++	Password string
+ }
+ 
+ type UpdateProxyInput struct {
+-	Name           string
+-	Protocol       string
+-	Host           string
+-	Port           int
+-	Username       string
+-	Password       string
+-	Status         string
+-	ExpiresAt      *time.Time
+-	FallbackMode   string
+-	BackupProxyID  *int64
+-	ExpiryWarnDays int
++	Name     string
++	Protocol string
++	Host     string
++	Port     int
++	Username string
++	Password string
++	Status   string
+ }
+ 
+ type GenerateRedeemCodesInput struct {
+@@ -547,6 +558,7 @@ type adminServiceImpl struct {
+ 	redeemCodeRepo       RedeemCodeRepository
+ 	userGroupRateRepo    UserGroupRateRepository
+ 	userRPMCache         UserRPMCache
++	apiKeyService        *APIKeyService
+ 	billingCacheService  *BillingCacheService
+ 	proxyProber          ProxyExitInfoProber
+ 	proxyLatencyCache    ProxyLatencyCache
+@@ -573,6 +585,7 @@ func NewAdminService(
+ 	redeemCodeRepo RedeemCodeRepository,
+ 	userGroupRateRepo UserGroupRateRepository,
+ 	userRPMCache UserRPMCache,
++	apiKeyService *APIKeyService,
+ 	billingCacheService *BillingCacheService,
+ 	proxyProber ProxyExitInfoProber,
+ 	proxyLatencyCache ProxyLatencyCache,
+@@ -593,6 +606,7 @@ func NewAdminService(
+ 		redeemCodeRepo:       redeemCodeRepo,
+ 		userGroupRateRepo:    userGroupRateRepo,
+ 		userRPMCache:         userRPMCache,
++		apiKeyService:        apiKeyService,
+ 		billingCacheService:  billingCacheService,
+ 		proxyProber:          proxyProber,
+ 		proxyLatencyCache:    proxyLatencyCache,
+@@ -689,24 +703,13 @@ func (s *adminServiceImpl) GetUser(ctx context.Context, id int64) (*User, error)
+ 	return user, nil
+ }
+ 
+-func (s *adminServiceImpl) GetUserIncludeDeleted(ctx context.Context, id int64) (*User, error) {
+-	return s.userRepo.GetByIDIncludeDeleted(ctx, id)
+-}
+-
+ func (s *adminServiceImpl) CreateUser(ctx context.Context, input *CreateUserInput) (*User, error) {
+-	balance := 0.0
+-	if input.Balance != nil {
+-		balance = *input.Balance
+-	} else if s.settingService != nil {
+-		balance = s.settingService.GetDefaultBalance(ctx)
+-	}
+-
+ 	user := &User{
+ 		Email:         input.Email,
+ 		Username:      input.Username,
+ 		Notes:         input.Notes,
+ 		Role:          RoleUser, // Always create as regular user, never admin
+-		Balance:       balance,
++		Balance:       input.Balance,
+ 		Concurrency:   input.Concurrency,
+ 		RPMLimit:      input.RPMLimit,
+ 		Status:        StatusActive,
+@@ -763,7 +766,6 @@ func (s *adminServiceImpl) UpdateUser(ctx context.Context, id int64, input *Upda
+ 	oldStatus := user.Status
+ 	oldRole := user.Role
+ 	oldRPMLimit := user.RPMLimit
+-	oldAllowedGroups := append([]int64(nil), user.AllowedGroups...)
+ 
+ 	if input.Email != "" {
+ 		user.Email = input.Email
+@@ -810,8 +812,8 @@ func (s *adminServiceImpl) UpdateUser(ctx context.Context, id int64, input *Upda
+ 
+ 	if s.authCacheInvalidator != nil {
+ 		// RPMLimit 直接参与 billing_cache_service.checkRPM 的三级级联，
+-		// allowed_groups 参与 API Key 专属分组授权判断；不失效缓存会让修改在一个 L2 TTL 内失去效果。
+-		if user.Concurrency != oldConcurrency || user.Status != oldStatus || user.Role != oldRole || user.RPMLimit != oldRPMLimit || !sameInt64Set(user.AllowedGroups, oldAllowedGroups) {
++		// 不失效缓存会让修改在一个 L2 TTL 内失去效果。
++		if user.Concurrency != oldConcurrency || user.Status != oldStatus || user.Role != oldRole || user.RPMLimit != oldRPMLimit {
+ 			s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, user.ID)
+ 		}
+ 	}
+@@ -840,26 +842,6 @@ func (s *adminServiceImpl) UpdateUser(ctx context.Context, id int64, input *Upda
+ 	return user, nil
+ }
+ 
+-func sameInt64Set(a, b []int64) bool {
+-	if len(a) != len(b) {
+-		return false
+-	}
+-	if len(a) == 0 {
+-		return true
+-	}
+-	counts := make(map[int64]int, len(a))
+-	for _, v := range a {
+-		counts[v]++
+-	}
+-	for _, v := range b {
+-		if counts[v] == 0 {
+-			return false
+-		}
+-		counts[v]--
+-	}
+-	return true
+-}
+-
+ func (s *adminServiceImpl) DeleteUser(ctx context.Context, id int64) error {
+ 	// Protect admin users: cannot delete admin accounts
+ 	user, err := s.userRepo.GetByID(ctx, id)
+@@ -869,88 +851,16 @@ func (s *adminServiceImpl) DeleteUser(ctx context.Context, id int64) error {
+ 	if user.Role == "admin" {
+ 		return errors.New("cannot delete admin user")
+ 	}
+-
+-	apiKeys, err := s.listUserAPIKeysForDeletion(ctx, id)
+-	if err != nil {
++	if err := s.userRepo.Delete(ctx, id); err != nil {
++		logger.LegacyPrintf("service.admin", "delete user failed: user_id=%d err=%v", id, err)
+ 		return err
+ 	}
+-
+-	if s.entClient != nil {
+-		tx, err := s.entClient.Tx(ctx)
+-		if err != nil {
+-			return err
+-		}
+-		defer func() { _ = tx.Rollback() }()
+-
+-		opCtx := dbent.NewTxContext(ctx, tx)
+-		if err := s.deleteUserWithAPIKeys(opCtx, id, apiKeys); err != nil {
+-			return err
+-		}
+-		if err := tx.Commit(); err != nil {
+-			return err
+-		}
+-	} else {
+-		if err := s.deleteUserWithAPIKeys(ctx, id, apiKeys); err != nil {
+-			return err
+-		}
+-	}
+-
+ 	if s.authCacheInvalidator != nil {
+-		for _, key := range apiKeys {
+-			if keyValue := strings.TrimSpace(key.Key); keyValue != "" {
+-				s.authCacheInvalidator.InvalidateAuthCacheByKey(ctx, keyValue)
+-			}
+-		}
+ 		s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, id)
+ 	}
+ 	return nil
+ }
+ 
+-func (s *adminServiceImpl) listUserAPIKeysForDeletion(ctx context.Context, userID int64) ([]APIKey, error) {
+-	if s.apiKeyRepo == nil {
+-		return nil, nil
+-	}
+-
+-	const pageSize = 1000
+-	keys := make([]APIKey, 0)
+-	for page := 1; ; page++ {
+-		batch, result, err := s.apiKeyRepo.ListByUserID(ctx, userID, pagination.PaginationParams{
+-			Page:      page,
+-			PageSize:  pageSize,
+-			SortBy:    "id",
+-			SortOrder: pagination.SortOrderAsc,
+-		}, APIKeyListFilters{})
+-		if err != nil {
+-			return nil, fmt.Errorf("list user api keys: %w", err)
+-		}
+-		keys = append(keys, batch...)
+-		if len(batch) == 0 || len(batch) < pageSize || result == nil || int64(len(keys)) >= result.Total {
+-			break
+-		}
+-	}
+-	return keys, nil
+-}
+-
+-func (s *adminServiceImpl) deleteUserWithAPIKeys(ctx context.Context, userID int64, apiKeys []APIKey) error {
+-	if s.apiKeyRepo != nil {
+-		for _, key := range apiKeys {
+-			if key.ID <= 0 {
+-				continue
+-			}
+-			if err := s.apiKeyRepo.DeleteWithAudit(ctx, key.ID); err != nil {
+-				logger.LegacyPrintf("service.admin", "delete user api key failed: user_id=%d api_key_id=%d err=%v", userID, key.ID, err)
+-				return fmt.Errorf("delete user api key %d: %w", key.ID, err)
+-			}
+-		}
+-	}
+-
+-	if err := s.userRepo.Delete(ctx, userID); err != nil {
+-		logger.LegacyPrintf("service.admin", "delete user failed: user_id=%d err=%v", userID, err)
+-		return err
+-	}
+-	return nil
+-}
+-
+ func (s *adminServiceImpl) BatchUpdateConcurrency(ctx context.Context, userIDs []int64, value int, mode string) (int, error) {
+ 	cleaned := make([]int64, 0, len(userIDs))
+ 	for _, uid := range userIDs {
+@@ -1058,6 +968,186 @@ func (s *adminServiceImpl) GetUserAPIKeys(ctx context.Context, userID int64, pag
+ 	return keys, result.Total, nil
+ }
+ 
++func (s *adminServiceImpl) CreateUserAPIKey(ctx context.Context, userID int64, input CreateUserAPIKeyInput) (*CreateUserAPIKeyResult, error) {
++	user, err := s.userRepo.GetByID(ctx, userID)
++	if err != nil {
++		return nil, err
++	}
++
++	result := &CreateUserAPIKeyResult{}
++	createCtx := ctx
++	var tx *dbent.Tx
++
++	if input.GroupID != nil && *input.GroupID > 0 {
++		group, err := s.groupRepo.GetByID(ctx, *input.GroupID)
++		if err != nil {
++			return nil, err
++		}
++		if group.Status != StatusActive {
++			return nil, infraerrors.BadRequest("GROUP_NOT_ACTIVE", "target group is not active")
++		}
++		if group.IsSubscriptionType() {
++			if s.userSubRepo == nil {
++				return nil, infraerrors.InternalServer("SUBSCRIPTION_REPOSITORY_UNAVAILABLE", "subscription repository is not configured")
++			}
++			if _, err := s.userSubRepo.GetActiveByUserIDAndGroupID(ctx, userID, *input.GroupID); err != nil {
++				if errors.Is(err, ErrSubscriptionNotFound) {
++					return nil, infraerrors.BadRequest("SUBSCRIPTION_REQUIRED", "user does not have an active subscription for this group")
++				}
++				return nil, err
++			}
++		} else if group.IsExclusive && !user.CanBindGroup(group.ID, group.IsExclusive) {
++			if s.entClient == nil {
++				logger.LegacyPrintf("service.admin", "Warning: entClient is nil, creating API key without transaction protection for exclusive group auto-grant")
++			} else {
++				tx, err = s.entClient.Tx(ctx)
++				if err != nil {
++					return nil, fmt.Errorf("begin transaction: %w", err)
++				}
++				defer func() { _ = tx.Rollback() }()
++				createCtx = dbent.NewTxContext(ctx, tx)
++			}
++
++			if err := s.userRepo.AddGroupToAllowedGroups(createCtx, userID, group.ID); err != nil {
++				return nil, fmt.Errorf("add group to user allowed groups: %w", err)
++			}
++			user.AllowedGroups = append(user.AllowedGroups, group.ID)
++			result.AutoGrantedGroupAccess = true
++			result.GrantedGroupID = &group.ID
++			result.GrantedGroupName = group.Name
++		}
++	}
++
++	if s.apiKeyService == nil {
++		return nil, infraerrors.InternalServer("API_KEY_SERVICE_UNAVAILABLE", "api key service is not configured")
++	}
++
++	apiKey, err := s.apiKeyService.createForUser(createCtx, user, CreateAPIKeyRequest(input))
++	if err != nil {
++		return nil, err
++	}
++
++	if tx != nil {
++		if err := tx.Commit(); err != nil {
++			return nil, fmt.Errorf("commit transaction: %w", err)
++		}
++	}
++
++	result.APIKey = apiKey
++	return result, nil
++}
++
++func (s *adminServiceImpl) TransferAPIKey(ctx context.Context, keyID int64, input TransferAPIKeyInput) (*TransferAPIKeyResult, error) {
++	if input.TargetUserID <= 0 {
++		return nil, infraerrors.BadRequest("INVALID_TARGET_USER_ID", "target_user_id must be positive")
++	}
++
++	apiKey, err := s.apiKeyRepo.GetByID(ctx, keyID)
++	if err != nil {
++		return nil, err
++	}
++
++	targetUser, err := s.userRepo.GetByID(ctx, input.TargetUserID)
++	if err != nil {
++		return nil, err
++	}
++
++	result := &TransferAPIKeyResult{}
++	opCtx := ctx
++	var tx *dbent.Tx
++
++	var targetGroup *Group
++	var finalGroupID *int64
++	switch {
++	case input.TargetGroupID != nil && *input.TargetGroupID < 0:
++		return nil, infraerrors.BadRequest("INVALID_GROUP_ID", "target_group_id must be non-negative")
++	case input.TargetGroupID != nil && *input.TargetGroupID == 0:
++		apiKey.GroupID = nil
++		apiKey.Group = nil
++	case input.TargetGroupID != nil:
++		gid := *input.TargetGroupID
++		finalGroupID = &gid
++	default:
++		finalGroupID = apiKey.GroupID
++	}
++
++	if finalGroupID != nil {
++		group, err := s.groupRepo.GetByID(ctx, *finalGroupID)
++		if err != nil {
++			return nil, err
++		}
++		if group.Status != StatusActive {
++			return nil, infraerrors.BadRequest("GROUP_NOT_ACTIVE", "target group is not active")
++		}
++		if group.IsSubscriptionType() {
++			if s.userSubRepo == nil {
++				return nil, infraerrors.InternalServer("SUBSCRIPTION_REPOSITORY_UNAVAILABLE", "subscription repository is not configured")
++			}
++			if _, err := s.userSubRepo.GetActiveByUserIDAndGroupID(ctx, input.TargetUserID, group.ID); err != nil {
++				if errors.Is(err, ErrSubscriptionNotFound) {
++					return nil, infraerrors.BadRequest("SUBSCRIPTION_REQUIRED", "user does not have an active subscription for this group")
++				}
++				return nil, err
++			}
++		} else if group.IsExclusive && !targetUser.CanBindGroup(group.ID, group.IsExclusive) {
++			if s.entClient == nil {
++				logger.LegacyPrintf("service.admin", "Warning: entClient is nil, transferring API key without transaction protection for exclusive group auto-grant")
++			} else {
++				tx, err = s.entClient.Tx(ctx)
++				if err != nil {
++					return nil, fmt.Errorf("begin transaction: %w", err)
++				}
++				defer func() { _ = tx.Rollback() }()
++				opCtx = dbent.NewTxContext(ctx, tx)
++			}
++
++			if err := s.userRepo.AddGroupToAllowedGroups(opCtx, input.TargetUserID, group.ID); err != nil {
++				return nil, fmt.Errorf("add group to user allowed groups: %w", err)
++			}
++			targetUser.AllowedGroups = append(targetUser.AllowedGroups, group.ID)
++			result.AutoGrantedGroupAccess = true
++			result.GrantedGroupID = &group.ID
++			result.GrantedGroupName = group.Name
++		}
++
++		gid := group.ID
++		apiKey.GroupID = &gid
++		apiKey.Group = group
++		targetGroup = group
++	}
++
++	apiKey.UserID = input.TargetUserID
++	apiKey.User = targetUser
++	if targetGroup != nil {
++		apiKey.Group = targetGroup
++	}
++	if input.Quota != nil {
++		apiKey.Quota = *input.Quota
++	}
++	if input.ResetQuota {
++		apiKey.QuotaUsed = 0
++		if apiKey.Status == StatusAPIKeyQuotaExhausted {
++			apiKey.Status = StatusActive
++		}
++	}
++
++	if err := s.apiKeyRepo.TransferUpdate(opCtx, apiKey); err != nil {
++		return nil, fmt.Errorf("transfer api key: %w", err)
++	}
++	if tx != nil {
++		if err := tx.Commit(); err != nil {
++			return nil, fmt.Errorf("commit transaction: %w", err)
++		}
++	}
++
++	if s.authCacheInvalidator != nil {
++		s.authCacheInvalidator.InvalidateAuthCacheByKey(ctx, apiKey.Key)
++	}
++
++	result.APIKey = apiKey
++	return result, nil
++}
++
+ func (s *adminServiceImpl) GetUserRPMStatus(ctx context.Context, userID int64) (*UserRPMStatus, error) {
+ 	if s.userRPMCache == nil {
+ 		return nil, ErrRPMStatusUnavailable
+@@ -1704,91 +1794,10 @@ func (s *adminServiceImpl) GetAllGroupsByPlatform(ctx context.Context, platform
+ 	return s.groupRepo.ListActiveByPlatform(ctx, platform)
+ }
+ 
+-func (s *adminServiceImpl) GetAllGroupsIncludingInactive(ctx context.Context) ([]Group, error) {
+-	// ListWithFilters with empty status = no status filter, so active + disabled groups are returned.
+-	// PageSize 10000 is intentionally large; group count is O(dozens) in practice.
+-	groups, _, err := s.groupRepo.ListWithFilters(ctx, pagination.PaginationParams{Page: 1, PageSize: 10000}, "", "", "", nil)
+-	return groups, err
+-}
+-
+ func (s *adminServiceImpl) GetGroup(ctx context.Context, id int64) (*Group, error) {
+ 	return s.groupRepo.GetByID(ctx, id)
+ }
+ 
+-func (s *adminServiceImpl) GetGroupModelsListCandidates(ctx context.Context, id int64, platform string) ([]string, error) {
+-	platform = strings.TrimSpace(platform)
+-	if id > 0 {
+-		group, err := s.groupRepo.GetByIDLite(ctx, id)
+-		if err != nil {
+-			return nil, err
+-		}
+-		if platform == "" {
+-			platform = group.Platform
+-		}
+-	}
+-	if platform == "" {
+-		platform = PlatformAnthropic
+-	}
+-
+-	candidates := defaultModelsListCandidateIDs(platform)
+-	if id <= 0 || s.accountRepo == nil {
+-		return candidates, nil
+-	}
+-
+-	accounts, err := s.accountRepo.ListSchedulableByGroupID(ctx, id)
+-	if err != nil {
+-		return nil, err
+-	}
+-
+-	seen := make(map[string]struct{}, len(candidates))
+-	for _, model := range candidates {
+-		seen[model] = struct{}{}
+-	}
+-	for _, acc := range accounts {
+-		if acc.Platform != platform {
+-			continue
+-		}
+-		for model := range acc.GetModelMapping() {
+-			model = strings.TrimSpace(model)
+-			if model == "" {
+-				continue
+-			}
+-			if _, ok := seen[model]; ok {
+-				continue
+-			}
+-			seen[model] = struct{}{}
+-			candidates = append(candidates, model)
+-		}
+-	}
+-	return candidates, nil
+-}
+-
+-func defaultModelsListCandidateIDs(platform string) []string {
+-	switch platform {
+-	case PlatformOpenAI:
+-		return openai.DefaultModelIDs()
+-	case PlatformGemini:
+-		ids := make([]string, 0, len(geminicli.DefaultModels))
+-		for _, model := range geminicli.DefaultModels {
+-			ids = append(ids, model.ID)
+-		}
+-		return ids
+-	case PlatformAntigravity:
+-		models := antigravity.DefaultModels()
+-		ids := make([]string, 0, len(models))
+-		for _, model := range models {
+-			ids = append(ids, model.ID)
+-		}
+-		return ids
+-	default:
+-		ids := make([]string, 0, len(claude.DefaultModels))
+-		for _, model := range claude.DefaultModels {
+-			ids = append(ids, model.ID)
+-		}
+-		return ids
+-	}
+-}
+-
+ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupInput) (*Group, error) {
+ 	if input.RateMultiplier <= 0 {
+ 		return nil, errors.New("rate_multiplier must be > 0")
+@@ -1904,7 +1913,6 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
+ 		RequirePrivacySet:               input.RequirePrivacySet,
+ 		DefaultMappedModel:              input.DefaultMappedModel,
+ 		MessagesDispatchModelConfig:     normalizeOpenAIMessagesDispatchModelConfig(input.MessagesDispatchModelConfig),
+-		ModelsListConfig:                normalizeGroupModelsListConfig(input.ModelsListConfig),
+ 		RPMLimit:                        input.RPMLimit,
+ 	}
+ 	sanitizeGroupMessagesDispatchFields(group)
+@@ -2038,8 +2046,8 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
+ 	if input.Name != "" {
+ 		group.Name = input.Name
+ 	}
+-	if input.Description != nil {
+-		group.Description = *input.Description
++	if input.Description != "" {
++		group.Description = input.Description
+ 	}
+ 	if input.Platform != "" {
+ 		group.Platform = input.Platform
+@@ -2152,9 +2160,6 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
+ 	if input.MessagesDispatchModelConfig != nil {
+ 		group.MessagesDispatchModelConfig = normalizeOpenAIMessagesDispatchModelConfig(*input.MessagesDispatchModelConfig)
+ 	}
+-	if input.ModelsListConfig != nil {
+-		group.ModelsListConfig = normalizeGroupModelsListConfig(*input.ModelsListConfig)
+-	}
+ 	if input.RPMLimit != nil {
+ 		group.RPMLimit = *input.RPMLimit
+ 	}
+@@ -2612,7 +2617,6 @@ func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccou
+ 			return nil, err
+ 		}
+ 		ComputeQuotaResetAt(account.Extra)
+-		NormalizeFixedQuotaWindows(account.Extra)
+ 	}
+ 	if input.ExpiresAt != nil && *input.ExpiresAt > 0 {
+ 		expiresAt := time.Unix(*input.ExpiresAt, 0)
+@@ -2721,7 +2725,6 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
+ 			return nil, err
+ 		}
+ 		ComputeQuotaResetAt(account.Extra)
+-		NormalizeFixedQuotaWindows(account.Extra)
+ 	}
+ 	if input.ProxyID != nil {
+ 		// 0 表示清除代理（前端发送 0 而不是 null 来表达清除意图）
+@@ -2803,15 +2806,6 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
+ 	return updated, nil
+ }
+ 
+-// UpdateAccountExtra 仅对 Extra JSONB 做 key 级合并，避免覆盖其它运行态键
+-// （如 model_rate_limits / passive_usage_* 等）。
+-func (s *adminServiceImpl) UpdateAccountExtra(ctx context.Context, id int64, updates map[string]any) error {
+-	if len(updates) == 0 {
+-		return nil
+-	}
+-	return s.accountRepo.UpdateExtra(ctx, id, updates)
+-}
+-
+ // BulkUpdateAccounts updates multiple accounts in one request.
+ // It merges credentials/extra keys instead of overwriting the whole object.
+ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUpdateAccountsInput) (*BulkUpdateAccountsResult, error) {
+@@ -3040,10 +3034,6 @@ func (s *adminServiceImpl) SetAccountSchedulable(ctx context.Context, id int64,
+ 	return updated, nil
+ }
+ 
+-func (s *adminServiceImpl) RevertAccountProxyFallback(ctx context.Context, id int64) error {
+-	return s.accountRepo.RevertProxyFallback(ctx, id)
+-}
+-
+ // Proxy management implementations
+ func (s *adminServiceImpl) ListProxies(ctx context.Context, page, pageSize int, protocol, status, search string, sortBy, sortOrder string) ([]Proxy, int64, error) {
+ 	params := pagination.PaginationParams{Page: page, PageSize: pageSize, SortBy: sortBy, SortOrder: sortOrder}
+@@ -3086,31 +3076,14 @@ func (s *adminServiceImpl) GetProxiesByIDs(ctx context.Context, ids []int64) ([]
+ }
+ 
+ func (s *adminServiceImpl) CreateProxy(ctx context.Context, input *CreateProxyInput) (*Proxy, error) {
+-	// 规范化 fallback_mode
+-	mode := input.FallbackMode
+-	if mode == "" {
+-		mode = FallbackModeNone
+-	}
+-	// 校验：mode=proxy 必须有 backup
+-	if mode == FallbackModeProxy && input.BackupProxyID == nil {
+-		return nil, infraerrors.BadRequest("PROXY_BACKUP_REQUIRED", "backup proxy required when fallback_mode=proxy")
+-	}
+-	if input.ExpiryWarnDays < 0 {
+-		return nil, infraerrors.BadRequest("PROXY_WARN_DAYS_INVALID", "expiry_warn_days must be >= 0")
+-	}
+-
+ 	proxy := &Proxy{
+-		Name:           input.Name,
+-		Protocol:       input.Protocol,
+-		Host:           input.Host,
+-		Port:           input.Port,
+-		Username:       input.Username,
+-		Password:       input.Password,
+-		Status:         StatusActive,
+-		ExpiresAt:      input.ExpiresAt,
+-		FallbackMode:   mode,
+-		BackupProxyID:  input.BackupProxyID,
+-		ExpiryWarnDays: input.ExpiryWarnDays,
++		Name:     input.Name,
++		Protocol: input.Protocol,
++		Host:     input.Host,
++		Port:     input.Port,
++		Username: input.Username,
++		Password: input.Password,
++		Status:   StatusActive,
+ 	}
+ 	if err := s.proxyRepo.Create(ctx, proxy); err != nil {
+ 		return nil, err
+@@ -3121,23 +3094,6 @@ func (s *adminServiceImpl) CreateProxy(ctx context.Context, input *CreateProxyIn
+ }
+ 
+ func (s *adminServiceImpl) UpdateProxy(ctx context.Context, id int64, input *UpdateProxyInput) (*Proxy, error) {
+-	// 校验：backup_proxy_id 不能是自身
+-	if input.BackupProxyID != nil && *input.BackupProxyID == id {
+-		return nil, infraerrors.BadRequest("PROXY_BACKUP_SELF", "backup proxy cannot be itself")
+-	}
+-	// 规范化 fallback_mode
+-	mode := input.FallbackMode
+-	if mode == "" {
+-		mode = FallbackModeNone
+-	}
+-	// 校验：mode=proxy 必须有 backup
+-	if mode == FallbackModeProxy && input.BackupProxyID == nil {
+-		return nil, infraerrors.BadRequest("PROXY_BACKUP_REQUIRED", "backup proxy required when fallback_mode=proxy")
+-	}
+-	if input.ExpiryWarnDays < 0 {
+-		return nil, infraerrors.BadRequest("PROXY_WARN_DAYS_INVALID", "expiry_warn_days must be >= 0")
+-	}
+-
+ 	proxy, err := s.proxyRepo.GetByID(ctx, id)
+ 	if err != nil {
+ 		return nil, err
+@@ -3164,11 +3120,6 @@ func (s *adminServiceImpl) UpdateProxy(ctx context.Context, id int64, input *Upd
+ 	if input.Status != "" {
+ 		proxy.Status = input.Status
+ 	}
+-	// 透传有效期与回退字段
+-	proxy.ExpiresAt = input.ExpiresAt
+-	proxy.FallbackMode = mode
+-	proxy.BackupProxyID = input.BackupProxyID
+-	proxy.ExpiryWarnDays = input.ExpiryWarnDays
+ 
+ 	if err := s.proxyRepo.Update(ctx, proxy); err != nil {
+ 		return nil, err
+@@ -3498,13 +3449,12 @@ func runProxyQualityTarget(ctx context.Context, client *http.Client, target prox
+ 	}
+ 
+ 	if _, ok := target.AllowedStatuses[resp.StatusCode]; ok {
+-		// 白名单内的状态码均代表目标可达：2xx 表示接口直接可用，
+-		// 401/405 等是无鉴权探测的预期结果，同样视为连通正常，不再扣分。
+-		item.Status = "pass"
+ 		if resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices {
++			item.Status = "pass"
+ 			item.Message = fmt.Sprintf("HTTP %d", resp.StatusCode)
+ 		} else {
+-			item.Message = fmt.Sprintf("HTTP %d（目标可达）", resp.StatusCode)
++			item.Status = "warn"
++			item.Message = fmt.Sprintf("HTTP %d（目标可达，但鉴权或方法受限）", resp.StatusCode)
+ 		}
+ 		return item
+ 	}
+diff --git a/backend/internal/service/admin_service_apikey_test.go b/backend/internal/service/admin_service_apikey_test.go
+index ccc8d221..bb519f4e 100644
+--- a/backend/internal/service/admin_service_apikey_test.go
++++ b/backend/internal/service/admin_service_apikey_test.go
+@@ -20,6 +20,7 @@ import (
+ // userRepoStubForGroupUpdate implements UserRepository for AdminUpdateAPIKeyGroupID tests.
+ type userRepoStubForGroupUpdate struct {
+ 	addGroupErr    error
++	getErr         error
+ 	addGroupCalled bool
+ 	addedUserID    int64
+ 	addedGroupID   int64
+@@ -32,10 +33,14 @@ func (s *userRepoStubForGroupUpdate) AddGroupToAllowedGroups(_ context.Context,
+ 	return s.addGroupErr
+ }
+ 
+-func (s *userRepoStubForGroupUpdate) Create(context.Context, *User) error { panic("unexpected") }
+-func (s *userRepoStubForGroupUpdate) GetByID(context.Context, int64) (*User, error) {
+-	panic("unexpected")
++func (s *userRepoStubForGroupUpdate) GetByID(_ context.Context, id int64) (*User, error) {
++	if s.getErr != nil {
++		return nil, s.getErr
++	}
++	return &User{ID: id, Status: StatusActive}, nil
+ }
++
++func (s *userRepoStubForGroupUpdate) Create(context.Context, *User) error { panic("unexpected") }
+ func (s *userRepoStubForGroupUpdate) GetByEmail(context.Context, string) (*User, error) {
+ 	panic("unexpected")
+ }
+@@ -86,9 +91,6 @@ func (s *userRepoStubForGroupUpdate) UpdateTotpSecret(context.Context, int64, *s
+ }
+ func (s *userRepoStubForGroupUpdate) EnableTotp(context.Context, int64) error  { panic("unexpected") }
+ func (s *userRepoStubForGroupUpdate) DisableTotp(context.Context, int64) error { panic("unexpected") }
+-func (s *userRepoStubForGroupUpdate) GetByIDIncludeDeleted(ctx context.Context, id int64) (*User, error) {
+-	panic("unexpected GetByIDIncludeDeleted call")
+-}
+ func (s *userRepoStubForGroupUpdate) ListUserAuthIdentities(context.Context, int64) ([]UserAuthIdentityRecord, error) {
+ 	panic("unexpected")
+ }
+@@ -112,10 +114,14 @@ func (s *userRepoStubForGroupUpdate) RemoveGroupFromUserAllowedGroups(context.Co
+ 
+ // apiKeyRepoStubForGroupUpdate implements APIKeyRepository for AdminUpdateAPIKeyGroupID tests.
+ type apiKeyRepoStubForGroupUpdate struct {
+-	key       *APIKey
+-	getErr    error
+-	updateErr error
+-	updated   *APIKey // captures what was passed to Update
++	key               *APIKey
++	getErr            error
++	updateErr         error
++	transferUpdateErr error
++	createErr         error
++	created           *APIKey
++	updated           *APIKey // captures what was passed to Update
++	transferUpdated   *APIKey // captures what was passed to TransferUpdate
+ }
+ 
+ func (s *apiKeyRepoStubForGroupUpdate) GetByID(_ context.Context, _ int64) (*APIKey, error) {
+@@ -134,8 +140,29 @@ func (s *apiKeyRepoStubForGroupUpdate) Update(_ context.Context, key *APIKey) er
+ 	return nil
+ }
+ 
++func (s *apiKeyRepoStubForGroupUpdate) TransferUpdate(_ context.Context, key *APIKey) error {
++	if s.transferUpdateErr != nil {
++		return s.transferUpdateErr
++	}
++	clone := *key
++	s.transferUpdated = &clone
++	return nil
++}
++
++func (s *apiKeyRepoStubForGroupUpdate) Create(_ context.Context, key *APIKey) error {
++	if s.createErr != nil {
++		return s.createErr
++	}
++	clone := *key
++	if clone.ID == 0 {
++		clone.ID = 100
++		key.ID = clone.ID
++	}
++	s.created = &clone
++	return nil
++}
++
+ // Unused methods – panic on unexpected call.
+-func (s *apiKeyRepoStubForGroupUpdate) Create(context.Context, *APIKey) error { panic("unexpected") }
+ func (s *apiKeyRepoStubForGroupUpdate) GetKeyAndOwnerID(context.Context, int64) (string, int64, error) {
+ 	panic("unexpected")
+ }
+@@ -146,9 +173,6 @@ func (s *apiKeyRepoStubForGroupUpdate) GetByKeyForAuth(context.Context, string)
+ 	panic("unexpected")
+ }
+ func (s *apiKeyRepoStubForGroupUpdate) Delete(context.Context, int64) error { panic("unexpected") }
+-func (s *apiKeyRepoStubForGroupUpdate) DeleteWithAudit(context.Context, int64) error {
+-	panic("unexpected")
+-}
+ func (s *apiKeyRepoStubForGroupUpdate) ListByUserID(context.Context, int64, pagination.PaginationParams, APIKeyListFilters) ([]APIKey, *pagination.PaginationResult, error) {
+ 	panic("unexpected")
+ }
+@@ -158,8 +182,8 @@ func (s *apiKeyRepoStubForGroupUpdate) VerifyOwnership(context.Context, int64, [
+ func (s *apiKeyRepoStubForGroupUpdate) CountByUserID(context.Context, int64) (int64, error) {
+ 	panic("unexpected")
+ }
+-func (s *apiKeyRepoStubForGroupUpdate) ExistsByKey(context.Context, string) (bool, error) {
+-	panic("unexpected")
++func (s *apiKeyRepoStubForGroupUpdate) ExistsByKey(_ context.Context, key string) (bool, error) {
++	return s.key != nil && s.key.Key == key, nil
+ }
+ func (s *apiKeyRepoStubForGroupUpdate) ListByGroupID(context.Context, int64, pagination.PaginationParams) ([]APIKey, *pagination.PaginationResult, error) {
+ 	panic("unexpected")
+@@ -546,3 +570,232 @@ func TestAdminService_AdminUpdateAPIKeyGroupID_Unbind_NoAllowedGroupUpdate(t *te
+ 	require.False(t, userRepo.addGroupCalled)
+ 	require.False(t, got.AutoGrantedGroupAccess)
+ }
++
++func TestAdminService_CreateUserAPIKey_ExclusiveGroupAutoGrant(t *testing.T) {
++	gid := int64(10)
++	customKey := "sk-admin-created"
++	userRepo := &userRepoStubForGroupUpdate{}
++	groupRepo := &groupRepoStubForGroupUpdate{group: &Group{
++		ID:               gid,
++		Name:             "Exclusive",
++		Status:           StatusActive,
++		IsExclusive:      true,
++		SubscriptionType: SubscriptionTypeStandard,
++	}}
++	apiKeyRepo := &apiKeyRepoStubForGroupUpdate{}
++	apiKeySvc := &APIKeyService{
++		apiKeyRepo: apiKeyRepo,
++		userRepo:   userRepo,
++		groupRepo:  groupRepo,
++	}
++	svc := &adminServiceImpl{
++		userRepo:      userRepo,
++		groupRepo:     groupRepo,
++		apiKeyService: apiKeySvc,
++	}
++
++	got, err := svc.CreateUserAPIKey(context.Background(), 42, CreateUserAPIKeyInput{
++		Name:      "service-key",
++		GroupID:   &gid,
++		CustomKey: &customKey,
++		Quota:     12.5,
++	})
++
++	require.NoError(t, err)
++	require.NotNil(t, got.APIKey)
++	require.Equal(t, customKey, got.APIKey.Key)
++	require.Equal(t, int64(42), got.APIKey.UserID)
++	require.NotNil(t, got.APIKey.GroupID)
++	require.Equal(t, gid, *got.APIKey.GroupID)
++	require.Equal(t, 12.5, got.APIKey.Quota)
++	require.True(t, userRepo.addGroupCalled)
++	require.Equal(t, int64(42), userRepo.addedUserID)
++	require.Equal(t, gid, userRepo.addedGroupID)
++	require.True(t, got.AutoGrantedGroupAccess)
++	require.NotNil(t, got.GrantedGroupID)
++	require.Equal(t, gid, *got.GrantedGroupID)
++	require.Equal(t, "Exclusive", got.GrantedGroupName)
++	require.NotNil(t, apiKeyRepo.created)
++}
++
++func TestAdminService_CreateUserAPIKey_SubscriptionGroupRequiresActiveSubscription(t *testing.T) {
++	gid := int64(10)
++	customKey := "sk-admin-sub-created"
++	userRepo := &userRepoStubForGroupUpdate{}
++	groupRepo := &groupRepoStubForGroupUpdate{group: &Group{
++		ID:               gid,
++		Name:             "Subscription",
++		Status:           StatusActive,
++		IsExclusive:      true,
++		SubscriptionType: SubscriptionTypeSubscription,
++	}}
++	userSubRepo := &userSubRepoStubForGroupUpdate{getActiveErr: ErrSubscriptionNotFound}
++	apiKeyRepo := &apiKeyRepoStubForGroupUpdate{}
++	apiKeySvc := &APIKeyService{
++		apiKeyRepo:  apiKeyRepo,
++		userRepo:    userRepo,
++		groupRepo:   groupRepo,
++		userSubRepo: userSubRepo,
++	}
++	svc := &adminServiceImpl{
++		userRepo:      userRepo,
++		groupRepo:     groupRepo,
++		userSubRepo:   userSubRepo,
++		apiKeyService: apiKeySvc,
++	}
++
++	_, err := svc.CreateUserAPIKey(context.Background(), 42, CreateUserAPIKeyInput{
++		Name:      "service-key",
++		GroupID:   &gid,
++		CustomKey: &customKey,
++	})
++
++	require.Error(t, err)
++	require.Equal(t, "SUBSCRIPTION_REQUIRED", infraerrors.Reason(err))
++	require.True(t, userSubRepo.called)
++	require.Nil(t, apiKeyRepo.created)
++	require.False(t, userRepo.addGroupCalled)
++}
++
++func TestAdminService_TransferAPIKey_OwnerQuotaResetAndCacheInvalidation(t *testing.T) {
++	existing := &APIKey{
++		ID:        1,
++		UserID:    10,
++		Key:       "sk-transfer",
++		Name:      "transfer",
++		Status:    StatusAPIKeyQuotaExhausted,
++		Quota:     10,
++		QuotaUsed: 10,
++		GroupID:   int64Ptr(5),
++	}
++	apiKeyRepo := &apiKeyRepoStubForGroupUpdate{key: existing}
++	userRepo := &userRepoStubForGroupUpdate{}
++	cache := &authCacheInvalidatorStub{}
++	quota := 50.0
++	svc := &adminServiceImpl{apiKeyRepo: apiKeyRepo, userRepo: userRepo, authCacheInvalidator: cache}
++
++	got, err := svc.TransferAPIKey(context.Background(), 1, TransferAPIKeyInput{
++		TargetUserID:  42,
++		TargetGroupID: int64Ptr(0),
++		Quota:         &quota,
++		ResetQuota:    true,
++	})
++
++	require.NoError(t, err)
++	require.NotNil(t, got.APIKey)
++	require.Equal(t, int64(42), got.APIKey.UserID)
++	require.Nil(t, got.APIKey.GroupID)
++	require.Equal(t, 50.0, got.APIKey.Quota)
++	require.Equal(t, 0.0, got.APIKey.QuotaUsed)
++	require.Equal(t, StatusActive, got.APIKey.Status)
++	require.NotNil(t, apiKeyRepo.transferUpdated)
++	require.Equal(t, int64(42), apiKeyRepo.transferUpdated.UserID)
++	require.Equal(t, []string{"sk-transfer"}, cache.keys)
++}
++
++func TestAdminService_TransferAPIKey_ExclusiveGroupAutoGrant(t *testing.T) {
++	existing := &APIKey{ID: 1, UserID: 10, Key: "sk-transfer", Status: StatusActive}
++	apiKeyRepo := &apiKeyRepoStubForGroupUpdate{key: existing}
++	groupRepo := &groupRepoStubForGroupUpdate{group: &Group{ID: 20, Name: "Exclusive", Status: StatusActive, IsExclusive: true, SubscriptionType: SubscriptionTypeStandard}}
++	userRepo := &userRepoStubForGroupUpdate{}
++	svc := &adminServiceImpl{apiKeyRepo: apiKeyRepo, userRepo: userRepo, groupRepo: groupRepo}
++
++	got, err := svc.TransferAPIKey(context.Background(), 1, TransferAPIKeyInput{
++		TargetUserID:  42,
++		TargetGroupID: int64Ptr(20),
++	})
++
++	require.NoError(t, err)
++	require.NotNil(t, got.APIKey.GroupID)
++	require.Equal(t, int64(20), *got.APIKey.GroupID)
++	require.True(t, userRepo.addGroupCalled)
++	require.Equal(t, int64(42), userRepo.addedUserID)
++	require.Equal(t, int64(20), userRepo.addedGroupID)
++	require.True(t, got.AutoGrantedGroupAccess)
++	require.NotNil(t, got.GrantedGroupID)
++	require.Equal(t, int64(20), *got.GrantedGroupID)
++	require.Equal(t, "Exclusive", got.GrantedGroupName)
++	require.Equal(t, int64(42), apiKeyRepo.transferUpdated.UserID)
++}
++
++func TestAdminService_TransferAPIKey_PreservesQuotaUsageWithoutReset(t *testing.T) {
++	existing := &APIKey{ID: 1, UserID: 10, Key: "sk-transfer", Status: StatusActive, Quota: 10, QuotaUsed: 6}
++	apiKeyRepo := &apiKeyRepoStubForGroupUpdate{key: existing}
++	userRepo := &userRepoStubForGroupUpdate{}
++	svc := &adminServiceImpl{apiKeyRepo: apiKeyRepo, userRepo: userRepo}
++
++	got, err := svc.TransferAPIKey(context.Background(), 1, TransferAPIKeyInput{TargetUserID: 42})
++
++	require.NoError(t, err)
++	require.Equal(t, int64(42), got.APIKey.UserID)
++	require.Equal(t, 10.0, got.APIKey.Quota)
++	require.Equal(t, 6.0, got.APIKey.QuotaUsed)
++	require.Equal(t, StatusActive, got.APIKey.Status)
++}
++
++func TestAdminService_TransferAPIKey_TargetUserMissing(t *testing.T) {
++	existing := &APIKey{ID: 1, UserID: 10, Key: "sk-transfer", Status: StatusActive}
++	apiKeyRepo := &apiKeyRepoStubForGroupUpdate{key: existing}
++	userRepo := &userRepoStubForGroupUpdate{getErr: ErrUserNotFound}
++	svc := &adminServiceImpl{apiKeyRepo: apiKeyRepo, userRepo: userRepo}
++
++	_, err := svc.TransferAPIKey(context.Background(), 1, TransferAPIKeyInput{TargetUserID: 42})
++
++	require.ErrorIs(t, err, ErrUserNotFound)
++	require.Nil(t, apiKeyRepo.transferUpdated)
++}
++
++func TestAdminService_TransferAPIKey_SubscriptionGroupRequiresTargetSubscription(t *testing.T) {
++	existing := &APIKey{ID: 1, UserID: 10, Key: "sk-transfer", Status: StatusActive}
++	apiKeyRepo := &apiKeyRepoStubForGroupUpdate{key: existing}
++	groupRepo := &groupRepoStubForGroupUpdate{group: &Group{ID: 30, Name: "Sub", Status: StatusActive, SubscriptionType: SubscriptionTypeSubscription}}
++	userRepo := &userRepoStubForGroupUpdate{}
++	userSubRepo := &userSubRepoStubForGroupUpdate{getActiveErr: ErrSubscriptionNotFound}
++	svc := &adminServiceImpl{apiKeyRepo: apiKeyRepo, userRepo: userRepo, groupRepo: groupRepo, userSubRepo: userSubRepo}
++
++	_, err := svc.TransferAPIKey(context.Background(), 1, TransferAPIKeyInput{
++		TargetUserID:  42,
++		TargetGroupID: int64Ptr(30),
++	})
++
++	require.Error(t, err)
++	require.Equal(t, "SUBSCRIPTION_REQUIRED", infraerrors.Reason(err))
++	require.True(t, userSubRepo.called)
++	require.Equal(t, int64(42), userSubRepo.calledUserID)
++	require.Nil(t, apiKeyRepo.transferUpdated)
++	require.False(t, userRepo.addGroupCalled)
++}
++
++func TestAdminService_TransferAPIKey_ExistingSubscriptionGroupRequiresTargetSubscription(t *testing.T) {
++	existing := &APIKey{ID: 1, UserID: 10, Key: "sk-transfer", Status: StatusActive, GroupID: int64Ptr(30)}
++	apiKeyRepo := &apiKeyRepoStubForGroupUpdate{key: existing}
++	groupRepo := &groupRepoStubForGroupUpdate{group: &Group{ID: 30, Name: "Sub", Status: StatusActive, SubscriptionType: SubscriptionTypeSubscription}}
++	userRepo := &userRepoStubForGroupUpdate{}
++	userSubRepo := &userSubRepoStubForGroupUpdate{getActiveErr: ErrSubscriptionNotFound}
++	svc := &adminServiceImpl{apiKeyRepo: apiKeyRepo, userRepo: userRepo, groupRepo: groupRepo, userSubRepo: userSubRepo}
++
++	_, err := svc.TransferAPIKey(context.Background(), 1, TransferAPIKeyInput{TargetUserID: 42})
++
++	require.Error(t, err)
++	require.Equal(t, "SUBSCRIPTION_REQUIRED", infraerrors.Reason(err))
++	require.True(t, userSubRepo.called)
++	require.Equal(t, int64(42), userSubRepo.calledUserID)
++	require.Nil(t, apiKeyRepo.transferUpdated)
++}
++
++func TestAdminService_TransferAPIKey_InactiveGroupRejected(t *testing.T) {
++	existing := &APIKey{ID: 1, UserID: 10, Key: "sk-transfer", Status: StatusActive}
++	apiKeyRepo := &apiKeyRepoStubForGroupUpdate{key: existing}
++	groupRepo := &groupRepoStubForGroupUpdate{group: &Group{ID: 40, Status: StatusDisabled}}
++	userRepo := &userRepoStubForGroupUpdate{}
++	svc := &adminServiceImpl{apiKeyRepo: apiKeyRepo, userRepo: userRepo, groupRepo: groupRepo}
++
++	_, err := svc.TransferAPIKey(context.Background(), 1, TransferAPIKeyInput{
++		TargetUserID:  42,
++		TargetGroupID: int64Ptr(40),
++	})
++
++	require.Error(t, err)
++	require.Equal(t, "GROUP_NOT_ACTIVE", infraerrors.Reason(err))
++	require.Nil(t, apiKeyRepo.transferUpdated)
++}
+diff --git a/backend/internal/service/api_key_service.go b/backend/internal/service/api_key_service.go
+index f749b35a..2ed0b95d 100644
+--- a/backend/internal/service/api_key_service.go
++++ b/backend/internal/service/api_key_service.go
+@@ -5,7 +5,6 @@ import (
+ 	"crypto/rand"
+ 	"encoding/hex"
+ 	"fmt"
+-	"html"
+ 	"strconv"
+ 	"strings"
+ 	"sync"
+@@ -55,9 +54,8 @@ type APIKeyRepository interface {
+ 	// GetByKeyForAuth 认证专用查询，返回最小字段集
+ 	GetByKeyForAuth(ctx context.Context, key string) (*APIKey, error)
+ 	Update(ctx context.Context, key *APIKey) error
++	TransferUpdate(ctx context.Context, key *APIKey) error
+ 	Delete(ctx context.Context, id int64) error
+-	// DeleteWithAudit 在同一事务内先写 deleted_api_key_audits 审计、再软删除该 key。
+-	DeleteWithAudit(ctx context.Context, id int64) error
+ 
+ 	ListByUserID(ctx context.Context, userID int64, params pagination.PaginationParams, filters APIKeyListFilters) ([]APIKey, *pagination.PaginationResult, error)
+ 	VerifyOwnership(ctx context.Context, userID int64, apiKeyIDs []int64) ([]int64, error)
+@@ -336,6 +334,15 @@ func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIK
+ 		return nil, fmt.Errorf("get user: %w", err)
+ 	}
+ 
++	return s.createForUser(ctx, user, req)
++}
++
++func (s *APIKeyService) createForUser(ctx context.Context, user *User, req CreateAPIKeyRequest) (*APIKey, error) {
++	if user == nil {
++		return nil, ErrUserNotFound
++	}
++	userID := user.ID
++
+ 	// 验证 IP 白名单格式
+ 	if len(req.IPWhitelist) > 0 {
+ 		if invalid := ip.ValidateIPPatterns(req.IPWhitelist); len(invalid) > 0 {
+@@ -402,7 +409,7 @@ func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIK
+ 	apiKey := &APIKey{
+ 		UserID:      userID,
+ 		Key:         key,
+-		Name:        html.EscapeString(req.Name),
++		Name:        req.Name,
+ 		GroupID:     req.GroupID,
+ 		Status:      StatusActive,
+ 		IPWhitelist: req.IPWhitelist,
+@@ -541,7 +548,7 @@ func (s *APIKeyService) Update(ctx context.Context, id int64, userID int64, req
+ 
+ 	// 更新字段
+ 	if req.Name != nil {
+-		apiKey.Name = html.EscapeString(*req.Name)
++		apiKey.Name = *req.Name
+ 	}
+ 
+ 	if req.GroupID != nil {
+@@ -651,16 +658,15 @@ func (s *APIKeyService) Delete(ctx context.Context, id int64, userID int64) erro
+ 		return ErrInsufficientPerms
+ 	}
+ 
+-	// 事务内:写审计 + 软删除(tombstone)。
+-	if err := s.apiKeyRepo.DeleteWithAudit(ctx, id); err != nil {
+-		return fmt.Errorf("delete api key: %w", err)
+-	}
+-
+-	// 删除成功后再清理缓存,避免"缓存已清但删除失败"的竞态。
++	// 清除Redis缓存（使用 userID 而非 apiKey.UserID）
+ 	if s.cache != nil {
+ 		_ = s.cache.DeleteCreateAttemptCount(ctx, userID)
+ 	}
+ 	s.InvalidateAuthCacheByKey(ctx, key)
++
++	if err := s.apiKeyRepo.Delete(ctx, id); err != nil {
++		return fmt.Errorf("delete api key: %w", err)
++	}
+ 	s.lastUsedTouchL1.Delete(id)
+ 
+ 	return nil
+diff --git a/docs/ADMIN_PAYMENT_INTEGRATION_API.md b/docs/ADMIN_PAYMENT_INTEGRATION_API.md
+index f674f86c..42b8a178 100644
+--- a/docs/ADMIN_PAYMENT_INTEGRATION_API.md
++++ b/docs/ADMIN_PAYMENT_INTEGRATION_API.md
+@@ -99,7 +99,70 @@ curl -X POST "${BASE}/api/v1/admin/users/123/balance" \
+   }'
+ ```
+ 
+-### 4) 购买页 / 自定义页面 URL Query 透传（iframe / 新窗口一致）
++### 4) 创建用户 API Key
++`POST /api/v1/admin/users/:id/api-keys`
++
++用途：外部系统通过 Admin API Key 为指定用户创建可用于 AI 调用的 API Key。
++
++请求头：
++- `x-api-key`
++- `Idempotency-Key`
++
++请求体字段：
++- `name`：必填，Key 名称
++- `group_id`：可选，绑定分组 ID
++- `custom_key`：可选，自定义 Key（至少 16 位，仅字母、数字、下划线、连字符）
++- `quota`：可选，Key 配额（USD，`0` 或不传表示不限）
++- `expires_in_days`：可选，过期天数
++- `rate_limit_5h` / `rate_limit_1d` / `rate_limit_7d`：可选，滚动窗口限额（USD）
++- `ip_whitelist` / `ip_blacklist`：可选，IP/CIDR 列表
++
++响应中的 `data.api_key.key` 为完整可用 Key。若绑定专属标准分组且用户尚未被授权，接口会自动授予该分组权限并返回 `auto_granted_group_access=true`；订阅分组要求用户已有有效订阅。
++
++```bash
++curl -X POST "${BASE}/api/v1/admin/users/123/api-keys" \
++  -H "x-api-key: ${KEY}" \
++  -H "Idempotency-Key: create-api-key-user-123-cm1234567890" \
++  -H "Content-Type: application/json" \
++  -d '{
++    "name":"external-service",
++    "group_id":2,
++    "quota":50.00,
++    "rate_limit_1d":10.00
++  }'
++```
++
++### 5) 转移用户 API Key
++`POST /api/v1/admin/api-keys/:id/transfer`
++
++用途：外部 sidecar 通过 Admin API Key 将已存在的 API Key 转移给目标用户，并可同步改分组、改配额或清零已用配额。
++
++请求头：
++- `x-api-key`
++- `Idempotency-Key`
++
++请求体字段：
++- `target_user_id`：必填，目标用户 ID
++- `target_group_id`：可选；不传表示保留当前分组，`0` 表示解绑，正数表示绑定目标分组
++- `quota`：可选；不传表示保留当前配额，`0` 表示不限，正数表示新配额
++- `reset_quota`：可选；`true` 时将 `quota_used` 清零，并把仅因 quota 耗尽的 Key 恢复为 active
++
++响应会在 `data.api_key.user_id`、`data.api_key.group_id`、`data.api_key.quota`、`data.api_key.quota_used` 中确认最终状态。接口会校验目标用户、目标分组、订阅分组权限；专属标准分组可自动授予目标用户并返回 `auto_granted_group_access=true`。成功后会失效 API Key 认证缓存。
++
++```bash
++curl -X POST "${BASE}/api/v1/admin/api-keys/456/transfer" \
++  -H "x-api-key: ${KEY}" \
++  -H "Idempotency-Key: transfer-api-key-456-cm1234567890" \
++  -H "Content-Type: application/json" \
++  -d '{
++    "target_user_id":123,
++    "target_group_id":2,
++    "quota":50.00,
++    "reset_quota":true
++  }'
++```
++
++### 6) 购买页 / 自定义页面 URL Query 透传（iframe / 新窗口一致）
+ 当 Sub2API 打开 `purchase_subscription_url` 或用户侧自定义页面 iframe URL 时，会统一追加：
+ - `user_id`
+ - `token`
+@@ -112,13 +175,13 @@ curl -X POST "${BASE}/api/v1/admin/users/123/balance" \
+ https://pay.example.com/pay?user_id=123&token=<jwt>&theme=light&lang=zh&ui_mode=embedded
+ ```
+ 
+-### 5) 失败处理建议
++### 7) 失败处理建议
+ - 支付成功与充值成功分状态落库
+ - 回调验签成功后立即标记“支付成功”
+ - 支付成功但充值失败的订单允许后续重试
+ - 重试保持相同 `code`，并使用新的 `Idempotency-Key`
+ 
+-### 6) `doc_url` 配置建议
++### 8) `doc_url` 配置建议
+ - 查看链接：`https://github.com/Wei-Shaw/sub2api/blob/main/ADMIN_PAYMENT_INTEGRATION_API.md`
+ - 下载链接：`https://raw.githubusercontent.com/Wei-Shaw/sub2api/main/ADMIN_PAYMENT_INTEGRATION_API.md`
+ 
+@@ -219,7 +282,70 @@ curl -X POST "${BASE}/api/v1/admin/users/123/balance" \
+   }'
+ ```
+ 
+-### 4) Purchase / Custom Page URL query forwarding (iframe and new tab)
++### 4) Create a user API key
++`POST /api/v1/admin/users/:id/api-keys`
++
++Use this endpoint when an external service needs to create an AI-usable API key for a target user via the Admin API Key.
++
++Headers:
++- `x-api-key`
++- `Idempotency-Key`
++
++Request fields:
++- `name`: required key name
++- `group_id`: optional group binding
++- `custom_key`: optional custom key, at least 16 characters, letters/numbers/underscore/hyphen only
++- `quota`: optional key quota in USD (`0` or omitted means unlimited)
++- `expires_in_days`: optional expiration in days
++- `rate_limit_5h` / `rate_limit_1d` / `rate_limit_7d`: optional rolling-window USD limits
++- `ip_whitelist` / `ip_blacklist`: optional IP/CIDR lists
++
++The full usable key is returned as `data.api_key.key`. If the key is bound to an exclusive standard group and the user does not yet have access, the endpoint auto-grants that group and returns `auto_granted_group_access=true`. Subscription groups require an active subscription.
++
++```bash
++curl -X POST "${BASE}/api/v1/admin/users/123/api-keys" \
++  -H "x-api-key: ${KEY}" \
++  -H "Idempotency-Key: create-api-key-user-123-cm1234567890" \
++  -H "Content-Type: application/json" \
++  -d '{
++    "name":"external-service",
++    "group_id":2,
++    "quota":50.00,
++    "rate_limit_1d":10.00
++  }'
++```
++
++### 5) Transfer a user API key
++`POST /api/v1/admin/api-keys/:id/transfer`
++
++Use this endpoint when an external sidecar needs to move an existing API key to a target user, optionally update group binding, update quota, or clear used quota.
++
++Headers:
++- `x-api-key`
++- `Idempotency-Key`
++
++Request fields:
++- `target_user_id`: required target user ID
++- `target_group_id`: optional; omitted keeps the current group, `0` unbinds, positive values bind the target group
++- `quota`: optional; omitted keeps the current quota, `0` means unlimited, positive values set the new quota
++- `reset_quota`: optional; `true` clears `quota_used` and reactivates keys that were only disabled by quota exhaustion
++
++The response confirms final state in `data.api_key.user_id`, `data.api_key.group_id`, `data.api_key.quota`, and `data.api_key.quota_used`. The endpoint validates the target user, target group, and subscription-group access. Exclusive standard groups can be auto-granted to the target user and return `auto_granted_group_access=true`. Successful transfer invalidates API key auth cache.
++
++```bash
++curl -X POST "${BASE}/api/v1/admin/api-keys/456/transfer" \
++  -H "x-api-key: ${KEY}" \
++  -H "Idempotency-Key: transfer-api-key-456-cm1234567890" \
++  -H "Content-Type: application/json" \
++  -d '{
++    "target_user_id":123,
++    "target_group_id":2,
++    "quota":50.00,
++    "reset_quota":true
++  }'
++```
++
++### 6) Purchase / Custom Page URL query forwarding (iframe and new tab)
+ When Sub2API opens `purchase_subscription_url` or a user-facing custom page iframe URL, it appends:
+ - `user_id`
+ - `token`
+@@ -232,12 +358,12 @@ Example:
+ https://pay.example.com/pay?user_id=123&token=<jwt>&theme=light&lang=zh&ui_mode=embedded
+ ```
+ 
+-### 5) Failure handling recommendations
++### 7) Failure handling recommendations
+ - Persist payment success and recharge success as separate states
+ - Mark payment as successful immediately after verified callback
+ - Allow retry for orders with payment success but recharge failure
+ - Keep the same `code` for retry, and use a new `Idempotency-Key`
+ 
+-### 6) Recommended `doc_url`
++### 8) Recommended `doc_url`
+ - View URL: `https://github.com/Wei-Shaw/sub2api/blob/main/ADMIN_PAYMENT_INTEGRATION_API.md`
+ - Download URL: `https://raw.githubusercontent.com/Wei-Shaw/sub2api/main/ADMIN_PAYMENT_INTEGRATION_API.md`

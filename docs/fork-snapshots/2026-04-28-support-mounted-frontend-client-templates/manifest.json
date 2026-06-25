@@ -1,0 +1,85 @@
+{
+  "change_id": "2026-04-28-support-mounted-frontend-client-templates",
+  "status": "archived",
+  "proposal_path": "openspec/changes/archive/2026-04-28-support-mounted-frontend-client-templates/proposal.md",
+  "captured_at": "2026-06-17T19:54:09+00:00",
+  "captured_at_commit": "6cdb78ede3a33977357bebc2ac6b00288bf4bf49",
+  "base": "main",
+  "base_commit": "4a5665da5b2c6b83c4597844ea6e573746c821b1",
+  "new_files": [
+    {
+      "path": "frontend/public/client-templates.json",
+      "reason": "runtime default fallback served from the frontend root."
+    },
+    {
+      "path": "frontend/src/utils/clientTemplates.ts",
+      "reason": "loader, normalizer, and fallback resolver."
+    },
+    {
+      "path": "frontend/src/utils/__tests__/clientTemplates.spec.ts",
+      "reason": "unit tests."
+    },
+    {
+      "path": "template/README.md",
+      "reason": "deployment/mount documentation."
+    },
+    {
+      "path": "template/client-templates.json",
+      "reason": "bundle entry example."
+    },
+    {
+      "path": "template/client-templates.bundle.example.json",
+      "reason": "full multi-client bundle example."
+    },
+    {
+      "path": "template/client-templates.ccs-import.example.json",
+      "reason": "CCS import example."
+    },
+    {
+      "path": "template/client-templates.codex.example.json",
+      "reason": "Codex / Codex WS example."
+    },
+    {
+      "path": "template/client-templates.opencode.example.json",
+      "reason": "OpenCode example."
+    }
+  ],
+  "upstream_patch_files": [
+    {
+      "path": "frontend/src/components/keys/UseKeyModal.vue",
+      "reason": "renders Codex/OpenCode output via templates with built-in fallback."
+    },
+    {
+      "path": "frontend/src/components/keys/__tests__/UseKeyModal.spec.ts",
+      "reason": "template rendering tests."
+    },
+    {
+      "path": "frontend/src/views/user/KeysView.vue",
+      "reason": "CCS import flow consumes templates."
+    },
+    {
+      "path": "frontend/src/types/index.ts",
+      "reason": "`PublicSettings` gains template config fields."
+    },
+    {
+      "path": "deploy/docker-compose.yml",
+      "reason": "example comments demonstrate `/client-templates.json` mount."
+    },
+    {
+      "path": "deploy/docker-compose.local.yml",
+      "reason": "same mount example for local compose."
+    },
+    {
+      "path": "deploy/DOCKER.md",
+      "reason": "docs section explaining the mount-loaded template flow."
+    }
+  ],
+  "shared_touchpoints": [
+    {
+      "path": "frontend/src/types/index.ts",
+      "reason": "also owned by `add-external-custom-menu-token-open` — preserve both `PublicSettings` and `CustomMenuItem` extensions.",
+      "shared_with": "add-external-custom-menu-token-open"
+    }
+  ],
+  "non_openspec_overlap": []
+}
