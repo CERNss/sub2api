@@ -1,0 +1,95 @@
+{
+  "change_id": "add-external-custom-menu-token-open",
+  "status": "active",
+  "proposal_path": "openspec/changes/add-external-custom-menu-token-open/proposal.md",
+  "captured_at": "2026-06-17T19:54:09+00:00",
+  "captured_at_commit": "6cdb78ede3a33977357bebc2ac6b00288bf4bf49",
+  "base": "main",
+  "base_commit": "4a5665da5b2c6b83c4597844ea6e573746c821b1",
+  "new_files": [
+    {
+      "path": "frontend/src/utils/external-menu-url.ts",
+      "reason": "builds the absolute URL with the JWT token query param."
+    },
+    {
+      "path": "frontend/src/utils/__tests__/external-menu-url.spec.ts",
+      "reason": "unit tests for URL building edge cases."
+    }
+  ],
+  "upstream_patch_files": [
+    {
+      "path": "backend/internal/handler/admin/setting_handler.go",
+      "reason": "passes the new `open_mode` field through to persistence."
+    },
+    {
+      "path": "backend/internal/handler/dto/settings.go",
+      "reason": "DTO validation extended for `open_mode`."
+    },
+    {
+      "path": "backend/internal/service/setting_service.go",
+      "reason": "persists and validates the external menu mode."
+    },
+    {
+      "path": "frontend/src/components/layout/AppSidebar.vue",
+      "reason": "dispatches by mode (`iframe` → existing route, `external` → `window.open`)."
+    },
+    {
+      "path": "frontend/src/components/layout/__tests__/AppSidebar.spec.ts",
+      "reason": "behavior coverage."
+    },
+    {
+      "path": "frontend/src/views/user/CustomPageView.vue",
+      "reason": "keeps iframe-mode fallback intact."
+    },
+    {
+      "path": "frontend/src/types/index.ts",
+      "reason": "extends `CustomMenuItem` type with `open_mode`."
+    },
+    {
+      "path": "frontend/src/views/admin/SettingsView.vue",
+      "reason": "admin UI gains mode selector."
+    },
+    {
+      "path": "frontend/src/views/admin/__tests__/SettingsView.spec.ts",
+      "reason": "UI test coverage."
+    }
+  ],
+  "shared_touchpoints": [
+    {
+      "path": "backend/internal/handler/admin/setting_handler.go",
+      "reason": "also owned by `control-oidc-local-email-verification` — both changes add admin settings; preserve both DTO field passthroughs.",
+      "shared_with": "control-oidc-local-email-verification"
+    },
+    {
+      "path": "backend/internal/handler/dto/settings.go",
+      "reason": "also owned by `control-oidc-local-email-verification`.",
+      "shared_with": "control-oidc-local-email-verification"
+    },
+    {
+      "path": "backend/internal/service/setting_service.go",
+      "reason": "also owned by `control-oidc-local-email-verification`.",
+      "shared_with": "control-oidc-local-email-verification"
+    },
+    {
+      "path": "frontend/src/views/admin/SettingsView.vue",
+      "reason": "also owned by `control-oidc-local-email-verification` — preserve both settings panels.",
+      "shared_with": "control-oidc-local-email-verification"
+    },
+    {
+      "path": "frontend/src/types/index.ts",
+      "reason": "also owned by archived `2026-04-28-support-mounted-frontend-client-templates` — preserve both `CustomMenuItem` and `PublicSettings` extensions.",
+      "shared_with": "2026-04-28-support-mounted-frontend-client-templates"
+    },
+    {
+      "path": "README.md",
+      "reason": "also owned by `add-admin-user-api-key-creation` — both append feature blurb paragraphs.",
+      "shared_with": "add-admin-user-api-key-creation"
+    },
+    {
+      "path": "README_CN.md",
+      "reason": "also owned by `add-admin-user-api-key-creation` — same reason as above.",
+      "shared_with": "add-admin-user-api-key-creation"
+    }
+  ],
+  "non_openspec_overlap": []
+}

@@ -1,0 +1,49 @@
+{
+  "change_id": "refine-pending-oauth-account-resolution",
+  "status": "active",
+  "proposal_path": "openspec/changes/refine-pending-oauth-account-resolution/proposal.md",
+  "captured_at": "2026-06-17T19:54:09+00:00",
+  "captured_at_commit": "6cdb78ede3a33977357bebc2ac6b00288bf4bf49",
+  "base": "main",
+  "base_commit": "4a5665da5b2c6b83c4597844ea6e573746c821b1",
+  "new_files": [],
+  "upstream_patch_files": [
+    {
+      "path": "frontend/src/views/auth/OidcCallbackView.vue",
+      "reason": "chooser bypass + email prefill order rules."
+    },
+    {
+      "path": "frontend/src/views/auth/LinuxDoCallbackView.vue",
+      "reason": "same rules for LinuxDo callback."
+    },
+    {
+      "path": "frontend/src/views/auth/WechatCallbackView.vue",
+      "reason": "same rules for WeChat callback."
+    },
+    {
+      "path": "frontend/src/views/auth/__tests__/OidcCallbackView.spec.ts",
+      "reason": "regression coverage."
+    },
+    {
+      "path": "frontend/src/views/auth/__tests__/LinuxDoCallbackView.spec.ts",
+      "reason": "regression coverage."
+    },
+    {
+      "path": "frontend/src/views/auth/__tests__/WechatCallbackView.spec.ts",
+      "reason": "regression coverage."
+    }
+  ],
+  "shared_touchpoints": [
+    {
+      "path": "frontend/src/views/auth/OidcCallbackView.vue",
+      "reason": "also owned by `control-oidc-local-email-verification` — preserve both chooser bypass and verification flag handling.",
+      "shared_with": "control-oidc-local-email-verification"
+    },
+    {
+      "path": "frontend/src/views/auth/__tests__/OidcCallbackView.spec.ts",
+      "reason": "also owned by `control-oidc-local-email-verification`.",
+      "shared_with": "control-oidc-local-email-verification"
+    }
+  ],
+  "non_openspec_overlap": []
+}
