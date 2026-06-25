@@ -38,7 +38,15 @@ func RegisterAuthRoutes(
 		auth.POST("/login", rateLimiter.LimitWithOptions("auth-login", 20, time.Minute, middleware.RateLimitOptions{
 			FailureMode: middleware.RateLimitFailClose,
 		}), h.Auth.Login)
+		// 面向外部系统的 token 登录别名，语义上表达“登录换取 Bearer token”。
+		auth.POST("/token", rateLimiter.LimitWithOptions("auth-token-login", 20, time.Minute, middleware.RateLimitOptions{
+			FailureMode: middleware.RateLimitFailClose,
+		}), h.Auth.Login)
 		auth.POST("/login/2fa", rateLimiter.LimitWithOptions("auth-login-2fa", 20, time.Minute, middleware.RateLimitOptions{
+			FailureMode: middleware.RateLimitFailClose,
+		}), h.Auth.Login2FA)
+		// 面向外部系统的 2FA token 别名，与 /token 登录别名成对。
+		auth.POST("/token/2fa", rateLimiter.LimitWithOptions("auth-token-2fa", 20, time.Minute, middleware.RateLimitOptions{
 			FailureMode: middleware.RateLimitFailClose,
 		}), h.Auth.Login2FA)
 		auth.POST("/passkey/login/begin", rateLimiter.LimitWithOptions("passkey-login-begin", 20, time.Minute, middleware.RateLimitOptions{
@@ -52,6 +60,9 @@ func RegisterAuthRoutes(
 		}), h.Auth.SendVerifyCode)
 		// Token刷新接口添加速率限制：每分钟最多 30 次（Redis 故障时 fail-close）
 		auth.POST("/refresh", rateLimiter.LimitWithOptions("refresh-token", 30, time.Minute, middleware.RateLimitOptions{
+			FailureMode: middleware.RateLimitFailClose,
+		}), h.Auth.RefreshToken)
+		auth.POST("/token/refresh", rateLimiter.LimitWithOptions("token-refresh", 30, time.Minute, middleware.RateLimitOptions{
 			FailureMode: middleware.RateLimitFailClose,
 		}), h.Auth.RefreshToken)
 		// 登出接口（公开，允许未认证用户调用以撤销Refresh Token）
