@@ -403,6 +403,100 @@ func TestAPIContracts(t *testing.T) {
 			}`,
 		},
 		{
+			name: "PUT /api/v1/keys/:id/group",
+			setup: func(t *testing.T, deps *contractDeps) {
+				t.Helper()
+				oldGroupID := int64(10)
+				deps.apiKeyRepo.MustSeed(&service.APIKey{
+					ID:          100,
+					UserID:      1,
+					Key:         "sk_custom_1234567890",
+					Name:        "Key One",
+					GroupID:     &oldGroupID,
+					Status:      service.StatusActive,
+					IPWhitelist: []string{"192.0.2.1"},
+					IPBlacklist: []string{"198.51.100.0/24"},
+					Quota:       9,
+					QuotaUsed:   2,
+					CreatedAt:   deps.now,
+					UpdatedAt:   deps.now,
+				})
+				deps.groupRepo.SetByID([]service.Group{
+					{
+						ID:               20,
+						Name:             "Group Two",
+						Platform:         service.PlatformAnthropic,
+						RateMultiplier:   1,
+						Status:           service.StatusActive,
+						SubscriptionType: service.SubscriptionTypeStandard,
+						CreatedAt:        deps.now,
+						UpdatedAt:        deps.now,
+					},
+				})
+			},
+			method:     http.MethodPut,
+			path:       "/api/v1/keys/100/group",
+			body:       `{"group_id":20}`,
+			wantStatus: http.StatusOK,
+			wantJSON: `{
+				"code": 0,
+				"message": "success",
+				"data": {
+					"id": 100,
+					"user_id": 1,
+					"key": "sk_custom_1234567890",
+					"name": "Key One",
+					"group_id": 20,
+					"group": {
+						"id": 20,
+						"name": "Group Two",
+						"description": "",
+						"platform": "anthropic",
+						"rate_multiplier": 1,
+						"is_exclusive": false,
+						"status": "active",
+						"subscription_type": "standard",
+						"daily_limit_usd": null,
+						"weekly_limit_usd": null,
+						"monthly_limit_usd": null,
+						"image_price_1k": null,
+						"image_price_2k": null,
+						"image_price_4k": null,
+						"allow_image_generation": false,
+						"image_rate_independent": false,
+						"image_rate_multiplier": 0,
+						"claude_code_only": false,
+						"allow_messages_dispatch": false,
+						"fallback_group_id": null,
+						"fallback_group_id_on_invalid_request": null,
+						"require_oauth_only": false,
+						"require_privacy_set": false,
+						"rpm_limit": 0,
+						"created_at": "2025-01-02T03:04:05Z",
+						"updated_at": "2025-01-02T03:04:05Z"
+					},
+					"status": "active",
+					"ip_whitelist": ["192.0.2.1"],
+					"ip_blacklist": ["198.51.100.0/24"],
+					"last_used_at": null,
+					"quota": 9,
+					"quota_used": 2,
+					"rate_limit_5h": 0,
+					"rate_limit_1d": 0,
+					"rate_limit_7d": 0,
+					"usage_5h": 0,
+					"usage_1d": 0,
+					"usage_7d": 0,
+					"window_5h_start": null,
+					"window_1d_start": null,
+					"window_7d_start": null,
+					"expires_at": null,
+					"created_at": "2025-01-02T03:04:05Z",
+					"updated_at": "2025-01-02T03:04:05Z"
+				}
+			}`,
+		},
+		{
 			name: "GET /api/v1/subscriptions",
 			setup: func(t *testing.T, deps *contractDeps) {
 				t.Helper()
@@ -1804,6 +1898,7 @@ func newContractDeps(t *testing.T) *contractDeps {
 	v1Keys.Use(jwtAuth)
 	v1Keys.GET("/keys", apiKeyHandler.List)
 	v1Keys.POST("/keys", apiKeyHandler.Create)
+	v1Keys.PUT("/keys/:id/group", apiKeyHandler.UpdateGroup)
 	v1Keys.GET("/groups/available", apiKeyHandler.GetAvailableGroups)
 
 	v1Usage := v1.Group("")

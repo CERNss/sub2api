@@ -29,6 +29,7 @@ var (
 	ErrAPIKeyExists         = infraerrors.Conflict("API_KEY_EXISTS", "api key already exists")
 	ErrAPIKeyTooShort       = infraerrors.BadRequest("API_KEY_TOO_SHORT", "api key must be at least 16 characters")
 	ErrAPIKeyInvalidChars   = infraerrors.BadRequest("API_KEY_INVALID_CHARS", "api key can only contain letters, numbers, underscores, and hyphens")
+	ErrInvalidGroupID       = infraerrors.BadRequest("INVALID_GROUP_ID", "group_id must be greater than or equal to 0")
 	ErrAPIKeyRateLimited    = infraerrors.TooManyRequests("API_KEY_RATE_LIMITED", "too many failed attempts, please try again later")
 	ErrAPIKeyAuthOverloaded = infraerrors.ServiceUnavailable("API_KEY_AUTH_OVERLOADED", "api key authentication is temporarily overloaded")
 	ErrInvalidIPPattern     = infraerrors.BadRequest("INVALID_IP_PATTERN", "invalid IP or CIDR pattern")
@@ -920,6 +921,61 @@ func (s *APIKeyService) Update(ctx context.Context, id int64, userID int64, req 
 	if resetRateLimit && s.rateLimitCacheInvalid != nil {
 		_ = s.rateLimitCacheInvalid.InvalidateAPIKeyRateLimit(ctx, apiKey.ID)
 	}
+
+	return apiKey, nil
+}
+
+// UpdateGroup rotates a user's API key group while preserving all other key fields.
+// groupID == nil is a no-op for callers that intentionally reuse optional payloads.
+// *groupID == 0 clears the group binding.
+func (s *APIKeyService) UpdateGroup(ctx context.Context, id int64, userID int64, groupID *int64) (*APIKey, error) {
+	apiKey, err := s.apiKeyRepo.GetByID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("get api key: %w", err)
+	}
+
+	if apiKey.UserID != userID {
+		return nil, ErrInsufficientPerms
+	}
+
+	if groupID == nil {
+		return apiKey, nil
+	}
+	if *groupID < 0 {
+		return nil, ErrInvalidGroupID
+	}
+
+	if *groupID == 0 {
+		apiKey.GroupID = nil
+		apiKey.Group = nil
+	} else {
+		user, err := s.userRepo.GetByID(ctx, userID)
+		if err != nil {
+			return nil, fmt.Errorf("get user: %w", err)
+		}
+
+		group, err := s.groupRepo.GetByID(ctx, *groupID)
+		if err != nil {
+			return nil, fmt.Errorf("get group: %w", err)
+		}
+		if !group.IsActive() {
+			return nil, infraerrors.Forbidden("GROUP_NOT_ACTIVE", "group is not active")
+		}
+		if !s.canUserBindGroup(ctx, user, group) {
+			return nil, ErrGroupNotAllowed
+		}
+
+		gid := *groupID
+		apiKey.GroupID = &gid
+		apiKey.Group = group
+	}
+
+	if err := s.apiKeyRepo.Update(ctx, apiKey); err != nil {
+		return nil, fmt.Errorf("update api key: %w", err)
+	}
+
+	s.InvalidateAuthCacheByKey(ctx, apiKey.Key)
+	s.compileAPIKeyIPRules(apiKey)
 
 	return apiKey, nil
 }
