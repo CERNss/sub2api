@@ -1,0 +1,282 @@
+diff --git a/frontend/src/views/auth/LinuxDoCallbackView.vue b/frontend/src/views/auth/LinuxDoCallbackView.vue
+index fef5b90d..66e7b055 100644
+--- a/frontend/src/views/auth/LinuxDoCallbackView.vue
++++ b/frontend/src/views/auth/LinuxDoCallbackView.vue
+@@ -333,7 +333,10 @@ type LinuxDoPendingActionResponse = PendingOAuthExchangeResponse & {
+   resolved_email?: string
+   pending_email?: string
+   existing_account_email?: string
++  compat_email?: string
+   suggested_email?: string
++  existing_account_bindable?: boolean
++  create_account_allowed?: boolean
+ }
+ 
+ function persistPendingAuthSession(redirect?: string) {
+@@ -434,10 +437,15 @@ function normalizedPendingState(value: string | null | undefined): string {
+   return value?.trim().toLowerCase() || ''
+ }
+ 
++function shouldCreateAccountFromChoice(completion: LinuxDoPendingActionResponse): boolean {
++  return completion.existing_account_bindable === false && completion.create_account_allowed !== false
++}
++
+ function extractPendingAccountEmail(completion: LinuxDoPendingActionResponse): string {
+   return (
+     completion.pending_email ||
+     completion.existing_account_email ||
++    completion.compat_email ||
+     completion.email ||
+     completion.resolved_email ||
+     completion.suggested_email ||
+@@ -456,6 +464,9 @@ function resolvePendingAccountAction(
+     raw === 'choose_account' ||
+     raw === 'choose'
+   ) {
++    if (shouldCreateAccountFromChoice(completion)) {
++      return 'create_account'
++    }
+     return 'choose_account_action'
+   }
+   if (raw === 'email_required' || raw === 'create_account_required' || raw === 'create_account') {
+diff --git a/frontend/src/views/auth/OidcCallbackView.vue b/frontend/src/views/auth/OidcCallbackView.vue
+index e17f05e9..3d546a03 100644
+--- a/frontend/src/views/auth/OidcCallbackView.vue
++++ b/frontend/src/views/auth/OidcCallbackView.vue
+@@ -158,6 +158,8 @@
+               :initial-email="pendingAccountEmail"
+               :is-submitting="isSubmitting"
+               :error-message="accountActionError"
++              :require-verify-code="requireLocalEmailVerification"
++              :trusted-email="trustedPendingEmail"
+               @submit="handleCreateAccount"
+               @switch-to-bind="switchToBindLoginMode"
+             />
+@@ -304,6 +306,8 @@ const totpTempToken = ref('')
+ const totpCode = ref('')
+ const totpError = ref('')
+ const totpUserEmailMasked = ref('')
++const requireLocalEmailVerification = ref(true)
++const trustedPendingEmail = ref('')
+ 
+ const needsCreateAccount = computed(() => pendingAccountAction.value === 'create_account')
+ const needsChooser = computed(() => pendingAccountAction.value === 'choose_account_action')
+@@ -335,10 +339,13 @@ watch(errorMessage, value => {
+ 
+ type PendingOidcCompletion = PendingOAuthExchangeResponse & {
+   step?: string
++  compat_email?: string
++  local_email_verification_required?: boolean
+   pending_email?: string
+   resolved_email?: string
+   existing_account_email?: string
+-  compat_email?: string
++  existing_account_bindable?: boolean
++  create_account_allowed?: boolean
+   email?: string
+   suggested_email?: string
+   provider_fallback?: string
+@@ -458,6 +465,10 @@ function normalizedPendingState(value: string | null | undefined): string {
+   return value?.trim().toLowerCase() || ''
+ }
+ 
++function shouldCreateAccountFromChoice(completion: PendingOidcCompletion): boolean {
++  return completion.existing_account_bindable === false && completion.create_account_allowed !== false
++}
++
+ function extractPendingAccountEmail(completion: PendingOidcCompletion): string {
+   return (
+     completion.pending_email ||
+@@ -481,6 +492,9 @@ function resolvePendingAccountAction(
+     raw === 'choose_account' ||
+     raw === 'choose'
+   ) {
++    if (shouldCreateAccountFromChoice(completion)) {
++      return 'create_account'
++    }
+     return 'choose_account_action'
+   }
+   if (raw === 'email_required' || raw === 'create_account_required' || raw === 'create_account') {
+@@ -507,6 +521,8 @@ function applyPendingAccountAction(completion: PendingOidcCompletion) {
+   totpCode.value = ''
+   totpError.value = ''
+   totpUserEmailMasked.value = ''
++  requireLocalEmailVerification.value = completion.local_email_verification_required !== false
++  trustedPendingEmail.value = completion.compat_email?.trim() || ''
+ 
+   const email = extractPendingAccountEmail(completion)
+   if (action === 'choose_account_action') {
+diff --git a/frontend/src/views/auth/WechatCallbackView.vue b/frontend/src/views/auth/WechatCallbackView.vue
+index afa5c5ab..421425fb 100644
+--- a/frontend/src/views/auth/WechatCallbackView.vue
++++ b/frontend/src/views/auth/WechatCallbackView.vue
+@@ -417,9 +417,12 @@ type PendingWeChatCompletion = PendingOAuthExchangeResponse & {
+   step?: string
+   status?: string
+   state?: string
++  compat_email?: string
+   pending_email?: string
+   resolved_email?: string
+   existing_account_email?: string
++  existing_account_bindable?: boolean
++  create_account_allowed?: boolean
+   email?: string
+   intent?: string
+   requires_2fa?: boolean
+@@ -669,10 +672,15 @@ function normalizedPendingState(value: string | null | undefined): string {
+   return value?.trim().toLowerCase() || ''
+ }
+ 
++function shouldCreateAccountFromChoice(completion: PendingWeChatCompletion): boolean {
++  return completion.existing_account_bindable === false && completion.create_account_allowed !== false
++}
++
+ function extractPendingAccountEmail(completion: PendingWeChatCompletion): string {
+   return (
+     completion.pending_email ||
+     completion.existing_account_email ||
++    completion.compat_email ||
+     completion.resolved_email ||
+     completion.email ||
+     resolveResumeEmail() ||
+@@ -693,6 +701,9 @@ function resolvePendingAccountAction(
+     raw === 'choose_account' ||
+     raw === 'choose'
+   ) {
++    if (shouldCreateAccountFromChoice(completion)) {
++      return 'create_account'
++    }
+     return 'choice'
+   }
+   if (raw === 'email_required' || raw === 'create_account_required' || raw === 'create_account') {
+diff --git a/frontend/src/views/auth/__tests__/LinuxDoCallbackView.spec.ts b/frontend/src/views/auth/__tests__/LinuxDoCallbackView.spec.ts
+index 29e3a332..01548e04 100644
+--- a/frontend/src/views/auth/__tests__/LinuxDoCallbackView.spec.ts
++++ b/frontend/src/views/auth/__tests__/LinuxDoCallbackView.spec.ts
+@@ -481,6 +481,38 @@ describe('LinuxDoCallbackView', () => {
+     expect(wrapper.text()).toContain('auth.oauthFlow.createNewAccount')
+   })
+ 
++  it('skips account chooser when the pending session has no existing account to bind', async () => {
++    exchangePendingOAuthCompletion.mockResolvedValue({
++      auth_result: 'pending_session',
++      step: 'choose_account_action_required',
++      redirect: '/dashboard',
++      email: 'linuxdo-123@linuxdo-connect.invalid',
++      resolved_email: 'linuxdo-123@linuxdo-connect.invalid',
++      compat_email: 'fresh@example.com',
++      existing_account_bindable: false,
++      create_account_allowed: true,
++      adoption_required: true
++    })
++
++    const wrapper = mount(LinuxDoCallbackView, {
++      global: {
++        stubs: {
++          AuthLayout: { template: '<div><slot /></div>' },
++          Icon: true,
++          RouterLink: { template: '<a><slot /></a>' },
++          transition: false
++        }
++      }
++    })
++
++    await flushPromises()
++
++    expect(wrapper.text()).not.toContain('auth.oauthFlow.bindExistingAccount')
++    expect((wrapper.get('[data-testid="linuxdo-create-account-email"]').element as HTMLInputElement).value).toBe(
++      'fresh@example.com'
++    )
++  })
++
+   it('collects email, password, and verify code for pending oauth account creation and submits adoption decisions', async () => {
+     getPublicSettings.mockResolvedValue({
+       invitation_code_enabled: true,
+diff --git a/frontend/src/views/auth/__tests__/OidcCallbackView.spec.ts b/frontend/src/views/auth/__tests__/OidcCallbackView.spec.ts
+index 77af4d3d..6d6cd64f 100644
+--- a/frontend/src/views/auth/__tests__/OidcCallbackView.spec.ts
++++ b/frontend/src/views/auth/__tests__/OidcCallbackView.spec.ts
+@@ -430,6 +430,40 @@ describe('OidcCallbackView', () => {
+     expect(wrapper.text()).toContain('auth.oauthFlow.createNewAccount')
+   })
+ 
++  it('skips account chooser when the pending session has no existing account to bind', async () => {
++    exchangePendingOAuthCompletion.mockResolvedValue({
++      auth_result: 'pending_session',
++      step: 'choose_account_action_required',
++      redirect: '/dashboard',
++      email: 'b9b45cc3aa1e5e0edab4556727540@oidc-connect.invalid',
++      resolved_email: 'b9b45cc3aa1e5e0edab4556727540@oidc-connect.invalid',
++      compat_email: 'fresh@example.com',
++      existing_account_bindable: false,
++      create_account_allowed: true,
++      adoption_required: true,
++      local_email_verification_required: false
++    })
++
++    const wrapper = mount(OidcCallbackView, {
++      global: {
++        stubs: {
++          AuthLayout: { template: '<div><slot /></div>' },
++          Icon: true,
++          RouterLink: { template: '<a><slot /></a>' },
++          transition: false
++        }
++      }
++    })
++
++    await flushPromises()
++
++    expect(wrapper.text()).not.toContain('auth.oauthFlow.bindExistingAccount')
++    expect((wrapper.get('[data-testid="oidc-create-account-email"]').element as HTMLInputElement).value).toBe(
++      'fresh@example.com'
++    )
++    expect(wrapper.find('[data-testid="oidc-create-account-verify-code"]').exists()).toBe(false)
++  })
++
+   it('collects email, password, and verify code for pending oauth account creation and submits adoption decisions', async () => {
+     getPublicSettings.mockResolvedValue({
+       oidc_oauth_provider_name: 'ExampleID',
+diff --git a/frontend/src/views/auth/__tests__/WechatCallbackView.spec.ts b/frontend/src/views/auth/__tests__/WechatCallbackView.spec.ts
+index 77897514..4168887c 100644
+--- a/frontend/src/views/auth/__tests__/WechatCallbackView.spec.ts
++++ b/frontend/src/views/auth/__tests__/WechatCallbackView.spec.ts
+@@ -562,6 +562,38 @@ describe('WechatCallbackView', () => {
+     expect(wrapper.get('[data-testid="wechat-choice-create-account"]').exists()).toBe(true)
+   })
+ 
++  it('skips account chooser when the pending session has no existing account to bind', async () => {
++    exchangePendingOAuthCompletionMock.mockResolvedValue({
++      auth_result: 'pending_session',
++      step: 'choose_account_action_required',
++      redirect: '/dashboard',
++      email: 'wechat-123@wechat-connect.invalid',
++      resolved_email: 'wechat-123@wechat-connect.invalid',
++      compat_email: 'fresh@example.com',
++      existing_account_bindable: false,
++      create_account_allowed: true,
++      adoption_required: true,
++    })
++
++    const wrapper = mount(WechatCallbackView, {
++      global: {
++        stubs: {
++          AuthLayout: { template: '<div><slot /></div>' },
++          Icon: true,
++          RouterLink: { template: '<a><slot /></a>' },
++          transition: false,
++        },
++      },
++    })
++
++    await flushPromises()
++
++    expect(wrapper.find('[data-testid="wechat-choice-bind-existing"]').exists()).toBe(false)
++    expect((wrapper.get('[data-testid="wechat-create-account-email"]').element as HTMLInputElement).value).toBe(
++      'fresh@example.com'
++    )
++  })
++
+   it('offers existing-account email collection during invitation flow', async () => {
+     exchangePendingOAuthCompletionMock.mockResolvedValue({
+       error: 'invitation_required',

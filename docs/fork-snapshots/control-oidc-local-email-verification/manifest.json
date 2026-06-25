@@ -1,0 +1,121 @@
+{
+  "change_id": "control-oidc-local-email-verification",
+  "status": "active",
+  "proposal_path": "openspec/changes/control-oidc-local-email-verification/proposal.md",
+  "captured_at": "2026-06-17T19:54:09+00:00",
+  "captured_at_commit": "6cdb78ede3a33977357bebc2ac6b00288bf4bf49",
+  "base": "main",
+  "base_commit": "4a5665da5b2c6b83c4597844ea6e573746c821b1",
+  "new_files": [],
+  "upstream_patch_files": [
+    {
+      "path": "backend/internal/handler/auth_oidc_oauth.go",
+      "reason": "OIDC callback returns `local_email_verification_required`."
+    },
+    {
+      "path": "backend/internal/handler/auth_oidc_oauth_test.go",
+      "reason": "callback behavior tests."
+    },
+    {
+      "path": "backend/internal/handler/auth_oauth_pending_flow.go",
+      "reason": "pending session carries verification state to the frontend."
+    },
+    {
+      "path": "backend/internal/handler/auth_oauth_pending_flow_test.go",
+      "reason": "pending session tests."
+    },
+    {
+      "path": "backend/internal/service/auth_oauth_email_flow.go",
+      "reason": "`RegisterOAuthEmailAccount` trusts upstream-verified emails per documented rule."
+    },
+    {
+      "path": "backend/internal/service/auth_oauth_email_flow_test.go",
+      "reason": "trusted-bypass coverage."
+    },
+    {
+      "path": "backend/internal/service/settings_view.go",
+      "reason": "public settings view exposes the new toggle."
+    },
+    {
+      "path": "backend/internal/service/domain_constants.go",
+      "reason": "introduces the `oidc_connect_require_local_email_verification` setting key constant."
+    },
+    {
+      "path": "backend/internal/handler/admin/setting_handler.go",
+      "reason": "passes the new admin field through."
+    },
+    {
+      "path": "backend/internal/handler/dto/settings.go",
+      "reason": "DTO field."
+    },
+    {
+      "path": "backend/internal/service/setting_service.go",
+      "reason": "persistence of the new toggle."
+    },
+    {
+      "path": "frontend/src/api/admin/settings.ts",
+      "reason": "typings for the admin API field."
+    },
+    {
+      "path": "frontend/src/views/admin/SettingsView.vue",
+      "reason": "admin UI exposes the new OIDC toggle."
+    },
+    {
+      "path": "frontend/src/components/auth/PendingOAuthCreateAccountForm.vue",
+      "reason": "hides local verification input when flag says so."
+    },
+    {
+      "path": "frontend/src/components/auth/__tests__/PendingOAuthCreateAccountForm.spec.ts",
+      "reason": "form tests."
+    },
+    {
+      "path": "frontend/src/views/auth/OidcCallbackView.vue",
+      "reason": "consumes the verification flag."
+    },
+    {
+      "path": "frontend/src/views/auth/__tests__/OidcCallbackView.spec.ts",
+      "reason": "callback view tests."
+    },
+    {
+      "path": "frontend/src/i18n/locales/en.ts",
+      "reason": "copy strings."
+    },
+    {
+      "path": "frontend/src/i18n/locales/zh.ts",
+      "reason": "copy strings."
+    }
+  ],
+  "shared_touchpoints": [
+    {
+      "path": "backend/internal/handler/admin/setting_handler.go",
+      "reason": "also owned by `add-external-custom-menu-token-open`.",
+      "shared_with": "add-external-custom-menu-token-open"
+    },
+    {
+      "path": "backend/internal/handler/dto/settings.go",
+      "reason": "also owned by `add-external-custom-menu-token-open`.",
+      "shared_with": "add-external-custom-menu-token-open"
+    },
+    {
+      "path": "backend/internal/service/setting_service.go",
+      "reason": "also owned by `add-external-custom-menu-token-open`.",
+      "shared_with": "add-external-custom-menu-token-open"
+    },
+    {
+      "path": "frontend/src/views/admin/SettingsView.vue",
+      "reason": "also owned by `add-external-custom-menu-token-open` — preserve both settings panels.",
+      "shared_with": "add-external-custom-menu-token-open"
+    },
+    {
+      "path": "frontend/src/views/auth/OidcCallbackView.vue",
+      "reason": "also owned by `refine-pending-oauth-account-resolution` — preserve both chooser bypass and verification flag handling.",
+      "shared_with": "refine-pending-oauth-account-resolution"
+    },
+    {
+      "path": "frontend/src/views/auth/__tests__/OidcCallbackView.spec.ts",
+      "reason": "also owned by `refine-pending-oauth-account-resolution`.",
+      "shared_with": "refine-pending-oauth-account-resolution"
+    }
+  ],
+  "non_openspec_overlap": []
+}

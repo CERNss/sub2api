@@ -343,3 +343,8 @@ _待提交。_
 - `tools/fork_overlay.py snapshot` — rebase 前保存每个 change 的 manifest + patch diff
 - `tools/fork_overlay.py verify` — rebase 后校验 patch 仍在 + 共享文件双向闭合
 - 两者均接 `--base <ref>`（默认 `main`）
+
+### 快照归档
+- `tools/fork-snapshots/` 是本地再生成目录，仍然 gitignore。
+- `docs/fork-snapshots/` 保存可提交的快照副本，包含 `manifest.json` 与 `patch.diff`，
+  用于下次 rebase 时从 `develop` 分支直接查阅/恢复。
