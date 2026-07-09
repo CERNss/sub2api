@@ -76,7 +76,7 @@ func (s *OpenAIGatewayService) ForwardAlphaSearch(ctx context.Context, c *gin.Co
 	resp, err := s.httpUpstream.Do(req, proxyURL, account.ID, account.Concurrency)
 	SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
 	if err != nil {
-		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, true)
+		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, true, safeUpstreamURL(req.URL.String()))
 	}
 	defer func() { _ = resp.Body.Close() }()
 
