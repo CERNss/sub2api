@@ -6,9 +6,13 @@ import (
 	"context"
 	"errors"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"syscall"
 	"testing"
+
+	"github.com/gin-gonic/gin"
 )
 
 // TestClassifyOpenAITransportError pins which transport-level upstream failures
@@ -89,4 +93,37 @@ func errString(err error) string {
 		return "<nil>"
 	}
 	return err.Error()
+}
+
+// TestHandleOpenAIUpstreamTransportError_OpsEventCarriesUpstreamURL pins that the
+// upstreamURL parameter is tagged onto the Ops error event so operators can see
+// which endpoint a transport failure targeted. The failover/eviction contract
+// itself is covered in openai_upstream_transport_error_handle_test.go.
+func TestHandleOpenAIUpstreamTransportError_OpsEventCarriesUpstreamURL(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := &OpenAIGatewayService{}
+	account := &Account{ID: 42, Name: "acc", Platform: PlatformOpenAI}
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	const wantURL = "https://chatgpt.com/backend-api/codex/responses"
+	_ = svc.handleOpenAIUpstreamTransportError(context.Background(), c, account,
+		errors.New(`unexpected EOF`), true, wantURL)
+
+	v, ok := c.Get(OpsUpstreamErrorsKey)
+	if !ok {
+		t.Fatal("no ops upstream error events recorded")
+	}
+	events, ok := v.([]*OpsUpstreamErrorEvent)
+	if !ok || len(events) == 0 {
+		t.Fatalf("unexpected ops events payload: %#v", v)
+	}
+	ev := events[len(events)-1]
+	if ev.UpstreamURL != wantURL {
+		t.Fatalf("UpstreamURL = %q, want %q", ev.UpstreamURL, wantURL)
+	}
+	if ev.Kind != "request_error" || !ev.Passthrough {
+		t.Fatalf("event kind/passthrough = %q/%v, want request_error/true", ev.Kind, ev.Passthrough)
+	}
 }
