@@ -151,7 +151,9 @@ gateway:
   response_header_timeout: 600
   # OpenAI/Codex upstream response header timeout (seconds, 0=disabled)
   # OpenAI/Codex 等待上游响应头超时时间（秒，0=禁用本地响应头超时）
-  openai_response_header_timeout: 0
+  # develop-lite 高可用默认 120：上游卡住 120 秒不回响应头即判定传输失败，
+  # 触发自动切换账号（transport failover）；若跑非流式长任务可调大或设 0 恢复无限等待。
+  openai_response_header_timeout: 120
   # Max request body size in bytes (default: 256MB)
   # 请求体最大字节数（默认 256MB）
   max_body_size: 268435456
