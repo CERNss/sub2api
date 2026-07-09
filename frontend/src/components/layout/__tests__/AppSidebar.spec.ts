@@ -33,6 +33,40 @@ describe('AppSidebar header styles', () => {
   })
 })
 
+describe('AppSidebar backend-mode (develop-lite) menu hiding', () => {
+  it('defines a flag that hides menus while backend mode is on', () => {
+    // 纯 API 服务器（Backend 模式）下隐藏面向用户/经营性菜单。
+    // undefined（设置未加载）也按隐藏处理，避免闪现。
+    expect(componentSource).toContain('const flagHideInBackendMode')
+    expect(componentSource).toContain('appStore.cachedPublicSettings?.backend_mode_enabled === false')
+  })
+
+  it('gates the sales/operational menus on backend mode', () => {
+    // 从每个受控菜单项声明的起点截到行尾，确认挂上了 flagHideInBackendMode。
+    const gatedPaths = [
+      '/admin/channels',
+      '/admin/subscriptions',
+      '/admin/announcements',
+      '/admin/redeem',
+      '/admin/promo-codes',
+      '/subscriptions',
+      '/redeem',
+    ]
+    for (const p of gatedPaths) {
+      const start = componentSource.indexOf(`path: '${p}',`)
+      expect(start, `menu ${p} not found in source`).toBeGreaterThan(-1)
+      // 界定到"下一个 path:"之前，把范围限定在当前菜单项自身，避免误判相邻项。
+      const rest = componentSource.slice(start + 1)
+      const nextPath = rest.indexOf('path:')
+      const scope = nextPath === -1 ? rest : rest.slice(0, nextPath)
+      expect(
+        scope.includes('flagHideInBackendMode'),
+        `menu ${p} should be gated by flagHideInBackendMode`,
+      ).toBe(true)
+    }
+  })
+})
+
 describe('AppSidebar external custom menu items', () => {
   it('opens external custom menu items without routing to the iframe custom page', () => {
     expect(componentSource).toContain("path: externalUrl ? `external:${item.id}` : `/custom/${item.id}`")

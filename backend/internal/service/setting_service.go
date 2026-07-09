@@ -2821,7 +2821,10 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 
 	// 初始化默认设置
 	defaults := map[string]string{
-		SettingKeyRegistrationEnabled:                       "true",
+		SettingKeyRegistrationEnabled: "true",
+		// develop-lite: 天生 Backend 模式 —— 全新安装即为"纯管理员后台"，
+		// 禁用用户注册 / 公开页 / 自助服务，仅管理员可登录。管理员仍可在系统设置中关闭。
+		SettingKeyBackendModeEnabled:                        "true",
 		SettingKeyEmailVerifyEnabled:                        "false",
 		SettingKeyRegistrationEmailSuffixWhitelist:          "[]",
 		SettingKeyPromoCodeEnabled:                          "true", // 默认启用优惠码功能
