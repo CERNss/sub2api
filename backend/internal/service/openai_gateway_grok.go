@@ -118,7 +118,7 @@ func (s *OpenAIGatewayService) forwardGrokResponses(
 		resp, err = s.doOpenAIUpstream(upstreamReq, proxyURL, account)
 		SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
 		if err != nil {
-			return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
+			return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false, safeUpstreamURL(upstreamReq.URL.String()))
 		}
 
 		// xAI can reject encrypted reasoning or a compaction blob copied from a
@@ -1397,7 +1397,7 @@ func (s *OpenAIGatewayService) describeGrokComposerImage(
 
 	resp, err := s.doOpenAIUpstream(upstreamReq, proxyURL, account)
 	if err != nil {
-		return "", OpenAIUsage{}, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
+		return "", OpenAIUsage{}, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false, safeUpstreamURL(upstreamReq.URL.String()))
 	}
 	defer func() { _ = resp.Body.Close() }()
 
