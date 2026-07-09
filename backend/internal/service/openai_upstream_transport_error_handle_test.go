@@ -65,7 +65,7 @@ func TestHandleOpenAIUpstreamTransportError_PersistentEvictsAndFailsOver(t *test
 
 	before := time.Now()
 	retErr := svc.handleOpenAIUpstreamTransportError(context.Background(), c, account,
-		errors.New(`Post "https://chatgpt.com/backend-api/codex/responses": socks connect tcp 85.255.176.68:12324->chatgpt.com:443: username/password authentication failed`), false)
+		errors.New(`Post "https://chatgpt.com/backend-api/codex/responses": socks connect tcp 85.255.176.68:12324->chatgpt.com:443: username/password authentication failed`), false, "")
 	after := time.Now()
 
 	// Failover error (handler will switch accounts), not a direct response.
@@ -95,7 +95,7 @@ func TestHandleOpenAIUpstreamTransportError_TransientFailsOverWithoutEviction(t 
 	c, rec := newOpenAITransportErrTestContext()
 
 	err := svc.handleOpenAIUpstreamTransportError(context.Background(), c, account,
-		errors.New(`Post "https://chatgpt.com/...": context deadline exceeded (Client.Timeout exceeded while awaiting headers)`), false)
+		errors.New(`Post "https://chatgpt.com/...": context deadline exceeded (Client.Timeout exceeded while awaiting headers)`), false, "")
 
 	var fo *UpstreamFailoverError
 	require.True(t, errors.As(err, &fo), "transient error must return *UpstreamFailoverError")
@@ -116,7 +116,7 @@ func TestHandleOpenAIUpstreamTransportError_ContextCanceled_NoFailoverNoEviction
 	c, rec := newOpenAITransportErrTestContext()
 
 	err := svc.handleOpenAIUpstreamTransportError(context.Background(), c, account,
-		context.Canceled, false)
+		context.Canceled, false, "")
 
 	// Must NOT be a failover error.
 	var fo *UpstreamFailoverError
@@ -139,7 +139,7 @@ func TestHandleOpenAIUpstreamTransportError_WrappedContextCanceled_NoFailover(t 
 	c, _ := newOpenAITransportErrTestContext()
 
 	wrapped := fmt.Errorf("http request failed: %w", context.Canceled)
-	err := svc.handleOpenAIUpstreamTransportError(context.Background(), c, account, wrapped, false)
+	err := svc.handleOpenAIUpstreamTransportError(context.Background(), c, account, wrapped, false, "")
 
 	var fo *UpstreamFailoverError
 	require.False(t, errors.As(err, &fo), "wrapped context.Canceled must NOT return *UpstreamFailoverError")
@@ -171,7 +171,7 @@ func TestHandleOpenAIUpstreamTransportError_DeadlineExceeded_StillFailsOver(t *t
 	c, _ := newOpenAITransportErrTestContext()
 
 	err := svc.handleOpenAIUpstreamTransportError(context.Background(), c, account,
-		context.DeadlineExceeded, false)
+		context.DeadlineExceeded, false, "")
 
 	var fo *UpstreamFailoverError
 	require.True(t, errors.As(err, &fo), "context.DeadlineExceeded must still return *UpstreamFailoverError")
