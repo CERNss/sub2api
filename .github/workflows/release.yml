@@ -3,7 +3,12 @@ name: Release
 # Runner selection order (first non-empty wins):
 # 1. workflow_dispatch input "runner" (per-run override)
 # 2. repository variable BUILD_RUNNER
-# 3. fallback to "macos"
+# 3. fallback to "linux" (GitHub-hosted, always online)
+#
+# The fallback used to be "macos" (self-hosted). Tag pushes carry no inputs, so
+# with BUILD_RUNNER unset every release queued against an offline self-hosted
+# runner and died at GitHub's 24h queue limit (v0.0.22 / v0.0.23 / v2.0.0).
+# Set BUILD_RUNNER=macos (or dispatch with runner=macos) to opt back in.
 #
 # Build and release stay on the same runner target.
 # We never build on macOS and push on linux, or the other way around.
@@ -30,7 +35,7 @@ on:
         type: boolean
         default: false
       runner:
-        description: 'Runner target (blank = use BUILD_RUNNER var; default macos)'
+        description: 'Runner target (blank = use BUILD_RUNNER var; default linux)'
         required: false
         type: choice
         options:
@@ -64,6 +69,7 @@ concurrency:
 jobs:
   init:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       runner: ${{ steps.runner.outputs.runner }}
       runs_on: ${{ steps.runner.outputs.runs_on }}
@@ -142,7 +148,10 @@ jobs:
             RUNNER="${VAR_RUNNER}"
           fi
           if [ "$RUNNER" != "macos" ] && [ "$RUNNER" != "linux" ]; then
-            RUNNER="macos"
+            # Default to GitHub-hosted linux: tag pushes have no inputs, and an
+            # unset BUILD_RUNNER must never strand releases on an offline
+            # self-hosted runner (see header comment).
+            RUNNER="linux"
           fi
 
           if [ "$RUNNER" = "macos" ]; then
@@ -334,6 +343,7 @@ jobs:
     needs: [init]
     if: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v') }}
     runs-on: ${{ fromJSON(needs.init.outputs.runs_on) }}
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -375,6 +385,7 @@ jobs:
     if: ${{ (github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')) && needs.init.outputs.runner == 'macos' }}
     needs: [init]
     runs-on: ${{ fromJSON(needs.init.outputs.runs_on) }}
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -429,6 +440,7 @@ jobs:
     if: ${{ (github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')) && needs.init.outputs.runner == 'linux' }}
     needs: [init]
     runs-on: ${{ fromJSON(needs.init.outputs.runs_on) }}
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -483,6 +495,7 @@ jobs:
     if: ${{ (github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')) && needs.init.outputs.runner == 'macos' }}
     needs: [init, update_version, build_macos]
     runs-on: ${{ fromJSON(needs.init.outputs.runs_on) }}
+    timeout-minutes: 120
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -745,6 +758,7 @@ jobs:
     if: ${{ (github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')) && needs.init.outputs.runner == 'linux' }}
     needs: [init, update_version, build_linux]
     runs-on: ${{ fromJSON(needs.init.outputs.runs_on) }}
+    timeout-minutes: 120
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -996,6 +1010,7 @@ jobs:
     if: ${{ needs.release_macos.result == 'success' || needs.release_linux.result == 'success' }}
     needs: [init, release_macos, release_linux]
     runs-on: ${{ fromJSON(needs.init.outputs.runs_on) }}
+    timeout-minutes: 15
     steps:
       - name: Checkout repository history
         uses: actions/checkout@v6
