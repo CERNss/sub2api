@@ -73,6 +73,7 @@ jobs:
     outputs:
       runner: ${{ steps.runner.outputs.runner }}
       runs_on: ${{ steps.runner.outputs.runs_on }}
+      hosted: ${{ steps.runner.outputs.hosted }}
       storage_backend: ${{ steps.storage.outputs.storage_backend }}
       nexus_version_url: ${{ steps.storage.outputs.nexus_version_url }}
       nexus_frontend_url: ${{ steps.storage.outputs.nexus_frontend_url }}
@@ -163,6 +164,15 @@ jobs:
           echo "runner=${RUNNER}" >> "$GITHUB_OUTPUT"
           echo "runs_on=${LABELS}" >> "$GITHUB_OUTPUT"
 
+          # hosted=true → GitHub-hosted runner (no access to private-network
+          # services like the internal Nexus). Downstream steps use this to
+          # force public fallbacks regardless of NEXUS_*/GORELEASER_* config.
+          HOSTED="true"
+          if [[ "$LABELS" == *self-hosted* ]]; then
+            HOSTED="false"
+          fi
+          echo "hosted=${HOSTED}" >> "$GITHUB_OUTPUT"
+
       - name: Resolve release context
         id: release
         shell: bash
@@ -199,6 +209,8 @@ jobs:
       - name: Resolve stage storage
         id: storage
         shell: bash
+        env:
+          RUNNER_HOSTED: ${{ steps.runner.outputs.hosted }}
         run: |
           set -euo pipefail
 
@@ -214,6 +226,14 @@ jobs:
           NEXUS_USERNAME_CLEAN="$(trim_single_line "${NEXUS_USERNAME:-}")"
           NEXUS_PASSWORD_CLEAN="$(trim_single_line "${NEXUS_PASSWORD:-}")"
           NEXUS_ARTIFACT_PREFIX_CLEAN="$(trim_single_line "${NEXUS_ARTIFACT_PREFIX:-}")"
+
+          if [ "${RUNNER_HOSTED}" = "true" ] && [ -n "${NEXUS_URL_CLEAN}" ]; then
+            # GitHub-hosted runners cannot reach the private-network Nexus
+            # (e.g. 192.168.x.x): v2.0.1 died with connect timeouts here.
+            # Force the github-artifact backend and ignore NEXUS_* entirely.
+            echo "Hosted runner detected: staging via github-artifact (Nexus config ignored)."
+            NEXUS_URL_CLEAN=""
+          fi
 
           if [ -n "${NEXUS_URL_CLEAN}" ] && [ -n "${NEXUS_REPOSITORY_CLEAN}" ] && [ -n "${NEXUS_USERNAME_CLEAN}" ] && [ -n "${NEXUS_PASSWORD_CLEAN}" ]; then
             STORAGE_BACKEND="nexus"
@@ -659,8 +679,15 @@ jobs:
       - name: Install GoReleaser
         id: install_goreleaser
         shell: bash
+        env:
+          RUNNER_HOSTED: ${{ needs.init.outputs.hosted }}
         run: |
           set -euo pipefail
+          if [ "${RUNNER_HOSTED}" = "true" ]; then
+            # Hosted runners cannot reach a private-network GoReleaser mirror;
+            # drop the override so the installer falls back to github.com.
+            unset GORELEASER_BASE_URL GORELEASER_USERNAME GORELEASER_PASSWORD
+          fi
           GORELEASER_BIN="$(bash tools/install-goreleaser.sh)"
           echo "goreleaser_bin=${GORELEASER_BIN}" >> "$GITHUB_OUTPUT"
 
@@ -916,8 +943,15 @@ jobs:
       - name: Install GoReleaser
         id: install_goreleaser
         shell: bash
+        env:
+          RUNNER_HOSTED: ${{ needs.init.outputs.hosted }}
         run: |
           set -euo pipefail
+          if [ "${RUNNER_HOSTED}" = "true" ]; then
+            # Hosted runners cannot reach a private-network GoReleaser mirror;
+            # drop the override so the installer falls back to github.com.
+            unset GORELEASER_BASE_URL GORELEASER_USERNAME GORELEASER_PASSWORD
+          fi
           GORELEASER_BIN="$(bash tools/install-goreleaser.sh)"
           echo "goreleaser_bin=${GORELEASER_BIN}" >> "$GITHUB_OUTPUT"
 
