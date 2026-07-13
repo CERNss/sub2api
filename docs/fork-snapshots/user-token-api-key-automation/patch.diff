@@ -1,0 +1,1066 @@
+diff --git a/README.md b/README.md
+index 6bb406864..3edd5f4c7 100644
+--- a/README.md
++++ b/README.md
+@@ -25,6 +25,137 @@ Please read the following carefully before using this project:
+ - **📖 Disclaimer**: This project is provided for technical learning and research purposes only. The authors assume no liability for account bans, service interruptions, data loss, or any other direct or indirect damages resulting from the use of this project.
+ - **🚫 No Commercial Authorization**: The developers of this project have never authorized any individual or organization to conduct any form of commercial operation based on this project. Any commercial activity conducted in the name of or based on this project is unrelated to this project and its developers, and all resulting disputes, losses, and legal liabilities shall be borne solely by the party conducting such activity.
+ 
++## Fork Additions
++
++### Admin API User Key Provisioning And Transfer
++
++External provisioning or payment systems can create a normal AI-usable API key for a specific user through the Admin API Key flow:
++
++```bash
++POST /api/v1/admin/users/:id/api-keys
++```
++
++The target user is selected by the `:id` path parameter. The request supports the same create-key controls as the user modal, including group binding, optional custom key, IP restrictions, quota, rolling rate limits, and expiration. The full created key is returned at `data.api_key.key`.
++
++Sidecar integrations can also transfer an existing API key to the correct owner and optionally update group binding, quota, or clear used quota:
++
++```bash
++POST /api/v1/admin/api-keys/:id/transfer
++```
++
++The transfer response confirms `data.api_key.user_id`, `quota`, and `quota_used`, and successful transfers invalidate API key auth cache.
++
++### User Token API Key Automation
++
++External user-side tools can log in as a normal user, exchange the login for a JWT token pair, and then call the same user API key endpoints that the web dashboard uses. The capability scope is identical to that user account: group binding is limited to the user's available groups, and Turnstile, backend-mode login restrictions, account status checks, and TOTP 2FA still apply.
++
++```bash
++POST /api/v1/auth/token
++```
++
++Request body:
++
++```json
++{
++  "email": "user@example.com",
++  "password": "password",
++  "turnstile_token": "optional-turnstile-token"
++}
++```
++
++When 2FA is enabled, the login response contains `requires_2fa` and `temp_token`. Complete the exchange with:
++
++```bash
++POST /api/v1/auth/token/2fa
++```
++
++```json
++{
++  "temp_token": "temp-token-from-login",
++  "totp_code": "123456"
++}
++```
++
++Refresh the access/refresh token pair with:
++
++```bash
++POST /api/v1/auth/token/refresh
++```
++
++```json
++{
++  "refresh_token": "refresh-token-from-login"
++}
++```
++
++Use the returned access token for user API calls:
++
++```bash
++Authorization: Bearer <access_token>
++```
++
++Available key-management endpoints for this flow:
++
++```bash
++GET  /api/v1/groups/available
++POST /api/v1/keys
++PUT  /api/v1/keys/:id/group
++```
++
++Create a key with the same controls as the user dashboard:
++
++```json
++{
++  "name": "sidecar-key",
++  "group_id": 123,
++  "custom_key": "optional-custom-key",
++  "ip_whitelist": ["203.0.113.10"],
++  "ip_blacklist": [],
++  "quota": 20,
++  "expires_in_days": 30,
++  "rate_limit_5h": 100,
++  "rate_limit_1d": 300,
++  "rate_limit_7d": 1000
++}
++```
++
++Rotate only the key's group without changing the key value, quota, expiration, IP ACLs, status, or rate-limit settings:
++
++```json
++{
++  "group_id": 456
++}
++```
++
++Use `group_id: 0` to unbind the key from any group. The generated API key is still the credential used for model gateway requests; the login JWT is only for user REST API automation and key management.
++
++### External Custom Menu Launch
++
++Custom admin menu entries can now choose between the existing iframe mode and an external launch mode. External entries open the configured absolute URL in a new tab and append the current Sub2API JWT as a `token` query parameter, so sidecar admin tools can bootstrap their own session.
++
++### OIDC Local Email Verification Control
++
++Admins can keep the secure default that requires local email-code verification for pending OIDC account creation, or disable that duplicate step when the upstream OIDC provider already supplied a verified, non-synthetic trusted `compat_email`.
++
++The backend returns `local_email_verification_required` with pending OIDC completion responses, and the frontend hides verification controls only while the form email still matches the trusted OIDC email. If the user edits the email, local verification is restored.
++
++### Pending OAuth Account Flow Refinements
++
++OIDC, LinuxDo, and WeChat callback pages now resolve pending account actions from both state and bindability hints. When no existing account can be bound and account creation is allowed, brand-new users go directly to account creation instead of seeing an unnecessary bind/create chooser.
++
++### Better OAuth Email Prefill
++
++Pending OAuth create-account and bind-login forms now prefer the most useful human email, including `pending_email`, `existing_account_email`, and `compat_email`, before falling back to provider-specific values. Synthetic provider fallback emails are avoided when better data exists.
++
++### OpenSpec References
++
++The README summary is based on these OpenSpec changes:
++
++- [Admin API user key provisioning](openspec/changes/add-admin-user-api-key-creation/proposal.md)
++- [External custom menu launch](openspec/changes/add-external-custom-menu-token-open/proposal.md)
++- [OIDC local email verification control](openspec/changes/control-oidc-local-email-verification/proposal.md)
++- [Pending OAuth account resolution refinements](openspec/changes/refine-pending-oauth-account-resolution/proposal.md)
++
+ ## ❤️ Sponsors
+ 
+ > [Want to appear here?](mailto:support@sub2api.org)
+diff --git a/backend/internal/handler/api_key_handler.go b/backend/internal/handler/api_key_handler.go
+index e0d73b390..d3b2dc2fd 100644
+--- a/backend/internal/handler/api_key_handler.go
++++ b/backend/internal/handler/api_key_handler.go
+@@ -62,6 +62,11 @@ type UpdateAPIKeyRequest struct {
+ 	ResetRateLimitUsage *bool    `json:"reset_rate_limit_usage"` // 重置限速用量
+ }
+ 
++// UpdateAPIKeyGroupRequest represents a narrow group rotation request.
++type UpdateAPIKeyGroupRequest struct {
++	GroupID *int64 `json:"group_id" binding:"required"`
++}
++
+ // List handles listing user's API keys with pagination
+ // GET /api/v1/api-keys
+ func (h *APIKeyHandler) List(c *gin.Context) {
+@@ -246,6 +251,36 @@ func (h *APIKeyHandler) Update(c *gin.Context) {
+ 	response.Success(c, dto.APIKeyFromService(key))
+ }
+ 
++// UpdateGroup handles rotating a user's API key group without touching other key fields.
++// PUT /api/v1/keys/:id/group
++func (h *APIKeyHandler) UpdateGroup(c *gin.Context) {
++	subject, ok := middleware2.GetAuthSubjectFromContext(c)
++	if !ok {
++		response.Unauthorized(c, "User not authenticated")
++		return
++	}
++
++	keyID, err := strconv.ParseInt(c.Param("id"), 10, 64)
++	if err != nil {
++		response.BadRequest(c, "Invalid key ID")
++		return
++	}
++
++	var req UpdateAPIKeyGroupRequest
++	if err := c.ShouldBindJSON(&req); err != nil {
++		response.BadRequest(c, "Invalid request: "+err.Error())
++		return
++	}
++
++	key, err := h.apiKeyService.UpdateGroup(c.Request.Context(), keyID, subject.UserID, req.GroupID)
++	if err != nil {
++		response.ErrorFrom(c, err)
++		return
++	}
++
++	response.Success(c, dto.APIKeyFromService(key))
++}
++
+ // Delete handles deleting an API key
+ // DELETE /api/v1/api-keys/:id
+ func (h *APIKeyHandler) Delete(c *gin.Context) {
+diff --git a/backend/internal/server/api_contract_test.go b/backend/internal/server/api_contract_test.go
+index 372cc46bb..3d20a2017 100644
+--- a/backend/internal/server/api_contract_test.go
++++ b/backend/internal/server/api_contract_test.go
+@@ -5,7 +5,9 @@ package server_test
+ import (
+ 	"bytes"
+ 	"context"
++	"encoding/json"
+ 	"errors"
++	"fmt"
+ 	"io"
+ 	"math"
+ 	"net/http"
+@@ -388,6 +390,115 @@ func TestAPIContracts(t *testing.T) {
+ 				]
+ 			}`,
+ 		},
++		{
++			name: "PUT /api/v1/keys/:id/group",
++			setup: func(t *testing.T, deps *contractDeps) {
++				t.Helper()
++				oldGroupID := int64(10)
++				deps.apiKeyRepo.MustSeed(&service.APIKey{
++					ID:          100,
++					UserID:      1,
++					Key:         "sk_custom_1234567890",
++					Name:        "Key One",
++					GroupID:     &oldGroupID,
++					Status:      service.StatusActive,
++					IPWhitelist: []string{"192.0.2.1"},
++					IPBlacklist: []string{"198.51.100.0/24"},
++					Quota:       9,
++					QuotaUsed:   2,
++					CreatedAt:   deps.now,
++					UpdatedAt:   deps.now,
++				})
++				deps.groupRepo.SetByID([]service.Group{
++					{
++						ID:               20,
++						Name:             "Group Two",
++						Platform:         service.PlatformAnthropic,
++						RateMultiplier:   1,
++						Status:           service.StatusActive,
++						SubscriptionType: service.SubscriptionTypeStandard,
++						CreatedAt:        deps.now,
++						UpdatedAt:        deps.now,
++					},
++				})
++			},
++			method:     http.MethodPut,
++			path:       "/api/v1/keys/100/group",
++			body:       `{"group_id":20}`,
++			wantStatus: http.StatusOK,
++			wantJSON: `{
++				"code": 0,
++				"message": "success",
++				"data": {
++					"id": 100,
++					"user_id": 1,
++					"key": "sk_custom_1234567890",
++					"name": "Key One",
++					"group_id": 20,
++					"group": {
++						"id": 20,
++						"name": "Group Two",
++						"description": "",
++						"platform": "anthropic",
++						"rate_multiplier": 1,
++						"is_exclusive": false,
++						"status": "active",
++						"subscription_type": "standard",
++						"daily_limit_usd": null,
++						"weekly_limit_usd": null,
++						"monthly_limit_usd": null,
++						"image_price_1k": null,
++						"image_price_2k": null,
++						"image_price_4k": null,
++						"allow_image_generation": false,
++						"allow_batch_image_generation": false,
++						"batch_image_discount_multiplier": 0,
++						"batch_image_hold_multiplier": 0,
++						"image_rate_independent": false,
++						"image_rate_multiplier": 0,
++						"video_price_480p": null,
++						"video_price_720p": null,
++						"video_price_1080p": null,
++						"video_rate_independent": false,
++						"video_rate_multiplier": 0,
++						"web_search_price_per_call": null,
++						"peak_rate_enabled": false,
++						"peak_rate_multiplier": 0,
++						"peak_start": "",
++						"peak_end": "",
++						"claude_code_only": false,
++						"allow_messages_dispatch": false,
++						"fallback_group_id": null,
++						"fallback_group_id_on_invalid_request": null,
++						"require_oauth_only": false,
++						"require_privacy_set": false,
++						"rpm_limit": 0,
++						"created_at": "2025-01-02T03:04:05Z",
++						"updated_at": "2025-01-02T03:04:05Z"
++					},
++					"status": "active",
++					"current_concurrency": 0,
++					"ip_whitelist": ["192.0.2.1"],
++					"ip_blacklist": ["198.51.100.0/24"],
++					"last_used_at": null,
++					"last_used_ip": null,
++					"quota": 9,
++					"quota_used": 2,
++					"rate_limit_5h": 0,
++					"rate_limit_1d": 0,
++					"rate_limit_7d": 0,
++					"usage_5h": 0,
++					"usage_1d": 0,
++					"usage_7d": 0,
++					"window_5h_start": null,
++					"window_1d_start": null,
++					"window_7d_start": null,
++					"expires_at": null,
++					"created_at": "2025-01-02T03:04:05Z",
++					"updated_at": "2025-01-02T03:04:05Z"
++				}
++			}`,
++		},
+ 		{
+ 			name: "GET /api/v1/subscriptions",
+ 			setup: func(t *testing.T, deps *contractDeps) {
+@@ -761,6 +872,7 @@ func TestAPIContracts(t *testing.T) {
+ 						"oidc_connect_allowed_signing_algs": "RS256,ES256,PS256",
+ 						"oidc_connect_clock_skew_seconds": 120,
+ 						"oidc_connect_require_email_verified": false,
++						"oidc_connect_require_local_email_verification": true,
+ 						"oidc_connect_userinfo_email_path": "",
+ 						"oidc_connect_userinfo_id_path": "",
+ 						"oidc_connect_userinfo_username_path": "",
+@@ -1068,6 +1180,7 @@ func TestAPIContracts(t *testing.T) {
+ 					"oidc_connect_allowed_signing_algs": "RS256,ES256,PS256",
+ 					"oidc_connect_clock_skew_seconds": 120,
+ 					"oidc_connect_require_email_verified": false,
++					"oidc_connect_require_local_email_verification": true,
+ 					"oidc_connect_userinfo_email_path": "",
+ 					"oidc_connect_userinfo_id_path": "",
+ 					"oidc_connect_userinfo_username_path": "",
+@@ -1306,6 +1419,302 @@ func TestAPIContracts(t *testing.T) {
+ 	}
+ }
+ 
++func TestAdminCreateUserAPIKeyWithAdminAPIKeyMockData(t *testing.T) {
++	gin.SetMode(gin.TestMode)
++	service.SetDefaultIdempotencyCoordinator(nil)
++
++	now := time.Date(2026, 5, 19, 12, 0, 0, 0, time.UTC)
++	adminKey := "admin-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
++	targetGroupID := int64(20)
++	targetUserID := int64(100)
++
++	userRepo := &stubUserRepo{
++		users: map[int64]*service.User{
++			1: {
++				ID:          1,
++				Email:       "admin@example.com",
++				Role:        service.RoleAdmin,
++				Status:      service.StatusActive,
++				Concurrency: 9,
++				CreatedAt:   now,
++				UpdatedAt:   now,
++			},
++			targetUserID: {
++				ID:            targetUserID,
++				Email:         "mock-user@example.com",
++				Role:          service.RoleUser,
++				Status:        service.StatusActive,
++				AllowedGroups: nil,
++				CreatedAt:     now,
++				UpdatedAt:     now,
++			},
++		},
++	}
++
++	groupRepo := &stubGroupRepo{}
++	groupRepo.SetByID([]service.Group{{
++		ID:               targetGroupID,
++		Name:             "Mock Exclusive",
++		Platform:         service.PlatformAnthropic,
++		Status:           service.StatusActive,
++		IsExclusive:      true,
++		SubscriptionType: service.SubscriptionTypeStandard,
++		CreatedAt:        now,
++		UpdatedAt:        now,
++	}})
++
++	apiKeyRepo := newStubApiKeyRepo(now)
++	userSubRepo := &stubUserSubscriptionRepo{}
++	cfg := &config.Config{Default: config.DefaultConfig{APIKeyPrefix: "sk-"}}
++	apiKeyService := service.NewAPIKeyService(apiKeyRepo, userRepo, groupRepo, userSubRepo, nil, stubApiKeyCache{}, cfg)
++	adminService := service.NewAdminService(
++		userRepo,
++		groupRepo,
++		&stubAccountRepo{},
++		stubProxyRepo{},
++		apiKeyRepo,
++		&stubRedeemCodeRepo{},
++		nil,
++		nil,
++		apiKeyService,
++		nil,
++		nil,
++		nil,
++		nil,
++		nil,
++		service.NewSettingService(newStubSettingRepo(), cfg),
++		nil,
++		userSubRepo,
++		nil,
++		nil,
++	)
++
++	settingRepo := newStubSettingRepo()
++	require.NoError(t, settingRepo.Set(context.Background(), service.SettingKeyAdminAPIKey, adminKey))
++	settingService := service.NewSettingService(settingRepo, cfg)
++	userService := service.NewUserService(userRepo, nil, nil, nil)
++	adminAuth := middleware.NewAdminAuthMiddleware(nil, userService, settingService)
++
++	router := gin.New()
++	adminGroup := router.Group("/api/v1/admin")
++	adminGroup.Use(gin.HandlerFunc(adminAuth))
++	adminGroup.POST("/users/:id/api-keys", adminhandler.NewAdminAPIKeyHandler(adminService).CreateForUser)
++
++	t.Run("invalid admin api key is rejected", func(t *testing.T) {
++		status, body := doRequest(t, router, http.MethodPost, "/api/v1/admin/users/100/api-keys", `{"name":"mock"}`, map[string]string{
++			"Content-Type":    "application/json",
++			"x-api-key":       "admin-wrong",
++			"Idempotency-Key": "mock-create-wrong-key",
++		})
++
++		require.Equal(t, http.StatusUnauthorized, status)
++		require.Contains(t, body, "INVALID_ADMIN_KEY")
++	})
++
++	t.Run("admin api key creates ai usable user key", func(t *testing.T) {
++		status, body := doRequest(t, router, http.MethodPost, "/api/v1/admin/users/100/api-keys", `{
++			"name":"mock-created-key",
++			"group_id":20,
++			"custom_key":"sk-mock-created-key",
++			"quota":25.5,
++			"rate_limit_1d":7.25,
++			"ip_whitelist":["10.0.0.0/8"]
++		}`, map[string]string{
++			"Content-Type":    "application/json",
++			"x-api-key":       adminKey,
++			"Idempotency-Key": "mock-create-user-100-key",
++		})
++
++		require.Equal(t, http.StatusOK, status, body)
++
++		var resp struct {
++			Code int `json:"code"`
++			Data struct {
++				APIKey struct {
++					ID          int64    `json:"id"`
++					UserID      int64    `json:"user_id"`
++					Key         string   `json:"key"`
++					Name        string   `json:"name"`
++					GroupID     *int64   `json:"group_id"`
++					Quota       float64  `json:"quota"`
++					RateLimit1d float64  `json:"rate_limit_1d"`
++					IPWhitelist []string `json:"ip_whitelist"`
++					Status      string   `json:"status"`
++				} `json:"api_key"`
++				AutoGrantedGroupAccess bool   `json:"auto_granted_group_access"`
++				GrantedGroupID         *int64 `json:"granted_group_id"`
++				GrantedGroupName       string `json:"granted_group_name"`
++			} `json:"data"`
++		}
++		require.NoError(t, json.Unmarshal([]byte(body), &resp))
++		require.Equal(t, 0, resp.Code)
++		require.Equal(t, targetUserID, resp.Data.APIKey.UserID)
++		require.Equal(t, "sk-mock-created-key", resp.Data.APIKey.Key)
++		require.Equal(t, "mock-created-key", resp.Data.APIKey.Name)
++		require.Equal(t, service.StatusAPIKeyActive, resp.Data.APIKey.Status)
++		require.NotNil(t, resp.Data.APIKey.GroupID)
++		require.Equal(t, targetGroupID, *resp.Data.APIKey.GroupID)
++		require.Equal(t, 25.5, resp.Data.APIKey.Quota)
++		require.Equal(t, 7.25, resp.Data.APIKey.RateLimit1d)
++		require.Equal(t, []string{"10.0.0.0/8"}, resp.Data.APIKey.IPWhitelist)
++		require.True(t, resp.Data.AutoGrantedGroupAccess)
++		require.NotNil(t, resp.Data.GrantedGroupID)
++		require.Equal(t, targetGroupID, *resp.Data.GrantedGroupID)
++		require.Equal(t, "Mock Exclusive", resp.Data.GrantedGroupName)
++
++		created, err := apiKeyRepo.GetByKey(context.Background(), "sk-mock-created-key")
++		require.NoError(t, err)
++		require.Equal(t, targetUserID, created.UserID)
++		require.NotNil(t, created.GroupID)
++		require.Equal(t, targetGroupID, *created.GroupID)
++		require.Contains(t, userRepo.users[targetUserID].AllowedGroups, targetGroupID)
++	})
++}
++
++func TestAdminTransferAPIKeyWithAdminAPIKeyMockData(t *testing.T) {
++	gin.SetMode(gin.TestMode)
++	service.SetDefaultIdempotencyCoordinator(nil)
++
++	now := time.Date(2026, 5, 20, 12, 0, 0, 0, time.UTC)
++	adminKey := "admin-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
++	sourceUserID := int64(10)
++	targetUserID := int64(100)
++
++	userRepo := &stubUserRepo{
++		users: map[int64]*service.User{
++			1: {
++				ID:          1,
++				Email:       "admin@example.com",
++				Role:        service.RoleAdmin,
++				Status:      service.StatusActive,
++				Concurrency: 9,
++				CreatedAt:   now,
++				UpdatedAt:   now,
++			},
++			sourceUserID: {
++				ID:        sourceUserID,
++				Email:     "source@example.com",
++				Role:      service.RoleUser,
++				Status:    service.StatusActive,
++				CreatedAt: now,
++				UpdatedAt: now,
++			},
++			targetUserID: {
++				ID:        targetUserID,
++				Email:     "target@example.com",
++				Role:      service.RoleUser,
++				Status:    service.StatusActive,
++				CreatedAt: now,
++				UpdatedAt: now,
++			},
++		},
++	}
++	groupRepo := &stubGroupRepo{}
++	apiKeyRepo := newStubApiKeyRepo(now)
++	transferKey := &service.APIKey{
++		UserID:    sourceUserID,
++		Key:       "sk-transfer-mock",
++		Name:      "mock-transfer",
++		Status:    service.StatusAPIKeyQuotaExhausted,
++		Quota:     10,
++		QuotaUsed: 10,
++	}
++	require.NoError(t, apiKeyRepo.Create(context.Background(), transferKey))
++
++	cfg := &config.Config{Default: config.DefaultConfig{APIKeyPrefix: "sk-"}}
++	apiKeyService := service.NewAPIKeyService(apiKeyRepo, userRepo, groupRepo, &stubUserSubscriptionRepo{}, nil, stubApiKeyCache{}, cfg)
++	adminService := service.NewAdminService(
++		userRepo,
++		groupRepo,
++		&stubAccountRepo{},
++		stubProxyRepo{},
++		apiKeyRepo,
++		&stubRedeemCodeRepo{},
++		nil,
++		nil,
++		apiKeyService,
++		nil,
++		nil,
++		nil,
++		nil,
++		nil,
++		service.NewSettingService(newStubSettingRepo(), cfg),
++		nil,
++		&stubUserSubscriptionRepo{},
++		nil,
++		nil,
++	)
++
++	settingRepo := newStubSettingRepo()
++	require.NoError(t, settingRepo.Set(context.Background(), service.SettingKeyAdminAPIKey, adminKey))
++	settingService := service.NewSettingService(settingRepo, cfg)
++	userService := service.NewUserService(userRepo, nil, nil, nil)
++	adminAuth := middleware.NewAdminAuthMiddleware(nil, userService, settingService)
++
++	router := gin.New()
++	adminGroup := router.Group("/api/v1/admin")
++	adminGroup.Use(gin.HandlerFunc(adminAuth))
++	adminGroup.POST("/api-keys/:id/transfer", adminhandler.NewAdminAPIKeyHandler(adminService).Transfer)
++
++	t.Run("invalid admin api key is rejected", func(t *testing.T) {
++		path := fmt.Sprintf("/api/v1/admin/api-keys/%d/transfer", transferKey.ID)
++		status, body := doRequest(t, router, http.MethodPost, path, `{"target_user_id":100}`, map[string]string{
++			"Content-Type":    "application/json",
++			"x-api-key":       "admin-wrong",
++			"Idempotency-Key": "mock-transfer-wrong-key",
++		})
++
++		require.Equal(t, http.StatusUnauthorized, status)
++		require.Contains(t, body, "INVALID_ADMIN_KEY")
++	})
++
++	t.Run("admin api key transfers owner and resets quota", func(t *testing.T) {
++		path := fmt.Sprintf("/api/v1/admin/api-keys/%d/transfer", transferKey.ID)
++		status, body := doRequest(t, router, http.MethodPost, path, `{
++			"target_user_id":100,
++			"target_group_id":0,
++			"quota":50,
++			"reset_quota":true
++		}`, map[string]string{
++			"Content-Type":    "application/json",
++			"x-api-key":       adminKey,
++			"Idempotency-Key": "mock-transfer-key-1",
++		})
++
++		require.Equal(t, http.StatusOK, status, body)
++
++		var resp struct {
++			Code int `json:"code"`
++			Data struct {
++				APIKey struct {
++					ID        int64   `json:"id"`
++					UserID    int64   `json:"user_id"`
++					Key       string  `json:"key"`
++					GroupID   *int64  `json:"group_id"`
++					Quota     float64 `json:"quota"`
++					QuotaUsed float64 `json:"quota_used"`
++					Status    string  `json:"status"`
++				} `json:"api_key"`
++			} `json:"data"`
++		}
++		require.NoError(t, json.Unmarshal([]byte(body), &resp))
++		require.Equal(t, 0, resp.Code)
++		require.Equal(t, targetUserID, resp.Data.APIKey.UserID)
++		require.Equal(t, "sk-transfer-mock", resp.Data.APIKey.Key)
++		require.Nil(t, resp.Data.APIKey.GroupID)
++		require.Equal(t, 50.0, resp.Data.APIKey.Quota)
++		require.Equal(t, 0.0, resp.Data.APIKey.QuotaUsed)
++		require.Equal(t, service.StatusActive, resp.Data.APIKey.Status)
++
++		updated, err := apiKeyRepo.GetByKey(context.Background(), "sk-transfer-mock")
++		require.NoError(t, err)
++		require.Equal(t, targetUserID, updated.UserID)
++		require.Equal(t, 50.0, updated.Quota)
++		require.Equal(t, 0.0, updated.QuotaUsed)
++		require.Equal(t, service.StatusActive, updated.Status)
++	})
++}
++
+ type contractDeps struct {
+ 	now         time.Time
+ 	router      http.Handler
+@@ -1371,7 +1780,7 @@ func newContractDeps(t *testing.T) *contractDeps {
+ 	settingRepo := newStubSettingRepo()
+ 	settingService := service.NewSettingService(settingRepo, cfg)
+ 
+-	adminService := service.NewAdminService(userRepo, groupRepo, &accountRepo, proxyRepo, apiKeyRepo, redeemRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
++	adminService := service.NewAdminService(userRepo, groupRepo, &accountRepo, proxyRepo, apiKeyRepo, redeemRepo, nil, nil, apiKeyService, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+ 	authHandler := handler.NewAuthHandler(cfg, nil, userService, settingService, nil, redeemService, nil, nil)
+ 	apiKeyHandler := handler.NewAPIKeyHandler(apiKeyService)
+ 	usageHandler := handler.NewUsageHandler(usageService, apiKeyService, nil, nil)
+@@ -1407,6 +1816,7 @@ func newContractDeps(t *testing.T) *contractDeps {
+ 	v1Keys.Use(jwtAuth)
+ 	v1Keys.GET("/keys", apiKeyHandler.List)
+ 	v1Keys.POST("/keys", apiKeyHandler.Create)
++	v1Keys.PUT("/keys/:id/group", apiKeyHandler.UpdateGroup)
+ 	v1Keys.GET("/groups/available", apiKeyHandler.GetAvailableGroups)
+ 
+ 	v1Usage := v1.Group("")
+@@ -1552,7 +1962,17 @@ func (r *stubUserRepo) RemoveGroupFromUserAllowedGroups(ctx context.Context, use
+ }
+ 
+ func (r *stubUserRepo) AddGroupToAllowedGroups(ctx context.Context, userID int64, groupID int64) error {
+-	return errors.New("not implemented")
++	user, ok := r.users[userID]
++	if !ok {
++		return service.ErrUserNotFound
++	}
++	for _, existing := range user.AllowedGroups {
++		if existing == groupID {
++			return nil
++		}
++	}
++	user.AllowedGroups = append(user.AllowedGroups, groupID)
++	return nil
+ }
+ 
+ func (r *stubUserRepo) ListUserAuthIdentities(ctx context.Context, userID int64) ([]service.UserAuthIdentityRecord, error) {
+@@ -1635,22 +2055,35 @@ func (stubApiKeyCache) SubscribeAuthCacheInvalidation(ctx context.Context, handl
+ 
+ type stubGroupRepo struct {
+ 	active []service.Group
++	byID   map[int64]service.Group
+ }
+ 
+ func (r *stubGroupRepo) SetActive(groups []service.Group) {
+ 	r.active = append([]service.Group(nil), groups...)
+ }
+ 
++func (r *stubGroupRepo) SetByID(groups []service.Group) {
++	r.byID = make(map[int64]service.Group, len(groups))
++	for _, group := range groups {
++		r.byID[group.ID] = group
++	}
++}
++
+ func (stubGroupRepo) Create(ctx context.Context, group *service.Group) error {
+ 	return errors.New("not implemented")
+ }
+ 
+-func (stubGroupRepo) GetByID(ctx context.Context, id int64) (*service.Group, error) {
+-	return nil, service.ErrGroupNotFound
++func (r *stubGroupRepo) GetByID(ctx context.Context, id int64) (*service.Group, error) {
++	group, ok := r.byID[id]
++	if !ok {
++		return nil, service.ErrGroupNotFound
++	}
++	clone := group
++	return &clone, nil
+ }
+ 
+-func (stubGroupRepo) GetByIDLite(ctx context.Context, id int64) (*service.Group, error) {
+-	return nil, service.ErrGroupNotFound
++func (r *stubGroupRepo) GetByIDLite(ctx context.Context, id int64) (*service.Group, error) {
++	return r.GetByID(ctx, id)
+ }
+ 
+ func (stubGroupRepo) Update(ctx context.Context, group *service.Group) error {
+@@ -2235,6 +2668,10 @@ func (r *stubApiKeyRepo) Update(ctx context.Context, key *service.APIKey) error
+ 	return nil
+ }
+ 
++func (r *stubApiKeyRepo) TransferUpdate(ctx context.Context, key *service.APIKey) error {
++	return r.Update(ctx, key)
++}
++
+ func (r *stubApiKeyRepo) Delete(ctx context.Context, id int64) error {
+ 	key, ok := r.byID[id]
+ 	if !ok {
+diff --git a/backend/internal/server/routes/auth.go b/backend/internal/server/routes/auth.go
+index 2c44a2b3a..1b8a83d69 100644
+--- a/backend/internal/server/routes/auth.go
++++ b/backend/internal/server/routes/auth.go
+@@ -34,9 +34,16 @@ func RegisterAuthRoutes(
+ 		auth.POST("/login", rateLimiter.LimitWithOptions("auth-login", 20, time.Minute, middleware.RateLimitOptions{
+ 			FailureMode: middleware.RateLimitFailClose,
+ 		}), h.Auth.Login)
++		// 面向外部系统的 token 登录别名，语义上表达“登录换取 Bearer token”。
++		auth.POST("/token", rateLimiter.LimitWithOptions("auth-token-login", 20, time.Minute, middleware.RateLimitOptions{
++			FailureMode: middleware.RateLimitFailClose,
++		}), h.Auth.Login)
+ 		auth.POST("/login/2fa", rateLimiter.LimitWithOptions("auth-login-2fa", 20, time.Minute, middleware.RateLimitOptions{
+ 			FailureMode: middleware.RateLimitFailClose,
+ 		}), h.Auth.Login2FA)
++		auth.POST("/token/2fa", rateLimiter.LimitWithOptions("auth-token-2fa", 20, time.Minute, middleware.RateLimitOptions{
++			FailureMode: middleware.RateLimitFailClose,
++		}), h.Auth.Login2FA)
+ 		auth.POST("/send-verify-code", rateLimiter.LimitWithOptions("auth-send-verify-code", 5, time.Minute, middleware.RateLimitOptions{
+ 			FailureMode: middleware.RateLimitFailClose,
+ 		}), h.Auth.SendVerifyCode)
+@@ -44,6 +51,9 @@ func RegisterAuthRoutes(
+ 		auth.POST("/refresh", rateLimiter.LimitWithOptions("refresh-token", 30, time.Minute, middleware.RateLimitOptions{
+ 			FailureMode: middleware.RateLimitFailClose,
+ 		}), h.Auth.RefreshToken)
++		auth.POST("/token/refresh", rateLimiter.LimitWithOptions("token-refresh", 30, time.Minute, middleware.RateLimitOptions{
++			FailureMode: middleware.RateLimitFailClose,
++		}), h.Auth.RefreshToken)
+ 		// 登出接口（公开，允许未认证用户调用以撤销Refresh Token）
+ 		auth.POST("/logout", h.Auth.Logout)
+ 		// 优惠码验证接口添加速率限制：每分钟最多 10 次（Redis 故障时 fail-close）
+diff --git a/backend/internal/server/routes/user.go b/backend/internal/server/routes/user.go
+index 9f89687ad..9fb6f7e5e 100644
+--- a/backend/internal/server/routes/user.go
++++ b/backend/internal/server/routes/user.go
+@@ -61,6 +61,7 @@ func RegisterUserRoutes(
+ 			keys.GET("", h.APIKey.List)
+ 			keys.GET("/:id", h.APIKey.GetByID)
+ 			keys.POST("", h.APIKey.Create)
++			keys.PUT("/:id/group", h.APIKey.UpdateGroup)
+ 			keys.PUT("/:id", h.APIKey.Update)
+ 			keys.DELETE("/:id", h.APIKey.Delete)
+ 		}
+diff --git a/backend/internal/service/api_key_service.go b/backend/internal/service/api_key_service.go
+index b13ca6b3d..ff8cb5a69 100644
+--- a/backend/internal/service/api_key_service.go
++++ b/backend/internal/service/api_key_service.go
+@@ -27,6 +27,7 @@ var (
+ 	ErrAPIKeyExists       = infraerrors.Conflict("API_KEY_EXISTS", "api key already exists")
+ 	ErrAPIKeyTooShort     = infraerrors.BadRequest("API_KEY_TOO_SHORT", "api key must be at least 16 characters")
+ 	ErrAPIKeyInvalidChars = infraerrors.BadRequest("API_KEY_INVALID_CHARS", "api key can only contain letters, numbers, underscores, and hyphens")
++	ErrInvalidGroupID     = infraerrors.BadRequest("INVALID_GROUP_ID", "group_id must be greater than or equal to 0")
+ 	ErrAPIKeyRateLimited  = infraerrors.TooManyRequests("API_KEY_RATE_LIMITED", "too many failed attempts, please try again later")
+ 	ErrInvalidIPPattern   = infraerrors.BadRequest("INVALID_IP_PATTERN", "invalid IP or CIDR pattern")
+ 	// ErrAPIKeyExpired        = infraerrors.Forbidden("API_KEY_EXPIRED", "api key has expired")
+@@ -57,6 +58,7 @@ type APIKeyRepository interface {
+ 	// GetByKeyForAuth 认证专用查询，返回最小字段集
+ 	GetByKeyForAuth(ctx context.Context, key string) (*APIKey, error)
+ 	Update(ctx context.Context, key *APIKey) error
++	TransferUpdate(ctx context.Context, key *APIKey) error
+ 	Delete(ctx context.Context, id int64) error
+ 	// DeleteWithAudit 在同一事务内先写 deleted_api_key_audits 审计、再软删除该 key。
+ 	DeleteWithAudit(ctx context.Context, id int64) error
+@@ -347,6 +349,15 @@ func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIK
+ 		return nil, fmt.Errorf("get user: %w", err)
+ 	}
+ 
++	return s.createForUser(ctx, user, req)
++}
++
++func (s *APIKeyService) createForUser(ctx context.Context, user *User, req CreateAPIKeyRequest) (*APIKey, error) {
++	if user == nil {
++		return nil, ErrUserNotFound
++	}
++	userID := user.ID
++
+ 	// 验证 IP 白名单格式
+ 	if len(req.IPWhitelist) > 0 {
+ 		if invalid := ip.ValidateIPPatterns(req.IPWhitelist); len(invalid) > 0 {
+@@ -757,6 +768,61 @@ func (s *APIKeyService) Update(ctx context.Context, id int64, userID int64, req
+ 	return apiKey, nil
+ }
+ 
++// UpdateGroup rotates a user's API key group while preserving all other key fields.
++// groupID == nil is a no-op for callers that intentionally reuse optional payloads.
++// *groupID == 0 clears the group binding.
++func (s *APIKeyService) UpdateGroup(ctx context.Context, id int64, userID int64, groupID *int64) (*APIKey, error) {
++	apiKey, err := s.apiKeyRepo.GetByID(ctx, id)
++	if err != nil {
++		return nil, fmt.Errorf("get api key: %w", err)
++	}
++
++	if apiKey.UserID != userID {
++		return nil, ErrInsufficientPerms
++	}
++
++	if groupID == nil {
++		return apiKey, nil
++	}
++	if *groupID < 0 {
++		return nil, ErrInvalidGroupID
++	}
++
++	if *groupID == 0 {
++		apiKey.GroupID = nil
++		apiKey.Group = nil
++	} else {
++		user, err := s.userRepo.GetByID(ctx, userID)
++		if err != nil {
++			return nil, fmt.Errorf("get user: %w", err)
++		}
++
++		group, err := s.groupRepo.GetByID(ctx, *groupID)
++		if err != nil {
++			return nil, fmt.Errorf("get group: %w", err)
++		}
++		if !group.IsActive() {
++			return nil, infraerrors.Forbidden("GROUP_NOT_ACTIVE", "group is not active")
++		}
++		if !s.canUserBindGroup(ctx, user, group) {
++			return nil, ErrGroupNotAllowed
++		}
++
++		gid := *groupID
++		apiKey.GroupID = &gid
++		apiKey.Group = group
++	}
++
++	if err := s.apiKeyRepo.Update(ctx, apiKey); err != nil {
++		return nil, fmt.Errorf("update api key: %w", err)
++	}
++
++	s.InvalidateAuthCacheByKey(ctx, apiKey.Key)
++	s.compileAPIKeyIPRules(apiKey)
++
++	return apiKey, nil
++}
++
+ // Delete 删除API Key
+ func (s *APIKeyService) Delete(ctx context.Context, id int64, userID int64) error {
+ 	key, ownerID, err := s.apiKeyRepo.GetKeyAndOwnerID(ctx, id)
+diff --git a/backend/internal/service/api_key_service_group_test.go b/backend/internal/service/api_key_service_group_test.go
+new file mode 100644
+index 000000000..276a95299
+--- /dev/null
++++ b/backend/internal/service/api_key_service_group_test.go
+@@ -0,0 +1,87 @@
++//go:build unit
++
++package service
++
++import (
++	"context"
++	"testing"
++
++	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
++	"github.com/stretchr/testify/require"
++)
++
++func TestAPIKeyService_UpdateGroup_PreservesOtherFields(t *testing.T) {
++	oldGroupID := int64(5)
++	existing := &APIKey{
++		ID:          1,
++		UserID:      42,
++		Key:         "sk-test",
++		Name:        "Stable",
++		GroupID:     &oldGroupID,
++		Status:      StatusActive,
++		IPWhitelist: []string{"192.0.2.1"},
++		IPBlacklist: []string{"198.51.100.0/24"},
++		Quota:       12,
++		QuotaUsed:   3,
++		RateLimit5h: 4,
++		RateLimit1d: 5,
++		RateLimit7d: 6,
++	}
++	apiKeyRepo := &apiKeyRepoStubForGroupUpdate{key: existing}
++	groupRepo := &groupRepoStubForGroupUpdate{group: &Group{ID: 10, Name: "Pro", Status: StatusActive}}
++	userRepo := &userRepoStubForGroupUpdate{}
++	svc := NewAPIKeyService(apiKeyRepo, userRepo, groupRepo, nil, nil, nil, nil)
++
++	got, err := svc.UpdateGroup(context.Background(), 1, 42, int64Ptr(10))
++	require.NoError(t, err)
++
++	require.NotNil(t, got.GroupID)
++	require.Equal(t, int64(10), *got.GroupID)
++	require.Equal(t, "Stable", got.Name)
++	require.Equal(t, []string{"192.0.2.1"}, got.IPWhitelist)
++	require.Equal(t, []string{"198.51.100.0/24"}, got.IPBlacklist)
++	require.Equal(t, 12.0, got.Quota)
++	require.Equal(t, 3.0, got.QuotaUsed)
++	require.Equal(t, 4.0, got.RateLimit5h)
++	require.Equal(t, 5.0, got.RateLimit1d)
++	require.Equal(t, 6.0, got.RateLimit7d)
++	require.NotNil(t, apiKeyRepo.updated)
++	require.Equal(t, []string{"192.0.2.1"}, apiKeyRepo.updated.IPWhitelist)
++}
++
++func TestAPIKeyService_UpdateGroup_UnbindsWithZero(t *testing.T) {
++	oldGroupID := int64(5)
++	existing := &APIKey{ID: 1, UserID: 42, Key: "sk-test", GroupID: &oldGroupID, Group: &Group{ID: oldGroupID}, Status: StatusActive}
++	apiKeyRepo := &apiKeyRepoStubForGroupUpdate{key: existing}
++	svc := NewAPIKeyService(apiKeyRepo, nil, nil, nil, nil, nil, nil)
++
++	got, err := svc.UpdateGroup(context.Background(), 1, 42, int64Ptr(0))
++	require.NoError(t, err)
++	require.Nil(t, got.GroupID)
++	require.Nil(t, got.Group)
++	require.NotNil(t, apiKeyRepo.updated)
++	require.Nil(t, apiKeyRepo.updated.GroupID)
++}
++
++func TestAPIKeyService_UpdateGroup_RejectsUnauthorizedOwner(t *testing.T) {
++	existing := &APIKey{ID: 1, UserID: 7, Key: "sk-test", Status: StatusActive}
++	apiKeyRepo := &apiKeyRepoStubForGroupUpdate{key: existing}
++	svc := NewAPIKeyService(apiKeyRepo, nil, nil, nil, nil, nil, nil)
++
++	_, err := svc.UpdateGroup(context.Background(), 1, 42, int64Ptr(10))
++	require.ErrorIs(t, err, ErrInsufficientPerms)
++	require.Nil(t, apiKeyRepo.updated)
++}
++
++func TestAPIKeyService_UpdateGroup_RejectsUnavailableGroup(t *testing.T) {
++	existing := &APIKey{ID: 1, UserID: 42, Key: "sk-test", Status: StatusActive}
++	apiKeyRepo := &apiKeyRepoStubForGroupUpdate{key: existing}
++	groupRepo := &groupRepoStubForGroupUpdate{group: &Group{ID: 10, Name: "Off", Status: StatusDisabled}}
++	userRepo := &userRepoStubForGroupUpdate{}
++	svc := NewAPIKeyService(apiKeyRepo, userRepo, groupRepo, nil, nil, nil, nil)
++
++	_, err := svc.UpdateGroup(context.Background(), 1, 42, int64Ptr(10))
++	require.Error(t, err)
++	require.Equal(t, "GROUP_NOT_ACTIVE", infraerrors.Reason(err))
++	require.Nil(t, apiKeyRepo.updated)
++}
+diff --git a/frontend/src/api/auth.ts b/frontend/src/api/auth.ts
+index fd2592306..f80cb387f 100644
+--- a/frontend/src/api/auth.ts
++++ b/frontend/src/api/auth.ts
+@@ -106,6 +106,14 @@ export async function login(credentials: LoginRequest): Promise<LoginResponse> {
+   return data
+ }
+ 
++/**
++ * Exchange email/password credentials for a token pair through the machine-oriented alias.
++ */
++export async function exchangeToken(credentials: LoginRequest): Promise<LoginResponse> {
++  const { data } = await apiClient.post<LoginResponse>('/auth/token', credentials)
++  return data
++}
++
+ /**
+  * Complete login with 2FA code
+  * @param request - Temp token and TOTP code
+@@ -127,6 +135,14 @@ export async function login2FA(request: TotpLogin2FARequest): Promise<AuthRespon
+   return data
+ }
+ 
++/**
++ * Complete token exchange with 2FA through the machine-oriented alias.
++ */
++export async function exchangeToken2FA(request: TotpLogin2FARequest): Promise<AuthResponse> {
++  const { data } = await apiClient.post<AuthResponse>('/auth/token/2fa', request)
++  return data
++}
++
+ /**
+  * User registration
+  * @param userData - Registration data (username, email, password)
+@@ -310,6 +326,18 @@ export async function refreshToken(): Promise<RefreshTokenResponse> {
+   return data
+ }
+ 
++/**
++ * Refresh a token pair through the machine-oriented alias.
++ */
++export async function refreshTokenViaTokenEndpoint(
++  currentRefreshToken: string
++): Promise<RefreshTokenResponse> {
++  const { data } = await apiClient.post<RefreshTokenResponse>('/auth/token/refresh', {
++    refresh_token: currentRefreshToken
++  })
++  return data
++}
++
+ /**
+  * Revoke all sessions for the current user
+  * @returns Response with message
+@@ -659,7 +687,9 @@ export async function exchangePendingOAuthCompletion(
+ 
+ export const authAPI = {
+   login,
++  exchangeToken,
+   login2FA,
++  exchangeToken2FA,
+   isTotp2FARequired,
+   register,
+   getCurrentUser,
+@@ -680,6 +710,7 @@ export const authAPI = {
+   forgotPassword,
+   resetPassword,
+   refreshToken,
++  refreshTokenViaTokenEndpoint,
+   revokeAllSessions,
+   getPendingOAuthBindLoginKind,
+   isPendingOAuthCreateAccountRequired,
+diff --git a/frontend/src/api/keys.ts b/frontend/src/api/keys.ts
+index 34dd5b4b7..8ebbac64d 100644
+--- a/frontend/src/api/keys.ts
++++ b/frontend/src/api/keys.ts
+@@ -111,6 +111,17 @@ export async function update(id: number, updates: UpdateApiKeyRequest): Promise<
+   return data
+ }
+ 
++/**
++ * Rotate API key group without changing other key fields.
++ * Use groupId 0 or null to unbind the key from a group.
++ */
++export async function updateGroup(id: number, groupId: number | null): Promise<ApiKey> {
++  const { data } = await apiClient.put<ApiKey>(`/keys/${id}/group`, {
++    group_id: groupId === null ? 0 : groupId
++  })
++  return data
++}
++
+ /**
+  * Delete API key
+  * @param id - API key ID
+@@ -136,6 +147,7 @@ export const keysAPI = {
+   getById,
+   create,
+   update,
++  updateGroup,
+   delete: deleteKey,
+   toggleStatus
+ }
