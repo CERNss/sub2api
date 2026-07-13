@@ -41,22 +41,25 @@ The pending OIDC signup flow currently performs a second local email-code verifi
 - `backend/internal/service/auth_oauth_email_flow_test.go`: trusted-bypass coverage.
 - `backend/internal/service/settings_view.go`: public settings view exposes the new toggle.
 - `backend/internal/service/domain_constants.go`: introduces the `oidc_connect_require_local_email_verification` setting key constant.
-- `backend/internal/handler/admin/setting_handler.go`: passes the new admin field through.
+- `backend/internal/handler/admin/setting_handler.go`: GET settings payload passes the new admin field through.
+- `backend/internal/handler/admin/setting_handler_update.go`: update request DTO field + service input + response payload passthrough (upstream split this out of `setting_handler.go`).
+- `backend/internal/handler/admin/setting_handler_audit.go`: change-audit tracking for the new key (upstream split this out of `setting_handler.go`).
 - `backend/internal/handler/dto/settings.go`: DTO field.
-- `backend/internal/service/setting_service.go`: persistence of the new toggle.
+- `backend/internal/service/setting_features.go`: `GetOIDCConnectRequireLocalEmailVerification` / `IsOIDCConnectLocalEmailVerificationRequired` getters (upstream split `setting_service.go`).
+- `backend/internal/service/setting_parse.go`: default value (`true`) and settings-view parse of the new key (upstream split `setting_service.go`).
+- `backend/internal/service/setting_update.go`: persistence of the new toggle in the updates map (upstream split `setting_service.go`).
 - `frontend/src/api/admin/settings.ts`: typings for the admin API field.
 - `frontend/src/views/admin/SettingsView.vue`: admin UI exposes the new OIDC toggle.
 - `frontend/src/components/auth/PendingOAuthCreateAccountForm.vue`: hides local verification input when flag says so; when send-code returns an `auth_result: pending_session` (email already registered) it routes to the bind flow instead of falsely reporting "code sent".
 - `frontend/src/components/auth/__tests__/PendingOAuthCreateAccountForm.spec.ts`: form tests.
 - `frontend/src/views/auth/OidcCallbackView.vue`: consumes the verification flag.
 - `frontend/src/views/auth/__tests__/OidcCallbackView.spec.ts`: callback view tests.
-- `frontend/src/i18n/locales/en.ts`: copy strings.
-- `frontend/src/i18n/locales/zh.ts`: copy strings.
+- `frontend/src/i18n/locales/en/admin/settings.ts`: copy strings (upstream split the monolithic `en.ts`).
+- `frontend/src/i18n/locales/zh/admin/settings.ts`: copy strings (upstream split the monolithic `zh.ts`).
 
 ### Shared Touchpoints
-- `backend/internal/handler/admin/setting_handler.go`: also owned by `add-external-custom-menu-token-open`.
+- `backend/internal/handler/admin/setting_handler_update.go`: also owned by `add-external-custom-menu-token-open`.
 - `backend/internal/handler/dto/settings.go`: also owned by `add-external-custom-menu-token-open`.
-- `backend/internal/service/setting_service.go`: also owned by `add-external-custom-menu-token-open`.
 - `frontend/src/views/admin/SettingsView.vue`: also owned by `add-external-custom-menu-token-open` — preserve both settings panels.
 - `frontend/src/views/auth/OidcCallbackView.vue`: also owned by `refine-pending-oauth-account-resolution` — preserve both chooser bypass and verification flag handling.
 - `frontend/src/views/auth/__tests__/OidcCallbackView.spec.ts`: also owned by `refine-pending-oauth-account-resolution`.
