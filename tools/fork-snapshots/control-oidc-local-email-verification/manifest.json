@@ -2,10 +2,10 @@
   "change_id": "control-oidc-local-email-verification",
   "status": "active",
   "proposal_path": "openspec/changes/control-oidc-local-email-verification/proposal.md",
-  "captured_at": "2026-07-13T04:25:53+00:00",
-  "captured_at_commit": "85fa014674b01493adac6571fccbb4d9c1013f00",
-  "base": "d430343f",
-  "base_commit": "d430343f513aa811be4ef949a945d3d69e3dd0df",
+  "captured_at": "2026-07-13T04:52:34+00:00",
+  "captured_at_commit": "f8df914e86bd57d03a4177fb4451265b075725c8",
+  "base": "upstream/main",
+  "base_commit": "a1930ea6f29fc5f17ae0020f4e2d38e789c49d73",
   "new_files": [],
   "upstream_patch_files": [
     {
@@ -42,15 +42,31 @@
     },
     {
       "path": "backend/internal/handler/admin/setting_handler.go",
-      "reason": "passes the new admin field through."
+      "reason": "GET settings payload passes the new admin field through."
+    },
+    {
+      "path": "backend/internal/handler/admin/setting_handler_update.go",
+      "reason": "update request DTO field + service input + response payload passthrough (upstream split this out of `setting_handler.go`)."
+    },
+    {
+      "path": "backend/internal/handler/admin/setting_handler_audit.go",
+      "reason": "change-audit tracking for the new key (upstream split this out of `setting_handler.go`)."
     },
     {
       "path": "backend/internal/handler/dto/settings.go",
       "reason": "DTO field."
     },
     {
-      "path": "backend/internal/service/setting_service.go",
-      "reason": "persistence of the new toggle."
+      "path": "backend/internal/service/setting_features.go",
+      "reason": "`GetOIDCConnectRequireLocalEmailVerification` / `IsOIDCConnectLocalEmailVerificationRequired` getters (upstream split `setting_service.go`)."
+    },
+    {
+      "path": "backend/internal/service/setting_parse.go",
+      "reason": "default value (`true`) and settings-view parse of the new key (upstream split `setting_service.go`)."
+    },
+    {
+      "path": "backend/internal/service/setting_update.go",
+      "reason": "persistence of the new toggle in the updates map (upstream split `setting_service.go`)."
     },
     {
       "path": "frontend/src/api/admin/settings.ts",
@@ -77,27 +93,22 @@
       "reason": "callback view tests."
     },
     {
-      "path": "frontend/src/i18n/locales/en.ts",
-      "reason": "copy strings."
+      "path": "frontend/src/i18n/locales/en/admin/settings.ts",
+      "reason": "copy strings (upstream split the monolithic `en.ts`)."
     },
     {
-      "path": "frontend/src/i18n/locales/zh.ts",
-      "reason": "copy strings."
+      "path": "frontend/src/i18n/locales/zh/admin/settings.ts",
+      "reason": "copy strings (upstream split the monolithic `zh.ts`)."
     }
   ],
   "shared_touchpoints": [
     {
-      "path": "backend/internal/handler/admin/setting_handler.go",
+      "path": "backend/internal/handler/admin/setting_handler_update.go",
       "reason": "also owned by `add-external-custom-menu-token-open`.",
       "shared_with": "add-external-custom-menu-token-open"
     },
     {
       "path": "backend/internal/handler/dto/settings.go",
-      "reason": "also owned by `add-external-custom-menu-token-open`.",
-      "shared_with": "add-external-custom-menu-token-open"
-    },
-    {
-      "path": "backend/internal/service/setting_service.go",
       "reason": "also owned by `add-external-custom-menu-token-open`.",
       "shared_with": "add-external-custom-menu-token-open"
     },
