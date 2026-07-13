@@ -36,7 +36,7 @@ index 156b6c97..ebe35428 100644
 +- GitHub repository: the repository that published this image
 +- Documentation: see `deploy/README.md` in that repository
 diff --git a/deploy/docker-compose.local.yml b/deploy/docker-compose.local.yml
-index b15be240..9356bda9 100644
+index 042752e8..f026d2fb 100644
 --- a/deploy/docker-compose.local.yml
 +++ b/deploy/docker-compose.local.yml
 @@ -39,6 +39,10 @@ services:
@@ -51,7 +51,7 @@ index b15be240..9356bda9 100644
        # =======================================================================
        # Auto Setup (REQUIRED for Docker deployment)
 diff --git a/deploy/docker-compose.yml b/deploy/docker-compose.yml
-index fd682a87..b2181e43 100644
+index 22713c59..08fb621b 100644
 --- a/deploy/docker-compose.yml
 +++ b/deploy/docker-compose.yml
 @@ -31,6 +31,10 @@ services:
@@ -66,7 +66,7 @@ index fd682a87..b2181e43 100644
        # gateway.forced_codex_instructions_template_file at /app/data/codex-instructions.md.tmpl
        # in config.yaml.
 diff --git a/frontend/src/components/keys/UseKeyModal.vue b/frontend/src/components/keys/UseKeyModal.vue
-index be12e8fc..22e1ebf7 100644
+index e6bce556..5b9066c6 100644
 --- a/frontend/src/components/keys/UseKeyModal.vue
 +++ b/frontend/src/components/keys/UseKeyModal.vue
 @@ -139,7 +139,11 @@ import { useI18n } from 'vue-i18n'
@@ -90,7 +90,7 @@ index be12e8fc..22e1ebf7 100644
  }
  
  interface Emits {
-@@ -373,6 +378,32 @@ const operator = (value: string) => wrapToken('text-slate-400', value)
+@@ -386,6 +391,32 @@ const operator = (value: string) => wrapToken('text-slate-400', value)
  const string = (value: string) => wrapToken('text-amber-200', value)
  const comment = (value: string) => wrapToken('text-slate-500', value)
  
@@ -123,7 +123,7 @@ index be12e8fc..22e1ebf7 100644
  // Syntax highlighting helpers
  // Generate file configs based on platform and active tab
  const currentFiles = computed((): FileConfig[] => {
-@@ -395,6 +426,23 @@ const currentFiles = computed((): FileConfig[] => {
+@@ -408,6 +439,23 @@ const currentFiles = computed((): FileConfig[] => {
    })()
  
    if (activeClientTab.value === 'opencode') {
@@ -147,7 +147,7 @@ index be12e8fc..22e1ebf7 100644
      switch (props.platform) {
        case 'anthropic':
          return [generateOpenCodeConfig('anthropic', apiBase, apiKey)]
-@@ -418,8 +466,30 @@ const currentFiles = computed((): FileConfig[] => {
+@@ -433,8 +481,30 @@ const currentFiles = computed((): FileConfig[] => {
          return generateAnthropicFiles(baseUrl, apiKey)
        }
        if (activeClientTab.value === 'codex-ws') {
@@ -179,10 +179,10 @@ index be12e8fc..22e1ebf7 100644
      case 'gemini':
        return [generateGeminiCliContent(baseUrl, apiKey)]
 diff --git a/frontend/src/components/keys/__tests__/UseKeyModal.spec.ts b/frontend/src/components/keys/__tests__/UseKeyModal.spec.ts
-index 8ad9731b..ffb80dd7 100644
+index 24581d9f..95e0ebca 100644
 --- a/frontend/src/components/keys/__tests__/UseKeyModal.spec.ts
 +++ b/frontend/src/components/keys/__tests__/UseKeyModal.spec.ts
-@@ -164,4 +164,92 @@ describe('UseKeyModal', () => {
+@@ -262,4 +262,92 @@ describe('UseKeyModal', () => {
      expect(fable.options.thinking).toEqual({ type: 'adaptive' })
      expect(fable.options.thinking).not.toHaveProperty('budgetTokens')
    })
@@ -276,10 +276,10 @@ index 8ad9731b..ffb80dd7 100644
 +  })
  })
 diff --git a/frontend/src/types/index.ts b/frontend/src/types/index.ts
-index 04ae60b8..2217fc2a 100644
+index b7095ebe..b4fa5e5b 100644
 --- a/frontend/src/types/index.ts
 +++ b/frontend/src/types/index.ts
-@@ -170,6 +170,7 @@ export interface CustomMenuItem {
+@@ -171,6 +171,7 @@ export interface CustomMenuItem {
    icon_svg: string
    url: string
    page_slug?: string
@@ -287,7 +287,7 @@ index 04ae60b8..2217fc2a 100644
    visibility: 'user' | 'admin'
    sort_order: number
  }
-@@ -209,6 +210,7 @@ export interface PublicSettings {
+@@ -210,6 +211,7 @@ export interface PublicSettings {
    doc_url: string
    home_content: string
    hide_ccs_import_button: boolean
@@ -295,7 +295,7 @@ index 04ae60b8..2217fc2a 100644
    payment_enabled: boolean
    risk_control_enabled: boolean
    table_default_page_size: number
-@@ -485,6 +487,31 @@ export interface PaginationConfig {
+@@ -490,6 +492,31 @@ export interface PaginationConfig {
    page_size: number
  }
  
@@ -326,12 +326,12 @@ index 04ae60b8..2217fc2a 100644
 +
  // ==================== API Key & Group Types ====================
  
- export type GroupPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity'
+ export type GroupPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok'
 diff --git a/frontend/src/views/user/KeysView.vue b/frontend/src/views/user/KeysView.vue
-index 7ca0a1c7..4f044117 100644
+index 161dccef..8debd9bf 100644
 --- a/frontend/src/views/user/KeysView.vue
 +++ b/frontend/src/views/user/KeysView.vue
-@@ -927,6 +927,7 @@
+@@ -991,6 +991,7 @@
        :base-url="publicSettings?.api_base_url || ''"
        :platform="selectedKey?.group?.platform || null"
        :allow-messages-dispatch="selectedKey?.group?.allow_messages_dispatch || false"
@@ -339,12 +339,12 @@ index 7ca0a1c7..4f044117 100644
        @close="closeUseKeyModal"
      />
  
-@@ -1068,15 +1069,21 @@ import TablePageLayout from '@/components/layout/TablePageLayout.vue'
+@@ -1136,15 +1137,21 @@ import TablePageLayout from '@/components/layout/TablePageLayout.vue'
  	import EndpointPopover from '@/components/keys/EndpointPopover.vue'
  	import GroupBadge from '@/components/common/GroupBadge.vue'
  	import GroupOptionItem from '@/components/common/GroupOptionItem.vue'
--	import type { ApiKey, Group, PublicSettings, SubscriptionType, GroupPlatform } from '@/types'
-+	import type { ApiKey, ClientTemplatesConfig, Group, PublicSettings, SubscriptionType, GroupPlatform } from '@/types'
+-	import type { ApiKey, Group, PublicSettings, SubscriptionType, GroupPlatform, UpdateApiKeyRequest } from '@/types'
++	import type { ApiKey, ClientTemplatesConfig, Group, PublicSettings, SubscriptionType, GroupPlatform, UpdateApiKeyRequest } from '@/types'
  import type { Column } from '@/components/common/types'
  import type { BatchApiKeyUsageStats } from '@/api/usage'
  import { formatDateTime } from '@/utils/format'
@@ -362,15 +362,15 @@ index 7ca0a1c7..4f044117 100644
  
  // Helper to format date for datetime-local input
  const formatDateTimeLocal = (isoDate: string): string => {
-@@ -1149,6 +1156,7 @@ const selectedKey = ref<ApiKey | null>(null)
+@@ -1301,6 +1308,7 @@ const selectedKey = ref<ApiKey | null>(null)
  const copiedKeyId = ref<number | null>(null)
  const groupSelectorKeyId = ref<number | null>(null)
  const publicSettings = ref<PublicSettings | null>(null)
 +const clientTemplates = ref<ClientTemplatesConfig | null>(null)
  const dropdownRef = ref<HTMLElement | null>(null)
+ const columnDropdownRef = ref<HTMLElement | null>(null)
  const dropdownPosition = ref<{ top?: number; bottom?: number; left: number } | null>(null)
- const groupButtonRefs = ref<Map<number, HTMLElement>>(new Map())
-@@ -1352,11 +1360,24 @@ const loadUserGroupRates = async () => {
+@@ -1516,11 +1524,24 @@ const loadUserGroupRates = async () => {
  }
  
  const loadPublicSettings = async () => {
@@ -396,7 +396,7 @@ index 7ca0a1c7..4f044117 100644
  }
  
  const openUseKeyModal = (key: ApiKey) => {
-@@ -1725,14 +1746,48 @@ const executeCcsImport = (row: ApiKey, clientType: CcSwitchClientType) => {
+@@ -1895,14 +1916,48 @@ const executeCcsImport = (row: ApiKey, clientType: CcSwitchClientType) => {
      }
    })`
    const providerName = (publicSettings.value?.site_name || 'sub2api').trim() || 'sub2api'

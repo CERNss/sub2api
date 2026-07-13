@@ -1,8 +1,8 @@
 diff --git a/backend/cmd/server/wire_gen.go b/backend/cmd/server/wire_gen.go
-index eefd228e..91c3cb28 100644
+index e148c5c3..a6458143 100644
 --- a/backend/cmd/server/wire_gen.go
 +++ b/backend/cmd/server/wire_gen.go
-@@ -172,7 +172,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
+@@ -183,7 +183,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
  	dashboardHandler := admin.NewDashboardHandler(dashboardService, dashboardAggregationService)
  	proxyExitInfoProber := repository.NewProxyExitInfoProber(configConfig)
  	proxyLatencyCache := repository.NewProxyLatencyCache(redisClient)
@@ -78,10 +78,10 @@ index bffddc8a..b79e5dd8 100644
  	req = httptest.NewRequest(http.MethodGet, "/api/v1/admin/users/1/usage?period=today", nil)
  	router.ServeHTTP(rec, req)
 diff --git a/backend/internal/handler/admin/admin_service_stub_test.go b/backend/internal/handler/admin/admin_service_stub_test.go
-index 41b9b862..f4c54ca1 100644
+index 7a7cbb47..e3d1a2ec 100644
 --- a/backend/internal/handler/admin/admin_service_stub_test.go
 +++ b/backend/internal/handler/admin/admin_service_stub_test.go
-@@ -191,6 +191,59 @@ func (s *stubAdminService) GetUserAPIKeys(ctx context.Context, userID int64, pag
+@@ -196,6 +196,59 @@ func (s *stubAdminService) GetUserAPIKeys(ctx context.Context, userID int64, pag
  	return s.apiKeys, int64(len(s.apiKeys)), nil
  }
  
@@ -311,10 +311,10 @@ index 5e405bdd..1388942b 100644
 +	}
 +}
 diff --git a/backend/internal/repository/api_key_repo.go b/backend/internal/repository/api_key_repo.go
-index e5eb34db..292bfaa5 100644
+index ee4ed478..dc2625f6 100644
 --- a/backend/internal/repository/api_key_repo.go
 +++ b/backend/internal/repository/api_key_repo.go
-@@ -39,7 +39,10 @@ func (r *apiKeyRepository) activeQuery() *dbent.APIKeyQuery {
+@@ -41,7 +41,10 @@ func (r *apiKeyRepository) activeQuery() *dbent.APIKeyQuery {
  }
  
  func (r *apiKeyRepository) Create(ctx context.Context, key *service.APIKey) error {
@@ -326,7 +326,7 @@ index e5eb34db..292bfaa5 100644
  		SetUserID(key.UserID).
  		SetKey(key.Key).
  		SetName(key.Name).
-@@ -283,6 +286,34 @@ func (r *apiKeyRepository) Update(ctx context.Context, key *service.APIKey) erro
+@@ -296,6 +299,34 @@ func (r *apiKeyRepository) Update(ctx context.Context, key *service.APIKey) erro
  	return nil
  }
  
@@ -421,7 +421,7 @@ index fdf9bc83..c826b522 100644
  	user := s.mustCreateUser("cleargroup@test.com")
  	group := s.mustCreateGroup("g-clear")
 diff --git a/backend/internal/server/api_contract_test.go b/backend/internal/server/api_contract_test.go
-index 57d20926..50180d26 100644
+index 372cc46b..beb4fd98 100644
 --- a/backend/internal/server/api_contract_test.go
 +++ b/backend/internal/server/api_contract_test.go
 @@ -5,7 +5,9 @@ package server_test
@@ -434,7 +434,7 @@ index 57d20926..50180d26 100644
  	"io"
  	"math"
  	"net/http"
-@@ -369,6 +371,100 @@ func TestAPIContracts(t *testing.T) {
+@@ -388,6 +390,100 @@ func TestAPIContracts(t *testing.T) {
  				]
  			}`,
  		},
@@ -535,7 +535,7 @@ index 57d20926..50180d26 100644
  		{
  			name: "GET /api/v1/subscriptions",
  			setup: func(t *testing.T, deps *contractDeps) {
-@@ -740,6 +836,7 @@ func TestAPIContracts(t *testing.T) {
+@@ -761,6 +857,7 @@ func TestAPIContracts(t *testing.T) {
  						"oidc_connect_allowed_signing_algs": "RS256,ES256,PS256",
  						"oidc_connect_clock_skew_seconds": 120,
  						"oidc_connect_require_email_verified": false,
@@ -543,7 +543,7 @@ index 57d20926..50180d26 100644
  						"oidc_connect_userinfo_email_path": "",
  						"oidc_connect_userinfo_id_path": "",
  						"oidc_connect_userinfo_username_path": "",
-@@ -1018,6 +1115,7 @@ func TestAPIContracts(t *testing.T) {
+@@ -1068,6 +1165,7 @@ func TestAPIContracts(t *testing.T) {
  					"oidc_connect_allowed_signing_algs": "RS256,ES256,PS256",
  					"oidc_connect_clock_skew_seconds": 120,
  					"oidc_connect_require_email_verified": false,
@@ -551,7 +551,7 @@ index 57d20926..50180d26 100644
  					"oidc_connect_userinfo_email_path": "",
  					"oidc_connect_userinfo_id_path": "",
  					"oidc_connect_userinfo_username_path": "",
-@@ -1227,6 +1325,302 @@ func TestAPIContracts(t *testing.T) {
+@@ -1306,6 +1404,302 @@ func TestAPIContracts(t *testing.T) {
  	}
  }
  
@@ -854,7 +854,7 @@ index 57d20926..50180d26 100644
  type contractDeps struct {
  	now         time.Time
  	router      http.Handler
-@@ -1292,7 +1686,7 @@ func newContractDeps(t *testing.T) *contractDeps {
+@@ -1371,7 +1765,7 @@ func newContractDeps(t *testing.T) *contractDeps {
  	settingRepo := newStubSettingRepo()
  	settingService := service.NewSettingService(settingRepo, cfg)
  
@@ -863,7 +863,7 @@ index 57d20926..50180d26 100644
  	authHandler := handler.NewAuthHandler(cfg, nil, userService, settingService, nil, redeemService, nil, nil)
  	apiKeyHandler := handler.NewAPIKeyHandler(apiKeyService)
  	usageHandler := handler.NewUsageHandler(usageService, apiKeyService, nil, nil)
-@@ -1328,6 +1722,7 @@ func newContractDeps(t *testing.T) *contractDeps {
+@@ -1407,6 +1801,7 @@ func newContractDeps(t *testing.T) *contractDeps {
  	v1Keys.Use(jwtAuth)
  	v1Keys.GET("/keys", apiKeyHandler.List)
  	v1Keys.POST("/keys", apiKeyHandler.Create)
@@ -871,7 +871,7 @@ index 57d20926..50180d26 100644
  	v1Keys.GET("/groups/available", apiKeyHandler.GetAvailableGroups)
  
  	v1Usage := v1.Group("")
-@@ -1473,7 +1868,17 @@ func (r *stubUserRepo) RemoveGroupFromUserAllowedGroups(ctx context.Context, use
+@@ -1552,7 +1947,17 @@ func (r *stubUserRepo) RemoveGroupFromUserAllowedGroups(ctx context.Context, use
  }
  
  func (r *stubUserRepo) AddGroupToAllowedGroups(ctx context.Context, userID int64, groupID int64) error {
@@ -890,7 +890,7 @@ index 57d20926..50180d26 100644
  }
  
  func (r *stubUserRepo) ListUserAuthIdentities(ctx context.Context, userID int64) ([]service.UserAuthIdentityRecord, error) {
-@@ -1556,22 +1961,35 @@ func (stubApiKeyCache) SubscribeAuthCacheInvalidation(ctx context.Context, handl
+@@ -1635,22 +2040,35 @@ func (stubApiKeyCache) SubscribeAuthCacheInvalidation(ctx context.Context, handl
  
  type stubGroupRepo struct {
  	active []service.Group
@@ -930,7 +930,7 @@ index 57d20926..50180d26 100644
  }
  
  func (stubGroupRepo) Update(ctx context.Context, group *service.Group) error {
-@@ -2136,6 +2554,10 @@ func (r *stubApiKeyRepo) Update(ctx context.Context, key *service.APIKey) error
+@@ -2235,6 +2653,10 @@ func (r *stubApiKeyRepo) Update(ctx context.Context, key *service.APIKey) error
  	return nil
  }
  
@@ -942,10 +942,10 @@ index 57d20926..50180d26 100644
  	key, ok := r.byID[id]
  	if !ok {
 diff --git a/backend/internal/server/routes/admin.go b/backend/internal/server/routes/admin.go
-index 24c52acb..427fab74 100644
+index 0d7e2a50..a252383e 100644
 --- a/backend/internal/server/routes/admin.go
 +++ b/backend/internal/server/routes/admin.go
-@@ -132,6 +132,7 @@ func registerAdminAPIKeyRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+@@ -135,6 +135,7 @@ func registerAdminAPIKeyRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
  	apiKeys := admin.Group("/api-keys")
  	{
  		apiKeys.PUT("/:id", h.Admin.APIKey.UpdateGroup)
@@ -953,7 +953,7 @@ index 24c52acb..427fab74 100644
  	}
  }
  
-@@ -250,6 +251,7 @@ func registerUserManagementRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+@@ -253,6 +254,7 @@ func registerUserManagementRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
  		users.DELETE("/:id", h.Admin.User.Delete)
  		users.POST("/:id/balance", h.Admin.User.UpdateBalance)
  		users.GET("/:id/api-keys", h.Admin.User.GetUserAPIKeys)
@@ -962,20 +962,20 @@ index 24c52acb..427fab74 100644
  		users.GET("/:id/balance-history", h.Admin.User.GetBalanceHistory)
  		users.POST("/:id/replace-group", h.Admin.User.ReplaceGroup)
 diff --git a/backend/internal/service/admin_service.go b/backend/internal/service/admin_service.go
-index 5a7c14f0..ae8a48f1 100644
+index 2a7125f5..993b200b 100644
 --- a/backend/internal/service/admin_service.go
 +++ b/backend/internal/service/admin_service.go
-@@ -39,6 +39,8 @@ type AdminService interface {
- 	DeleteUser(ctx context.Context, id int64) error
+@@ -21,6 +21,8 @@ type AdminService interface {
  	UpdateUserBalance(ctx context.Context, userID int64, balance float64, operation string, notes string) (*User, error)
  	BatchUpdateConcurrency(ctx context.Context, userIDs []int64, value int, mode string) (int, error)
+ 	GetUserAPIKeys(ctx context.Context, userID int64, page, pageSize int, sortBy, sortOrder string) ([]APIKey, int64, error)
 +	CreateUserAPIKey(ctx context.Context, userID int64, input CreateUserAPIKeyInput) (*CreateUserAPIKeyResult, error)
 +	TransferAPIKey(ctx context.Context, keyID int64, input TransferAPIKeyInput) (*TransferAPIKeyResult, error)
- 	GetUserAPIKeys(ctx context.Context, userID int64, page, pageSize int, sortBy, sortOrder string) ([]APIKey, int64, error)
  	GetUserUsageStats(ctx context.Context, userID int64, period string) (any, error)
  	GetUserRPMStatus(ctx context.Context, userID int64) (*UserRPMStatus, error)
-@@ -156,6 +158,40 @@ type UpdateUserInput struct {
- 	GroupRates map[int64]*float64
+ 	// GetUserBalanceHistory returns paginated balance/concurrency change records for a user.
+@@ -152,6 +154,40 @@ type UpdateUserInput struct {
+ 	ActorAdminID int64
  }
  
 +type CreateUserAPIKeyInput struct {
@@ -1015,7 +1015,7 @@ index 5a7c14f0..ae8a48f1 100644
  type AdminBindAuthIdentityInput struct {
  	ProviderType    string
  	ProviderKey     string
-@@ -547,6 +583,7 @@ type adminServiceImpl struct {
+@@ -582,6 +618,7 @@ type adminServiceImpl struct {
  	redeemCodeRepo       RedeemCodeRepository
  	userGroupRateRepo    UserGroupRateRepository
  	userRPMCache         UserRPMCache
@@ -1023,7 +1023,7 @@ index 5a7c14f0..ae8a48f1 100644
  	billingCacheService  *BillingCacheService
  	proxyProber          ProxyExitInfoProber
  	proxyLatencyCache    ProxyLatencyCache
-@@ -573,6 +610,7 @@ func NewAdminService(
+@@ -608,6 +645,7 @@ func NewAdminService(
  	redeemCodeRepo RedeemCodeRepository,
  	userGroupRateRepo UserGroupRateRepository,
  	userRPMCache UserRPMCache,
@@ -1031,7 +1031,7 @@ index 5a7c14f0..ae8a48f1 100644
  	billingCacheService *BillingCacheService,
  	proxyProber ProxyExitInfoProber,
  	proxyLatencyCache ProxyLatencyCache,
-@@ -593,6 +631,7 @@ func NewAdminService(
+@@ -628,6 +666,7 @@ func NewAdminService(
  		redeemCodeRepo:       redeemCodeRepo,
  		userGroupRateRepo:    userGroupRateRepo,
  		userRPMCache:         userRPMCache,
@@ -1039,203 +1039,6 @@ index 5a7c14f0..ae8a48f1 100644
  		billingCacheService:  billingCacheService,
  		proxyProber:          proxyProber,
  		proxyLatencyCache:    proxyLatencyCache,
-@@ -1058,6 +1097,196 @@ func (s *adminServiceImpl) GetUserAPIKeys(ctx context.Context, userID int64, pag
- 	return keys, result.Total, nil
- }
- 
-+func (s *adminServiceImpl) CreateUserAPIKey(ctx context.Context, userID int64, input CreateUserAPIKeyInput) (*CreateUserAPIKeyResult, error) {
-+	// 负数 quota 会被 APIKey.IsQuotaExhausted（Quota <= 0 视为无限）静默解释为无限额度，
-+	// 这对外部开通系统是危险的脚枪，显式拒绝；0 仍表示无限，保持既有语义。
-+	if input.Quota < 0 {
-+		return nil, infraerrors.BadRequest("INVALID_QUOTA", "quota must be non-negative (0 means unlimited)")
-+	}
-+
-+	user, err := s.userRepo.GetByID(ctx, userID)
-+	if err != nil {
-+		return nil, err
-+	}
-+
-+	result := &CreateUserAPIKeyResult{}
-+	createCtx := ctx
-+	var tx *dbent.Tx
-+
-+	if input.GroupID != nil && *input.GroupID > 0 {
-+		group, err := s.groupRepo.GetByID(ctx, *input.GroupID)
-+		if err != nil {
-+			return nil, err
-+		}
-+		if group.Status != StatusActive {
-+			return nil, infraerrors.BadRequest("GROUP_NOT_ACTIVE", "target group is not active")
-+		}
-+		if group.IsSubscriptionType() {
-+			if s.userSubRepo == nil {
-+				return nil, infraerrors.InternalServer("SUBSCRIPTION_REPOSITORY_UNAVAILABLE", "subscription repository is not configured")
-+			}
-+			if _, err := s.userSubRepo.GetActiveByUserIDAndGroupID(ctx, userID, *input.GroupID); err != nil {
-+				if errors.Is(err, ErrSubscriptionNotFound) {
-+					return nil, infraerrors.BadRequest("SUBSCRIPTION_REQUIRED", "user does not have an active subscription for this group")
-+				}
-+				return nil, err
-+			}
-+		} else if group.IsExclusive && !user.CanBindGroup(group.ID, group.IsExclusive) {
-+			if s.entClient == nil {
-+				logger.LegacyPrintf("service.admin", "Warning: entClient is nil, creating API key without transaction protection for exclusive group auto-grant")
-+			} else {
-+				tx, err = s.entClient.Tx(ctx)
-+				if err != nil {
-+					return nil, fmt.Errorf("begin transaction: %w", err)
-+				}
-+				defer func() { _ = tx.Rollback() }()
-+				createCtx = dbent.NewTxContext(ctx, tx)
-+			}
-+
-+			if err := s.userRepo.AddGroupToAllowedGroups(createCtx, userID, group.ID); err != nil {
-+				return nil, fmt.Errorf("add group to user allowed groups: %w", err)
-+			}
-+			user.AllowedGroups = append(user.AllowedGroups, group.ID)
-+			result.AutoGrantedGroupAccess = true
-+			result.GrantedGroupID = &group.ID
-+			result.GrantedGroupName = group.Name
-+		}
-+	}
-+
-+	if s.apiKeyService == nil {
-+		return nil, infraerrors.InternalServer("API_KEY_SERVICE_UNAVAILABLE", "api key service is not configured")
-+	}
-+
-+	apiKey, err := s.apiKeyService.createForUser(createCtx, user, CreateAPIKeyRequest(input))
-+	if err != nil {
-+		return nil, err
-+	}
-+
-+	if tx != nil {
-+		if err := tx.Commit(); err != nil {
-+			return nil, fmt.Errorf("commit transaction: %w", err)
-+		}
-+	}
-+
-+	result.APIKey = apiKey
-+	return result, nil
-+}
-+
-+func (s *adminServiceImpl) TransferAPIKey(ctx context.Context, keyID int64, input TransferAPIKeyInput) (*TransferAPIKeyResult, error) {
-+	if input.TargetUserID <= 0 {
-+		return nil, infraerrors.BadRequest("INVALID_TARGET_USER_ID", "target_user_id must be positive")
-+	}
-+	// 与创建路径一致：负数 quota 会被静默当作无限额度，显式拒绝。
-+	if input.Quota != nil && *input.Quota < 0 {
-+		return nil, infraerrors.BadRequest("INVALID_QUOTA", "quota must be non-negative (0 means unlimited)")
-+	}
-+
-+	apiKey, err := s.apiKeyRepo.GetByID(ctx, keyID)
-+	if err != nil {
-+		return nil, err
-+	}
-+
-+	targetUser, err := s.userRepo.GetByID(ctx, input.TargetUserID)
-+	if err != nil {
-+		return nil, err
-+	}
-+
-+	result := &TransferAPIKeyResult{}
-+	opCtx := ctx
-+	var tx *dbent.Tx
-+
-+	var targetGroup *Group
-+	var finalGroupID *int64
-+	switch {
-+	case input.TargetGroupID != nil && *input.TargetGroupID < 0:
-+		return nil, infraerrors.BadRequest("INVALID_GROUP_ID", "target_group_id must be non-negative")
-+	case input.TargetGroupID != nil && *input.TargetGroupID == 0:
-+		apiKey.GroupID = nil
-+		apiKey.Group = nil
-+	case input.TargetGroupID != nil:
-+		gid := *input.TargetGroupID
-+		finalGroupID = &gid
-+	default:
-+		finalGroupID = apiKey.GroupID
-+	}
-+
-+	if finalGroupID != nil {
-+		group, err := s.groupRepo.GetByID(ctx, *finalGroupID)
-+		if err != nil {
-+			return nil, err
-+		}
-+		if group.Status != StatusActive {
-+			return nil, infraerrors.BadRequest("GROUP_NOT_ACTIVE", "target group is not active")
-+		}
-+		if group.IsSubscriptionType() {
-+			if s.userSubRepo == nil {
-+				return nil, infraerrors.InternalServer("SUBSCRIPTION_REPOSITORY_UNAVAILABLE", "subscription repository is not configured")
-+			}
-+			if _, err := s.userSubRepo.GetActiveByUserIDAndGroupID(ctx, input.TargetUserID, group.ID); err != nil {
-+				if errors.Is(err, ErrSubscriptionNotFound) {
-+					return nil, infraerrors.BadRequest("SUBSCRIPTION_REQUIRED", "user does not have an active subscription for this group")
-+				}
-+				return nil, err
-+			}
-+		} else if group.IsExclusive && !targetUser.CanBindGroup(group.ID, group.IsExclusive) {
-+			if s.entClient == nil {
-+				logger.LegacyPrintf("service.admin", "Warning: entClient is nil, transferring API key without transaction protection for exclusive group auto-grant")
-+			} else {
-+				tx, err = s.entClient.Tx(ctx)
-+				if err != nil {
-+					return nil, fmt.Errorf("begin transaction: %w", err)
-+				}
-+				defer func() { _ = tx.Rollback() }()
-+				opCtx = dbent.NewTxContext(ctx, tx)
-+			}
-+
-+			if err := s.userRepo.AddGroupToAllowedGroups(opCtx, input.TargetUserID, group.ID); err != nil {
-+				return nil, fmt.Errorf("add group to user allowed groups: %w", err)
-+			}
-+			targetUser.AllowedGroups = append(targetUser.AllowedGroups, group.ID)
-+			result.AutoGrantedGroupAccess = true
-+			result.GrantedGroupID = &group.ID
-+			result.GrantedGroupName = group.Name
-+		}
-+
-+		gid := group.ID
-+		apiKey.GroupID = &gid
-+		apiKey.Group = group
-+		targetGroup = group
-+	}
-+
-+	apiKey.UserID = input.TargetUserID
-+	apiKey.User = targetUser
-+	if targetGroup != nil {
-+		apiKey.Group = targetGroup
-+	}
-+	if input.Quota != nil {
-+		apiKey.Quota = *input.Quota
-+	}
-+	if input.ResetQuota {
-+		apiKey.QuotaUsed = 0
-+		if apiKey.Status == StatusAPIKeyQuotaExhausted {
-+			apiKey.Status = StatusActive
-+		}
-+	}
-+
-+	if err := s.apiKeyRepo.TransferUpdate(opCtx, apiKey); err != nil {
-+		return nil, fmt.Errorf("transfer api key: %w", err)
-+	}
-+	if tx != nil {
-+		if err := tx.Commit(); err != nil {
-+			return nil, fmt.Errorf("commit transaction: %w", err)
-+		}
-+	}
-+
-+	if s.authCacheInvalidator != nil {
-+		s.authCacheInvalidator.InvalidateAuthCacheByKey(ctx, apiKey.Key)
-+	}
-+
-+	result.APIKey = apiKey
-+	return result, nil
-+}
-+
- func (s *adminServiceImpl) GetUserRPMStatus(ctx context.Context, userID int64) (*UserRPMStatus, error) {
- 	if s.userRPMCache == nil {
- 		return nil, ErrRPMStatusUnavailable
 diff --git a/backend/internal/service/admin_service_apikey_test.go b/backend/internal/service/admin_service_apikey_test.go
 index ccc8d221..a36de5e1 100644
 --- a/backend/internal/service/admin_service_apikey_test.go
@@ -1594,10 +1397,10 @@ index ccc8d221..a36de5e1 100644
 +	require.Nil(t, apiKeyRepo.transferUpdated)
 +}
 diff --git a/backend/internal/service/api_key_service.go b/backend/internal/service/api_key_service.go
-index f749b35a..9bbef939 100644
+index b13ca6b3..ff8cb5a6 100644
 --- a/backend/internal/service/api_key_service.go
 +++ b/backend/internal/service/api_key_service.go
-@@ -26,6 +26,7 @@ var (
+@@ -27,6 +27,7 @@ var (
  	ErrAPIKeyExists       = infraerrors.Conflict("API_KEY_EXISTS", "api key already exists")
  	ErrAPIKeyTooShort     = infraerrors.BadRequest("API_KEY_TOO_SHORT", "api key must be at least 16 characters")
  	ErrAPIKeyInvalidChars = infraerrors.BadRequest("API_KEY_INVALID_CHARS", "api key can only contain letters, numbers, underscores, and hyphens")
@@ -1605,7 +1408,7 @@ index f749b35a..9bbef939 100644
  	ErrAPIKeyRateLimited  = infraerrors.TooManyRequests("API_KEY_RATE_LIMITED", "too many failed attempts, please try again later")
  	ErrInvalidIPPattern   = infraerrors.BadRequest("INVALID_IP_PATTERN", "invalid IP or CIDR pattern")
  	// ErrAPIKeyExpired        = infraerrors.Forbidden("API_KEY_EXPIRED", "api key has expired")
-@@ -55,6 +56,7 @@ type APIKeyRepository interface {
+@@ -57,6 +58,7 @@ type APIKeyRepository interface {
  	// GetByKeyForAuth 认证专用查询，返回最小字段集
  	GetByKeyForAuth(ctx context.Context, key string) (*APIKey, error)
  	Update(ctx context.Context, key *APIKey) error
@@ -1613,7 +1416,7 @@ index f749b35a..9bbef939 100644
  	Delete(ctx context.Context, id int64) error
  	// DeleteWithAudit 在同一事务内先写 deleted_api_key_audits 审计、再软删除该 key。
  	DeleteWithAudit(ctx context.Context, id int64) error
-@@ -336,6 +338,15 @@ func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIK
+@@ -347,6 +349,15 @@ func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIK
  		return nil, fmt.Errorf("get user: %w", err)
  	}
  
@@ -1629,7 +1432,7 @@ index f749b35a..9bbef939 100644
  	// 验证 IP 白名单格式
  	if len(req.IPWhitelist) > 0 {
  		if invalid := ip.ValidateIPPatterns(req.IPWhitelist); len(invalid) > 0 {
-@@ -639,6 +650,61 @@ func (s *APIKeyService) Update(ctx context.Context, id int64, userID int64, req
+@@ -757,6 +768,61 @@ func (s *APIKeyService) Update(ctx context.Context, id int64, userID int64, req
  	return apiKey, nil
  }
  
