@@ -26,9 +26,9 @@
 
 | # | ID | 状态 | 一句话 | 新增文件 | 上游补丁文件 |
 |---|----|------|-------|---------|-------------|
-| 1 | `add-admin-user-api-key-creation`         | 🟢 active   | Admin 通过 Admin API Key 为指定用户创建/转移 API key | 0 | 14 |
+| 1 | `add-admin-user-api-key-creation`         | 🟢 active   | Admin 通过 Admin API Key 为指定用户创建/转移 API key | 0 | 15 |
 | 2 | `add-external-custom-menu-token-open`     | 🟢 active   | 自定义菜单支持以 `external` 方式新开页并透传 JWT | 2 | 11 |
-| 3 | `control-oidc-local-email-verification`   | 🟢 active   | OIDC 专用开关跳过二次本地邮箱验证                | 0 | 19 |
+| 3 | `control-oidc-local-email-verification`   | 🟢 active   | OIDC 专用开关跳过二次本地邮箱验证                | 0 | 23 |
 | 4 | `refine-pending-oauth-account-resolution` | 🟢 active   | OAuth 回调跳过 chooser、邮箱预填规则             | 0 | 6 |
 | 5 | `user-token-api-key-automation`           | 🟢 active   | 用户登录换 JWT 后创建 API key 并安全轮换 key 分组 | 1 | 8 |
 | 6 | `support-mounted-frontend-client-templates` | 📦 archived | 前端 `client-templates.json` 挂载渲染 Codex/OpenCode/CCS | 9 | ~6 |
@@ -63,7 +63,8 @@ _无。本 change 全部为对上游文件的补丁。_
 | `backend/internal/repository/api_key_repo_integration_test.go` | 验证普通 `Update` 仍不改 owner，transfer 路径能改 owner/quota |
 | `backend/internal/server/routes/admin.go` | 注册 `POST /api/v1/admin/users/:id/api-keys` 与 `POST /api/v1/admin/api-keys/:id/transfer` |
 | `backend/internal/server/api_contract_test.go` | 契约测试新增创建/转移条目 |
-| `backend/internal/service/admin_service.go` | 新增 `CreateUserAPIKey` / `TransferAPIKey` 方法与输入/结果类型；创建与转移均拒绝负数 quota（否则会被静默当作无限额）|
+| `backend/internal/service/admin_service.go` | 接口声明 `CreateUserAPIKey` / `TransferAPIKey` + 输入/结果类型 + `apiKeyService` 依赖注入 |
+| `backend/internal/service/admin_user.go` | 方法实现（上游把 adminServiceImpl 用户相关实现拆到此文件）；创建与转移均拒绝负数 quota（否则会被静默当作无限额）|
 | `backend/internal/service/admin_service_apikey_test.go` | service 层单测覆盖创建、分组更新、转移、quota reset、缓存失效 |
 | `backend/internal/service/api_key_service.go` | 暴露共享创建逻辑给 admin path，并扩展 API key repo contract |
 | `docs/ADMIN_PAYMENT_INTEGRATION_API.md` | 文档新增创建与转移端点说明 |
@@ -97,9 +98,9 @@ _无。本 change 全部为对上游文件的补丁。_
 #### 上游补丁
 | 路径 | 改动要点 |
 |------|---------|
-| `backend/internal/handler/admin/setting_handler.go` | 透传新增 menu mode 字段 |
+| `backend/internal/handler/admin/setting_handler_update.go` | 校验 `open_mode`（iframe/external）、external 拒绝 `md:` slug（上游自 `setting_handler.go` 拆出）|
 | `backend/internal/handler/dto/settings.go` | DTO 校验扩展 (`open_mode`) |
-| `backend/internal/service/setting_service.go` | 持久化 + 校验 external 字段 |
+| `backend/internal/service/setting_public.go` | `parseCustomMenuItemURLs` 仅向 CSP frame-src 暴露 iframe 模式 URL（上游自 `setting_service.go` 拆出）|
 | `frontend/src/components/layout/AppSidebar.vue` | 根据 mode 决定 iframe 路由还是 `window.open` |
 | `frontend/src/components/layout/__tests__/AppSidebar.spec.ts` | 新行为测试 |
 | `frontend/src/views/user/CustomPageView.vue` | 仍保留 iframe 模式入口的兜底处理 |
@@ -111,9 +112,8 @@ _无。本 change 全部为对上游文件的补丁。_
 
 #### ⚠ 跨 change 共享文件
 > 以下文件本 change 修改，**同时也被其他 change 修改**。rebase 解决冲突时，必须同时核对本 change 与对方 change 的修改是否都已包含。
-- `backend/internal/handler/admin/setting_handler.go` → 也属于 #3
+- `backend/internal/handler/admin/setting_handler_update.go` → 也属于 #3
 - `backend/internal/handler/dto/settings.go` → 也属于 #3
-- `backend/internal/service/setting_service.go` → 也属于 #3
 - `frontend/src/views/admin/SettingsView.vue` → 也属于 #3
 - `frontend/src/types/index.ts` → 也属于 #5
 - `README.md` → 也属于 #1
@@ -147,25 +147,28 @@ _无。_
 | `backend/internal/service/auth_oauth_email_flow_test.go` | 测试 |
 | `backend/internal/service/settings_view.go` | 公开设置视图加入新字段 |
 | `backend/internal/service/domain_constants.go` | 新增设置 key 常量 |
-| `backend/internal/handler/admin/setting_handler.go` | admin setting 透传 |
+| `backend/internal/handler/admin/setting_handler.go` | GET settings payload 透传新字段 |
+| `backend/internal/handler/admin/setting_handler_update.go` | update 请求 DTO 字段 + service 输入 + 响应 payload 透传（上游拆出）|
+| `backend/internal/handler/admin/setting_handler_audit.go` | 设置变更审计追踪新 key（上游拆出）|
 | `backend/internal/handler/dto/settings.go` | DTO 字段 |
-| `backend/internal/service/setting_service.go` | 持久化 |
+| `backend/internal/service/setting_features.go` | `GetOIDCConnectRequireLocalEmailVerification` / `IsOIDCConnectLocalEmailVerificationRequired` getter（上游拆 `setting_service.go`）|
+| `backend/internal/service/setting_parse.go` | 默认值 `true` + settings-view 解析（上游拆 `setting_service.go`）|
+| `backend/internal/service/setting_update.go` | updates map 持久化（上游拆 `setting_service.go`）|
 | `frontend/src/api/admin/settings.ts` | 前端 admin API 类型 |
 | `frontend/src/views/admin/SettingsView.vue` | Admin UI 增加 OIDC 开关 |
 | `frontend/src/components/auth/PendingOAuthCreateAccountForm.vue` | 表单根据 flag 隐藏验证输入；send-code 返回 `auth_result: pending_session`（邮箱已存在）时转入绑定流程，不再谎报"已发送" |
 | `frontend/src/components/auth/__tests__/PendingOAuthCreateAccountForm.spec.ts` | 测试 |
 | `frontend/src/views/auth/OidcCallbackView.vue` | 消费 verification flag |
 | `frontend/src/views/auth/__tests__/OidcCallbackView.spec.ts` | 测试 |
-| `frontend/src/i18n/locales/en.ts` | 文案 |
-| `frontend/src/i18n/locales/zh.ts` | 文案 |
+| `frontend/src/i18n/locales/en/admin/settings.ts` | 文案（上游把单体 `en.ts` 按域拆分）|
+| `frontend/src/i18n/locales/zh/admin/settings.ts` | 文案（上游把单体 `zh.ts` 按域拆分）|
 
 > ℹ️ `PendingOAuthResponse` 字段（包含 `local_email_verification_required` 等）以 inline `interface` 形式声明在各 `*CallbackView.vue` 内部，而**不在** `frontend/src/api/auth.ts`。rebase 复原时保持就地声明的形态。
 
 #### ⚠ 跨 change 共享文件
 > 以下文件本 change 修改，**同时也被其他 change 修改**。rebase 解决冲突时，必须同时核对本 change 与对方 change 的修改是否都已包含。
-- `backend/internal/handler/admin/setting_handler.go` → 也属于 #2
+- `backend/internal/handler/admin/setting_handler_update.go` → 也属于 #2
 - `backend/internal/handler/dto/settings.go` → 也属于 #2
-- `backend/internal/service/setting_service.go` → 也属于 #2
 - `frontend/src/views/admin/SettingsView.vue` → 也属于 #2
 - `frontend/src/views/auth/OidcCallbackView.vue` → 也属于 #4
 - `frontend/src/views/auth/__tests__/OidcCallbackView.spec.ts` → 也属于 #4
@@ -295,7 +298,7 @@ _待提交。_
 | 区域 | 路径示例 | 性质 |
 |------|---------|------|
 | Release 流水线 | `.github/workflows/release.yml`、`.goreleaser.yaml`、`.goreleaser.simple.yaml` | 补丁 + 新增 |
-| Docker 打包 | `Dockerfile`、`Dockerfile.goreleaser` | 补丁/新增 |
+| Docker 打包 | `Dockerfile.goreleaser`（`Dockerfile` 已与上游一致，无补丁） | 补丁/新增 |
 | Action 镜像化 | `.github/action-mirrors/**`、`tools/sync-action-mirrors.sh`、`tools/install-goreleaser.sh`、`tools/run-goreleaser-release.sh` | 几乎全新增 |
 | 默认运行参数 | `deploy/docker-compose*.yml`（与 #5 部分重叠） | 补丁 |
 | 文档分支 | `DEV_GUIDE.md`；`README*.md` 中**非 OpenSpec 功能段落**（如部署/构建说明） | 补丁 |

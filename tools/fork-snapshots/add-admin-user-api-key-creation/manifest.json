@@ -2,10 +2,10 @@
   "change_id": "add-admin-user-api-key-creation",
   "status": "active",
   "proposal_path": "openspec/changes/add-admin-user-api-key-creation/proposal.md",
-  "captured_at": "2026-07-13T04:52:33+00:00",
-  "captured_at_commit": "f8df914e86bd57d03a4177fb4451265b075725c8",
-  "base": "upstream/main",
-  "base_commit": "a1930ea6f29fc5f17ae0020f4e2d38e789c49d73",
+  "captured_at": "2026-07-13T05:58:46+00:00",
+  "captured_at_commit": "564245994f2c42b501cfe052d70708d8c10187da",
+  "base": "b73d8c3e",
+  "base_commit": "b73d8c3efe01a290eaaa9326b6e40ece02c67a0e",
   "new_files": [],
   "upstream_patch_files": [
     {
@@ -42,7 +42,11 @@
     },
     {
       "path": "backend/internal/service/admin_service.go",
-      "reason": "adds `adminServiceImpl.CreateUserAPIKey`, `CreateUserAPIKeyInput`, `CreateUserAPIKeyResult`, `TransferAPIKeyInput`, and `TransferAPIKeyResult`; both create and transfer reject a negative `quota` (which would otherwise be silently treated as unlimited by `IsQuotaExhausted`)."
+      "reason": "declares `CreateUserAPIKey`/`TransferAPIKey` on the `AdminService` interface, the input/result types, and the `apiKeyService` dependency wiring."
+    },
+    {
+      "path": "backend/internal/service/admin_user.go",
+      "reason": "implements `adminServiceImpl.CreateUserAPIKey` and `TransferAPIKey` (upstream split user-facing impls out of `admin_service.go`); both create and transfer reject a negative `quota` (which would otherwise be silently treated as unlimited by `IsQuotaExhausted`)."
     },
     {
       "path": "backend/internal/service/admin_service_apikey_test.go",
