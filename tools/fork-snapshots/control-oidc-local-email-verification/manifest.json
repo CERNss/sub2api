@@ -2,10 +2,10 @@
   "change_id": "control-oidc-local-email-verification",
   "status": "active",
   "proposal_path": "openspec/changes/control-oidc-local-email-verification/proposal.md",
-  "captured_at": "2026-07-13T04:52:34+00:00",
-  "captured_at_commit": "f8df914e86bd57d03a4177fb4451265b075725c8",
-  "base": "upstream/main",
-  "base_commit": "a1930ea6f29fc5f17ae0020f4e2d38e789c49d73",
+  "captured_at": "2026-07-13T05:58:47+00:00",
+  "captured_at_commit": "564245994f2c42b501cfe052d70708d8c10187da",
+  "base": "b73d8c3e",
+  "base_commit": "b73d8c3efe01a290eaaa9326b6e40ece02c67a0e",
   "new_files": [],
   "upstream_patch_files": [
     {

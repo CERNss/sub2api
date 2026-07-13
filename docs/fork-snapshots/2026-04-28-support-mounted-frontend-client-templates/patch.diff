@@ -36,7 +36,7 @@ index 156b6c97..ebe35428 100644
 +- GitHub repository: the repository that published this image
 +- Documentation: see `deploy/README.md` in that repository
 diff --git a/deploy/docker-compose.local.yml b/deploy/docker-compose.local.yml
-index ec5a66da..1bae3926 100644
+index 042752e8..f026d2fb 100644
 --- a/deploy/docker-compose.local.yml
 +++ b/deploy/docker-compose.local.yml
 @@ -39,6 +39,10 @@ services:
@@ -50,41 +50,8 @@ index ec5a66da..1bae3926 100644
      environment:
        # =======================================================================
        # Auto Setup (REQUIRED for Docker deployment)
-@@ -127,7 +131,6 @@ services:
-       # SECURITY: This repo does not embed third-party client_secret.
-       - GEMINI_CLI_OAUTH_CLIENT_SECRET=${GEMINI_CLI_OAUTH_CLIENT_SECRET:-}
-       - ANTIGRAVITY_OAUTH_CLIENT_SECRET=${ANTIGRAVITY_OAUTH_CLIENT_SECRET:-}
--      - ANTIGRAVITY_USER_AGENT_VERSION=${ANTIGRAVITY_USER_AGENT_VERSION:-}
- 
-       # =======================================================================
-       # Security Configuration (URL Allowlist)
-@@ -147,24 +150,6 @@ services:
-       # Proxy for accessing GitHub (online updates + pricing data)
-       # Examples: http://host:port, socks5://host:port
-       - UPDATE_PROXY_URL=${UPDATE_PROXY_URL:-}
--
--      # =======================================================================
--      # Image Generation Stream & Concurrency
--      # =======================================================================
--      # OpenAI HTTP upstream protocol/timeout
--      - GATEWAY_OPENAI_RESPONSE_HEADER_TIMEOUT=${GATEWAY_OPENAI_RESPONSE_HEADER_TIMEOUT:-0}
--      - GATEWAY_OPENAI_HTTP2_ENABLED=${GATEWAY_OPENAI_HTTP2_ENABLED:-true}
--      - GATEWAY_OPENAI_HTTP2_ALLOW_PROXY_FALLBACK_TO_HTTP1=${GATEWAY_OPENAI_HTTP2_ALLOW_PROXY_FALLBACK_TO_HTTP1:-true}
--      - GATEWAY_OPENAI_HTTP2_FALLBACK_ERROR_THRESHOLD=${GATEWAY_OPENAI_HTTP2_FALLBACK_ERROR_THRESHOLD:-2}
--      - GATEWAY_OPENAI_HTTP2_FALLBACK_WINDOW_SECONDS=${GATEWAY_OPENAI_HTTP2_FALLBACK_WINDOW_SECONDS:-60}
--      - GATEWAY_OPENAI_HTTP2_FALLBACK_TTL_SECONDS=${GATEWAY_OPENAI_HTTP2_FALLBACK_TTL_SECONDS:-600}
--      - GATEWAY_IMAGE_STREAM_DATA_INTERVAL_TIMEOUT=${GATEWAY_IMAGE_STREAM_DATA_INTERVAL_TIMEOUT:-900}
--      - GATEWAY_IMAGE_STREAM_KEEPALIVE_INTERVAL=${GATEWAY_IMAGE_STREAM_KEEPALIVE_INTERVAL:-10}
--      - GATEWAY_IMAGE_CONCURRENCY_ENABLED=${GATEWAY_IMAGE_CONCURRENCY_ENABLED:-false}
--      - GATEWAY_IMAGE_CONCURRENCY_MAX_CONCURRENT_REQUESTS=${GATEWAY_IMAGE_CONCURRENCY_MAX_CONCURRENT_REQUESTS:-0}
--      - GATEWAY_IMAGE_CONCURRENCY_OVERFLOW_MODE=${GATEWAY_IMAGE_CONCURRENCY_OVERFLOW_MODE:-reject}
--      - GATEWAY_IMAGE_CONCURRENCY_WAIT_TIMEOUT_SECONDS=${GATEWAY_IMAGE_CONCURRENCY_WAIT_TIMEOUT_SECONDS:-30}
--      - GATEWAY_IMAGE_CONCURRENCY_MAX_WAITING_REQUESTS=${GATEWAY_IMAGE_CONCURRENCY_MAX_WAITING_REQUESTS:-100}
-     depends_on:
-       postgres:
-         condition: service_healthy
 diff --git a/deploy/docker-compose.yml b/deploy/docker-compose.yml
-index fd682a87..ef2000d0 100644
+index 22713c59..08fb621b 100644
 --- a/deploy/docker-compose.yml
 +++ b/deploy/docker-compose.yml
 @@ -31,6 +31,10 @@ services:
@@ -98,41 +65,8 @@ index fd682a87..ef2000d0 100644
        # Optional: Mount a custom Codex instructions template file, then point
        # gateway.forced_codex_instructions_template_file at /app/data/codex-instructions.md.tmpl
        # in config.yaml.
-@@ -123,7 +127,6 @@ services:
-       # SECURITY: This repo does not embed third-party client_secret.
-       - GEMINI_CLI_OAUTH_CLIENT_SECRET=${GEMINI_CLI_OAUTH_CLIENT_SECRET:-}
-       - ANTIGRAVITY_OAUTH_CLIENT_SECRET=${ANTIGRAVITY_OAUTH_CLIENT_SECRET:-}
--      - ANTIGRAVITY_USER_AGENT_VERSION=${ANTIGRAVITY_USER_AGENT_VERSION:-}
- 
-       # =======================================================================
-       # Security Configuration (URL Allowlist)
-@@ -143,24 +146,6 @@ services:
-       # Proxy for accessing GitHub (online updates + pricing data)
-       # Examples: http://host:port, socks5://host:port
-       - UPDATE_PROXY_URL=${UPDATE_PROXY_URL:-}
--
--      # =======================================================================
--      # Image Generation Stream & Concurrency
--      # =======================================================================
--      # OpenAI HTTP upstream protocol/timeout
--      - GATEWAY_OPENAI_RESPONSE_HEADER_TIMEOUT=${GATEWAY_OPENAI_RESPONSE_HEADER_TIMEOUT:-0}
--      - GATEWAY_OPENAI_HTTP2_ENABLED=${GATEWAY_OPENAI_HTTP2_ENABLED:-true}
--      - GATEWAY_OPENAI_HTTP2_ALLOW_PROXY_FALLBACK_TO_HTTP1=${GATEWAY_OPENAI_HTTP2_ALLOW_PROXY_FALLBACK_TO_HTTP1:-true}
--      - GATEWAY_OPENAI_HTTP2_FALLBACK_ERROR_THRESHOLD=${GATEWAY_OPENAI_HTTP2_FALLBACK_ERROR_THRESHOLD:-2}
--      - GATEWAY_OPENAI_HTTP2_FALLBACK_WINDOW_SECONDS=${GATEWAY_OPENAI_HTTP2_FALLBACK_WINDOW_SECONDS:-60}
--      - GATEWAY_OPENAI_HTTP2_FALLBACK_TTL_SECONDS=${GATEWAY_OPENAI_HTTP2_FALLBACK_TTL_SECONDS:-600}
--      - GATEWAY_IMAGE_STREAM_DATA_INTERVAL_TIMEOUT=${GATEWAY_IMAGE_STREAM_DATA_INTERVAL_TIMEOUT:-900}
--      - GATEWAY_IMAGE_STREAM_KEEPALIVE_INTERVAL=${GATEWAY_IMAGE_STREAM_KEEPALIVE_INTERVAL:-10}
--      - GATEWAY_IMAGE_CONCURRENCY_ENABLED=${GATEWAY_IMAGE_CONCURRENCY_ENABLED:-false}
--      - GATEWAY_IMAGE_CONCURRENCY_MAX_CONCURRENT_REQUESTS=${GATEWAY_IMAGE_CONCURRENCY_MAX_CONCURRENT_REQUESTS:-0}
--      - GATEWAY_IMAGE_CONCURRENCY_OVERFLOW_MODE=${GATEWAY_IMAGE_CONCURRENCY_OVERFLOW_MODE:-reject}
--      - GATEWAY_IMAGE_CONCURRENCY_WAIT_TIMEOUT_SECONDS=${GATEWAY_IMAGE_CONCURRENCY_WAIT_TIMEOUT_SECONDS:-30}
--      - GATEWAY_IMAGE_CONCURRENCY_MAX_WAITING_REQUESTS=${GATEWAY_IMAGE_CONCURRENCY_MAX_WAITING_REQUESTS:-100}
-     depends_on:
-       postgres:
-         condition: service_healthy
 diff --git a/frontend/src/components/keys/UseKeyModal.vue b/frontend/src/components/keys/UseKeyModal.vue
-index be12e8fc..806a38a7 100644
+index e6bce556..5b9066c6 100644
 --- a/frontend/src/components/keys/UseKeyModal.vue
 +++ b/frontend/src/components/keys/UseKeyModal.vue
 @@ -139,7 +139,11 @@ import { useI18n } from 'vue-i18n'
@@ -156,7 +90,7 @@ index be12e8fc..806a38a7 100644
  }
  
  interface Emits {
-@@ -373,6 +378,32 @@ const operator = (value: string) => wrapToken('text-slate-400', value)
+@@ -386,6 +391,32 @@ const operator = (value: string) => wrapToken('text-slate-400', value)
  const string = (value: string) => wrapToken('text-amber-200', value)
  const comment = (value: string) => wrapToken('text-slate-500', value)
  
@@ -189,7 +123,7 @@ index be12e8fc..806a38a7 100644
  // Syntax highlighting helpers
  // Generate file configs based on platform and active tab
  const currentFiles = computed((): FileConfig[] => {
-@@ -395,6 +426,23 @@ const currentFiles = computed((): FileConfig[] => {
+@@ -408,6 +439,23 @@ const currentFiles = computed((): FileConfig[] => {
    })()
  
    if (activeClientTab.value === 'opencode') {
@@ -213,7 +147,7 @@ index be12e8fc..806a38a7 100644
      switch (props.platform) {
        case 'anthropic':
          return [generateOpenCodeConfig('anthropic', apiBase, apiKey)]
-@@ -418,8 +466,30 @@ const currentFiles = computed((): FileConfig[] => {
+@@ -433,8 +481,30 @@ const currentFiles = computed((): FileConfig[] => {
          return generateAnthropicFiles(baseUrl, apiKey)
        }
        if (activeClientTab.value === 'codex-ws') {
@@ -244,168 +178,21 @@ index be12e8fc..806a38a7 100644
        return generateOpenAIFiles(baseUrl, apiKey)
      case 'gemini':
        return [generateGeminiCliContent(baseUrl, apiKey)]
-@@ -531,21 +601,20 @@ function generateOpenAIFiles(baseUrl: string, apiKey: string): FileConfig[] {
- 
-   // config.toml content
-   const configContent = `model_provider = "OpenAI"
--model = "gpt-5.5"
--review_model = "gpt-5.5"
-+model = "gpt-5.4"
-+review_model = "gpt-5.4"
- model_reasoning_effort = "xhigh"
- disable_response_storage = true
- network_access = "enabled"
- windows_wsl_setup_acknowledged = true
-+model_context_window = 1000000
-+model_auto_compact_token_limit = 900000
- 
- [model_providers.OpenAI]
- name = "OpenAI"
- base_url = "${baseUrl}"
- wire_api = "responses"
--requires_openai_auth = true
--
--[features]
--goals = true`
-+requires_openai_auth = true`
- 
-   // auth.json content
-   const authContent = `{
-@@ -571,12 +640,14 @@ function generateOpenAIWsFiles(baseUrl: string, apiKey: string): FileConfig[] {
- 
-   // config.toml content with WebSocket v2
-   const configContent = `model_provider = "OpenAI"
--model = "gpt-5.5"
--review_model = "gpt-5.5"
-+model = "gpt-5.4"
-+review_model = "gpt-5.4"
- model_reasoning_effort = "xhigh"
- disable_response_storage = true
- network_access = "enabled"
- windows_wsl_setup_acknowledged = true
-+model_context_window = 1000000
-+model_auto_compact_token_limit = 900000
- 
- [model_providers.OpenAI]
- name = "OpenAI"
-@@ -586,8 +657,7 @@ supports_websockets = true
- requires_openai_auth = true
- 
- [features]
--responses_websockets_v2 = true
--goals = true`
-+responses_websockets_v2 = true`
- 
-   // auth.json content
-   const authContent = `{
-@@ -966,22 +1036,6 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
-     }
-   }
-   const claudeModels = {
--    'claude-fable-5': {
--      name: 'Claude Fable 5',
--      limit: {
--        context: 1048576,
--        output: 128000
--      },
--      modalities: {
--        input: ['text', 'image', 'pdf'],
--        output: ['text']
--      },
--      options: {
--        thinking: {
--          type: 'adaptive'
--        }
--      }
--    },
-     'claude-opus-4-6-thinking': {
-       name: 'Claude 4.6 Opus (Thinking)',
-       limit: {
 diff --git a/frontend/src/components/keys/__tests__/UseKeyModal.spec.ts b/frontend/src/components/keys/__tests__/UseKeyModal.spec.ts
-index 8ad9731b..56b7fac4 100644
+index 24581d9f..95e0ebca 100644
 --- a/frontend/src/components/keys/__tests__/UseKeyModal.spec.ts
 +++ b/frontend/src/components/keys/__tests__/UseKeyModal.spec.ts
-@@ -17,39 +17,7 @@ vi.mock('@/composables/useClipboard', () => ({
- import UseKeyModal from '../UseKeyModal.vue'
- 
- describe('UseKeyModal', () => {
--  it('renders GPT-5.5 and goals feature in OpenAI Codex config', () => {
--    const wrapper = mount(UseKeyModal, {
--      props: {
--        show: true,
--        apiKey: 'sk-test',
--        baseUrl: 'https://example.com/v1',
--        platform: 'openai'
--      },
--      global: {
--        stubs: {
--          BaseDialog: {
--            template: '<div><slot /><slot name="footer" /></div>'
--          },
--          Icon: {
--            template: '<span />'
--          }
--        }
--      }
--    })
--
--    const codeBlocks = wrapper.findAll('pre code').map((code) => code.text())
--    const configToml = codeBlocks.find((content) => content.includes('model_provider = "OpenAI"'))
--
--    expect(configToml).toBeDefined()
--    expect(configToml).toContain('model = "gpt-5.5"')
--    expect(configToml).toContain('review_model = "gpt-5.5"')
--    expect(configToml).not.toContain('model = "gpt-5.4"')
--    expect(configToml).not.toContain('model_context_window')
--    expect(configToml).not.toContain('model_auto_compact_token_limit')
--    expect(configToml).toContain('[features]\ngoals = true')
--  })
--
--  it('renders GPT-5.5 and goals feature in OpenAI Codex WebSocket config', async () => {
-+  it('renders GPT-5.4 mini entry in OpenCode config', async () => {
-     const wrapper = mount(UseKeyModal, {
-       props: {
-         show: true,
-@@ -69,33 +37,38 @@ describe('UseKeyModal', () => {
-       }
-     })
- 
--    const wsTab = wrapper.findAll('button').find((button) =>
--      button.text().includes('keys.useKeyModal.cliTabs.codexCliWs')
-+    const opencodeTab = wrapper.findAll('button').find((button) =>
-+      button.text().includes('keys.useKeyModal.cliTabs.opencode')
-     )
- 
--    expect(wsTab).toBeDefined()
--    await wsTab!.trigger('click')
-+    expect(opencodeTab).toBeDefined()
-+    await opencodeTab!.trigger('click')
-     await nextTick()
- 
--    const codeBlocks = wrapper.findAll('pre code').map((code) => code.text())
--    const configToml = codeBlocks.find((content) => content.includes('supports_websockets = true'))
--
--    expect(configToml).toBeDefined()
--    expect(configToml).toContain('model = "gpt-5.5"')
--    expect(configToml).toContain('review_model = "gpt-5.5"')
--    expect(configToml).not.toContain('model = "gpt-5.4"')
--    expect(configToml).not.toContain('model_context_window')
--    expect(configToml).not.toContain('model_auto_compact_token_limit')
--    expect(configToml).toContain('[features]\nresponses_websockets_v2 = true\ngoals = true')
-+    const codeBlock = wrapper.find('pre code')
-+    expect(codeBlock.exists()).toBe(true)
-+    expect(codeBlock.text()).toContain('"name": "GPT-5.4 Mini"')
-+    expect(codeBlock.text()).not.toContain('"name": "GPT-5.4 Nano"')
+@@ -262,4 +262,92 @@ describe('UseKeyModal', () => {
+     expect(fable.options.thinking).toEqual({ type: 'adaptive' })
+     expect(fable.options.thinking).not.toHaveProperty('budgetTokens')
    })
- 
--  it('renders GPT-5.4 mini entry in OpenCode config', async () => {
++
 +  it('renders configured Codex templates instead of built-in files', async () => {
-     const wrapper = mount(UseKeyModal, {
-       props: {
-         show: true,
-         apiKey: 'sk-test',
-         baseUrl: 'https://example.com/v1',
--        platform: 'openai'
++    const wrapper = mount(UseKeyModal, {
++      props: {
++        show: true,
++        apiKey: 'sk-test',
++        baseUrl: 'https://example.com/v1',
 +        platform: 'openai',
 +        clientTemplates: {
 +          codex: {
@@ -418,41 +205,36 @@ index 8ad9731b..56b7fac4 100644
 +            ]
 +          }
 +        }
-       },
-       global: {
-         stubs: {
-@@ -109,27 +82,34 @@ describe('UseKeyModal', () => {
-       }
-     })
- 
--    const opencodeTab = wrapper.findAll('button').find((button) =>
--      button.text().includes('keys.useKeyModal.cliTabs.opencode')
--    )
--
--    expect(opencodeTab).toBeDefined()
--    await opencodeTab!.trigger('click')
-     await nextTick()
- 
++      },
++      global: {
++        stubs: {
++          BaseDialog: {
++            template: '<div><slot /><slot name="footer" /></div>'
++          },
++          Icon: {
++            template: '<span />'
++          }
++        }
++      }
++    })
++
++    await nextTick()
++
 +    expect(wrapper.text()).toContain('~/.codex/config.toml')
 +    expect(wrapper.text()).toContain('custom hint https://example.com/v1')
 +
-     const codeBlock = wrapper.find('pre code')
--    expect(codeBlock.exists()).toBe(true)
--    expect(codeBlock.text()).toContain('"name": "GPT-5.4 Mini"')
--    expect(codeBlock.text()).not.toContain('"name": "GPT-5.4 Nano"')
++    const codeBlock = wrapper.find('pre code')
 +    expect(codeBlock.text()).toContain('base_url = "https://example.com/v1"')
 +    expect(codeBlock.text()).toContain('key = "sk-test"')
 +    expect(codeBlock.text()).not.toContain('model_provider = "OpenAI"')
-   })
- 
--  it('renders Claude Fable 5 OpenCode config with adaptive thinking', async () => {
++  })
++
 +  it('renders configured OpenCode templates for the current endpoint', async () => {
-     const wrapper = mount(UseKeyModal, {
-       props: {
-         show: true,
-         apiKey: 'sk-test',
-         baseUrl: 'https://example.com/v1',
--        platform: 'antigravity'
++    const wrapper = mount(UseKeyModal, {
++      props: {
++        show: true,
++        apiKey: 'sk-test',
++        baseUrl: 'https://example.com/v1',
 +        platform: 'gemini',
 +        clientTemplates: {
 +          opencode: {
@@ -464,45 +246,40 @@ index 8ad9731b..56b7fac4 100644
 +            ]
 +          }
 +        }
-       },
-       global: {
-         stubs: {
-@@ -151,17 +131,11 @@ describe('UseKeyModal', () => {
-     await opencodeTab!.trigger('click')
-     await nextTick()
- 
--    const claudeConfig = wrapper.findAll('pre code')
--      .map((code) => code.text())
--      .find((content) => content.includes('"antigravity-claude"'))
--
--    expect(claudeConfig).toBeDefined()
--    const parsed = JSON.parse(claudeConfig!)
--    const fable = parsed.provider['antigravity-claude'].models['claude-fable-5']
++      },
++      global: {
++        stubs: {
++          BaseDialog: {
++            template: '<div><slot /><slot name="footer" /></div>'
++          },
++          Icon: {
++            template: '<span />'
++          }
++        }
++      }
++    })
++
++    const opencodeTab = wrapper.findAll('button').find((button) =>
++      button.text().includes('keys.useKeyModal.cliTabs.opencode')
++    )
++
++    expect(opencodeTab).toBeDefined()
++    await opencodeTab!.trigger('click')
++    await nextTick()
++
 +    expect(wrapper.text()).toContain('custom-opencode.json')
- 
--    expect(fable.name).toBe('Claude Fable 5')
--    expect(fable.limit).toEqual({ context: 1048576, output: 128000 })
--    expect(fable.options.thinking).toEqual({ type: 'adaptive' })
--    expect(fable.options.thinking).not.toHaveProperty('budgetTokens')
++
 +    const codeBlock = wrapper.find('pre code')
 +    expect(codeBlock.text()).toContain('"baseURL":"https://example.com/v1beta"')
 +    expect(codeBlock.text()).toContain('"apiKey":"sk-test"')
 +    expect(codeBlock.text()).not.toContain('Gemini 2.5 Flash')
-   })
++  })
  })
 diff --git a/frontend/src/types/index.ts b/frontend/src/types/index.ts
-index 04ae60b8..f3f188d0 100644
+index b7095ebe..b4fa5e5b 100644
 --- a/frontend/src/types/index.ts
 +++ b/frontend/src/types/index.ts
-@@ -97,7 +97,6 @@ export interface User {
-   last_active_at?: string | null
-   created_at: string
-   updated_at: string
--  deleted_at?: string | null
- }
- 
- export interface AdminUser extends User {
-@@ -170,6 +169,7 @@ export interface CustomMenuItem {
+@@ -171,6 +171,7 @@ export interface CustomMenuItem {
    icon_svg: string
    url: string
    page_slug?: string
@@ -510,7 +287,7 @@ index 04ae60b8..f3f188d0 100644
    visibility: 'user' | 'admin'
    sort_order: number
  }
-@@ -209,6 +209,7 @@ export interface PublicSettings {
+@@ -210,6 +211,7 @@ export interface PublicSettings {
    doc_url: string
    home_content: string
    hide_ccs_import_button: boolean
@@ -518,17 +295,7 @@ index 04ae60b8..f3f188d0 100644
    payment_enabled: boolean
    risk_control_enabled: boolean
    table_default_page_size: number
-@@ -233,9 +234,7 @@ export interface PublicSettings {
-   channel_monitor_enabled: boolean
-   channel_monitor_default_interval_seconds: number
-   available_channels_enabled: boolean
--  service_quota_enabled: boolean
-   affiliate_enabled: boolean
--  allow_user_view_error_requests?: boolean
- }
- 
- export interface AuthResponse {
-@@ -485,6 +484,31 @@ export interface PaginationConfig {
+@@ -490,6 +492,31 @@ export interface PaginationConfig {
    page_size: number
  }
  
@@ -559,202 +326,12 @@ index 04ae60b8..f3f188d0 100644
 +
  // ==================== API Key & Group Types ====================
  
- export type GroupPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity'
-@@ -551,17 +575,11 @@ export interface AdminGroup extends Group {
-   // OpenAI Messages 调度配置（仅 openai 平台使用）
-   default_mapped_model?: string
-   messages_dispatch_model_config?: OpenAIMessagesDispatchModelConfig
--  models_list_config?: ModelsListConfig
- 
-   // 分组排序
-   sort_order: number
- }
- 
--export interface ModelsListConfig {
--  enabled: boolean
--  models: string[]
--}
--
- export interface ApiKey {
-   id: number
-   user_id: number
-@@ -641,13 +659,6 @@ export interface CreateGroupRequest {
-   fallback_group_id_on_invalid_request?: number | null
-   mcp_xml_inject?: boolean
-   supported_model_scopes?: string[]
--  models_list_config?: ModelsListConfig
--  allow_messages_dispatch?: boolean
--  default_mapped_model?: string
--  messages_dispatch_model_config?: OpenAIMessagesDispatchModelConfig
--  model_routing?: Record<string, number[]> | null
--  model_routing_enabled?: boolean
--  rpm_limit?: number
-   require_oauth_only?: boolean
-   require_privacy_set?: boolean
-   // 从指定分组复制账号
-@@ -676,13 +687,6 @@ export interface UpdateGroupRequest {
-   fallback_group_id_on_invalid_request?: number | null
-   mcp_xml_inject?: boolean
-   supported_model_scopes?: string[]
--  models_list_config?: ModelsListConfig
--  allow_messages_dispatch?: boolean
--  default_mapped_model?: string
--  messages_dispatch_model_config?: OpenAIMessagesDispatchModelConfig
--  model_routing?: Record<string, number[]> | null
--  model_routing_enabled?: boolean
--  rpm_limit?: number
-   require_oauth_only?: boolean
-   require_privacy_set?: boolean
-   copy_accounts_from_group_ids?: number[]
-@@ -711,7 +715,7 @@ export interface Proxy {
-   port: number
-   username: string | null
-   password?: string | null
--  status: 'active' | 'inactive' | 'expired'
-+  status: 'active' | 'inactive'
-   account_count?: number // Number of accounts using this proxy
-   latency_ms?: number
-   latency_status?: 'success' | 'failed'
-@@ -726,10 +730,6 @@ export interface Proxy {
-   quality_grade?: string
-   quality_summary?: string
-   quality_checked?: number
--  expires_at: string | null
--  fallback_mode: 'none' | 'proxy' | 'direct'
--  backup_proxy_id?: number | null
--  expiry_warn_days: number
-   created_at: string
-   updated_at: string
- }
-@@ -835,8 +835,6 @@ export interface Account {
-     antigravity_credits_overages?: Record<string, { activated_at: string; active_until: string }>
-   } & Record<string, unknown>)
-   proxy_id: number | null
--  proxy_fallback_origin_id?: number | null
--  proxy_fallback_origin_name?: string | null
-   concurrency: number
-   load_factor?: number | null
-   current_concurrency?: number // Real-time concurrency count from Redis
-@@ -1006,7 +1004,6 @@ export interface CodexUsageSnapshot {
- 
- export type OpenAICompactMode = 'auto' | 'force_on' | 'force_off'
- export type OpenAIResponsesMode = 'auto' | 'force_responses' | 'force_chat_completions'
--export type OpenAIEndpointCapability = 'chat_completions' | 'embeddings'
- 
- export interface OpenAICompactState {
-   openai_compact_mode?: OpenAICompactMode
-@@ -1085,10 +1082,6 @@ export interface CreateProxyRequest {
-   port: number
-   username?: string | null
-   password?: string | null
--  expires_at?: number | null   // unix 秒；null/0 = 永不过期
--  fallback_mode?: 'none' | 'proxy' | 'direct'
--  backup_proxy_id?: number | null
--  expiry_warn_days?: number
- }
- 
- export interface UpdateProxyRequest {
-@@ -1099,10 +1092,6 @@ export interface UpdateProxyRequest {
-   username?: string | null
-   password?: string | null
-   status?: 'active' | 'inactive'
--  expires_at?: number | null   // unix 秒；null/0 = 永不过期
--  fallback_mode?: 'none' | 'proxy' | 'direct'
--  backup_proxy_id?: number | null
--  expiry_warn_days?: number
- }
- 
- export interface AdminDataPayload {
-@@ -1203,7 +1192,7 @@ export interface CodexSessionImportResult {
- // ==================== Usage & Redeem Types ====================
- 
- export type RedeemCodeType = 'balance' | 'concurrency' | 'subscription' | 'invitation'
--export type UsageRequestType = 'unknown' | 'sync' | 'stream' | 'ws_v2' | 'cyber'
-+export type UsageRequestType = 'unknown' | 'sync' | 'stream' | 'ws_v2'
- export type ImageSizeSource = 'output' | 'input' | 'default' | 'legacy'
- export type ImageSizeBreakdown = Record<string, number>
- 
-@@ -1241,7 +1230,7 @@ export interface UsageLog {
-   request_type?: UsageRequestType
-   stream: boolean
-   openai_ws_mode?: boolean
--  duration_ms: number | null
-+  duration_ms: number
-   first_token_ms: number | null
- 
-   // 图片生成字段
-@@ -1251,8 +1240,6 @@ export interface UsageLog {
-   image_output_size: string | null
-   image_size_source: ImageSizeSource | null
-   image_size_breakdown: ImageSizeBreakdown | null
--  image_output_tokens: number
--  image_output_cost: number
- 
-   // User-Agent
-   user_agent: string | null
-@@ -1427,8 +1414,6 @@ export interface UsageStatsResponse {
-   total_input_tokens: number
-   total_output_tokens: number
-   total_cache_tokens: number
--  total_cache_read_tokens: number
--  total_cache_creation_tokens: number
-   total_tokens: number
-   total_cost: number // 标准计费
-   total_actual_cost: number // 实际扣除
-@@ -1612,36 +1597,6 @@ export interface ExtendSubscriptionRequest {
- 
- // ==================== Query Parameters ====================
- 
--export interface UserErrorRequest {
--  id: number
--  created_at: string
--  model: string
--  inbound_endpoint: string
--  status_code: number
--  category: string
--  platform: string
--  message: string
--  key_name: string
--  key_deleted: boolean
--}
--
--export interface UserErrorRequestDetail extends UserErrorRequest {
--  error_body: string
--  upstream_status_code?: number
--}
--
--export interface UserErrorListParams {
--  page?: number
--  page_size?: number
--  start_date?: string
--  end_date?: string
--  timezone?: string
--  model?: string
--  status_code?: number
--  category?: string
--  api_key_id?: number
--}
--
- export interface UsageQueryParams {
-   page?: number
-   page_size?: number
-@@ -1926,11 +1881,3 @@ export interface UpdateScheduledTestPlanRequest {
- 
- // Payment types
- export type { SubscriptionPlan, PaymentOrder, CheckoutInfoResponse } from './payment'
--
--export type {
--  PlatformQuotaItem,
--  PlatformQuotaUpdateItem,
--  PlatformQuotaPlatform,
--  PlatformQuotaWindow,
--  PlatformQuotasResponse,
--} from '@/api/admin/users'
+ export type GroupPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok'
 diff --git a/frontend/src/views/user/KeysView.vue b/frontend/src/views/user/KeysView.vue
-index 7ca0a1c7..4f044117 100644
+index 161dccef..8debd9bf 100644
 --- a/frontend/src/views/user/KeysView.vue
 +++ b/frontend/src/views/user/KeysView.vue
-@@ -927,6 +927,7 @@
+@@ -991,6 +991,7 @@
        :base-url="publicSettings?.api_base_url || ''"
        :platform="selectedKey?.group?.platform || null"
        :allow-messages-dispatch="selectedKey?.group?.allow_messages_dispatch || false"
@@ -762,12 +339,12 @@ index 7ca0a1c7..4f044117 100644
        @close="closeUseKeyModal"
      />
  
-@@ -1068,15 +1069,21 @@ import TablePageLayout from '@/components/layout/TablePageLayout.vue'
+@@ -1136,15 +1137,21 @@ import TablePageLayout from '@/components/layout/TablePageLayout.vue'
  	import EndpointPopover from '@/components/keys/EndpointPopover.vue'
  	import GroupBadge from '@/components/common/GroupBadge.vue'
  	import GroupOptionItem from '@/components/common/GroupOptionItem.vue'
--	import type { ApiKey, Group, PublicSettings, SubscriptionType, GroupPlatform } from '@/types'
-+	import type { ApiKey, ClientTemplatesConfig, Group, PublicSettings, SubscriptionType, GroupPlatform } from '@/types'
+-	import type { ApiKey, Group, PublicSettings, SubscriptionType, GroupPlatform, UpdateApiKeyRequest } from '@/types'
++	import type { ApiKey, ClientTemplatesConfig, Group, PublicSettings, SubscriptionType, GroupPlatform, UpdateApiKeyRequest } from '@/types'
  import type { Column } from '@/components/common/types'
  import type { BatchApiKeyUsageStats } from '@/api/usage'
  import { formatDateTime } from '@/utils/format'
@@ -785,15 +362,15 @@ index 7ca0a1c7..4f044117 100644
  
  // Helper to format date for datetime-local input
  const formatDateTimeLocal = (isoDate: string): string => {
-@@ -1149,6 +1156,7 @@ const selectedKey = ref<ApiKey | null>(null)
+@@ -1301,6 +1308,7 @@ const selectedKey = ref<ApiKey | null>(null)
  const copiedKeyId = ref<number | null>(null)
  const groupSelectorKeyId = ref<number | null>(null)
  const publicSettings = ref<PublicSettings | null>(null)
 +const clientTemplates = ref<ClientTemplatesConfig | null>(null)
  const dropdownRef = ref<HTMLElement | null>(null)
+ const columnDropdownRef = ref<HTMLElement | null>(null)
  const dropdownPosition = ref<{ top?: number; bottom?: number; left: number } | null>(null)
- const groupButtonRefs = ref<Map<number, HTMLElement>>(new Map())
-@@ -1352,11 +1360,24 @@ const loadUserGroupRates = async () => {
+@@ -1516,11 +1524,24 @@ const loadUserGroupRates = async () => {
  }
  
  const loadPublicSettings = async () => {
@@ -819,7 +396,7 @@ index 7ca0a1c7..4f044117 100644
  }
  
  const openUseKeyModal = (key: ApiKey) => {
-@@ -1725,14 +1746,48 @@ const executeCcsImport = (row: ApiKey, clientType: CcSwitchClientType) => {
+@@ -1895,14 +1916,48 @@ const executeCcsImport = (row: ApiKey, clientType: CcSwitchClientType) => {
      }
    })`
    const providerName = (publicSettings.value?.site_name || 'sub2api').trim() || 'sub2api'
