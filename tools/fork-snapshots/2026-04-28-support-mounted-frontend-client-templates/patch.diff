@@ -1,5 +1,5 @@
 diff --git a/deploy/DOCKER.md b/deploy/DOCKER.md
-index 156b6c97..ebe35428 100644
+index 156b6c97a..ebe35428d 100644
 --- a/deploy/DOCKER.md
 +++ b/deploy/DOCKER.md
 @@ -10,7 +10,7 @@ docker run -d \
@@ -36,7 +36,7 @@ index 156b6c97..ebe35428 100644
 +- GitHub repository: the repository that published this image
 +- Documentation: see `deploy/README.md` in that repository
 diff --git a/deploy/docker-compose.local.yml b/deploy/docker-compose.local.yml
-index 042752e8..f026d2fb 100644
+index 042752e85..f026d2fb4 100644
 --- a/deploy/docker-compose.local.yml
 +++ b/deploy/docker-compose.local.yml
 @@ -39,6 +39,10 @@ services:
@@ -51,7 +51,7 @@ index 042752e8..f026d2fb 100644
        # =======================================================================
        # Auto Setup (REQUIRED for Docker deployment)
 diff --git a/deploy/docker-compose.yml b/deploy/docker-compose.yml
-index 22713c59..08fb621b 100644
+index 22713c59a..08fb621bb 100644
 --- a/deploy/docker-compose.yml
 +++ b/deploy/docker-compose.yml
 @@ -31,6 +31,10 @@ services:
@@ -66,7 +66,7 @@ index 22713c59..08fb621b 100644
        # gateway.forced_codex_instructions_template_file at /app/data/codex-instructions.md.tmpl
        # in config.yaml.
 diff --git a/frontend/src/components/keys/UseKeyModal.vue b/frontend/src/components/keys/UseKeyModal.vue
-index e6bce556..5b9066c6 100644
+index e6bce556d..5b9066c60 100644
 --- a/frontend/src/components/keys/UseKeyModal.vue
 +++ b/frontend/src/components/keys/UseKeyModal.vue
 @@ -139,7 +139,11 @@ import { useI18n } from 'vue-i18n'
@@ -179,7 +179,7 @@ index e6bce556..5b9066c6 100644
      case 'gemini':
        return [generateGeminiCliContent(baseUrl, apiKey)]
 diff --git a/frontend/src/components/keys/__tests__/UseKeyModal.spec.ts b/frontend/src/components/keys/__tests__/UseKeyModal.spec.ts
-index 24581d9f..95e0ebca 100644
+index 24581d9f6..95e0ebcae 100644
 --- a/frontend/src/components/keys/__tests__/UseKeyModal.spec.ts
 +++ b/frontend/src/components/keys/__tests__/UseKeyModal.spec.ts
 @@ -262,4 +262,92 @@ describe('UseKeyModal', () => {
@@ -276,7 +276,7 @@ index 24581d9f..95e0ebca 100644
 +  })
  })
 diff --git a/frontend/src/types/index.ts b/frontend/src/types/index.ts
-index b7095ebe..b4fa5e5b 100644
+index b7095ebe0..b4fa5e5be 100644
 --- a/frontend/src/types/index.ts
 +++ b/frontend/src/types/index.ts
 @@ -171,6 +171,7 @@ export interface CustomMenuItem {
@@ -328,7 +328,7 @@ index b7095ebe..b4fa5e5b 100644
  
  export type GroupPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok'
 diff --git a/frontend/src/views/user/KeysView.vue b/frontend/src/views/user/KeysView.vue
-index 161dccef..8debd9bf 100644
+index 161dccef8..8debd9bf6 100644
 --- a/frontend/src/views/user/KeysView.vue
 +++ b/frontend/src/views/user/KeysView.vue
 @@ -991,6 +991,7 @@
