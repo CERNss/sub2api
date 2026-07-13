@@ -54,6 +54,11 @@ External sidecars also need to repair or migrate keys that were originally creat
 - `backend/internal/service/admin_user.go`: implements `adminServiceImpl.CreateUserAPIKey` and `TransferAPIKey` (upstream split user-facing impls out of `admin_service.go`); both create and transfer reject a negative `quota` (which would otherwise be silently treated as unlimited by `IsQuotaExhausted`).
 - `backend/internal/service/admin_service_apikey_test.go`: service unit tests for creation, group update, transfer validation, quota reset, and cache invalidation.
 - `backend/internal/service/api_key_service.go`: exposes shared creation core so admin path can reuse it without acting as the user, and extends repository contracts for transfer.
+- `backend/internal/server/middleware/api_key_auth_test.go`: repo stub implements `TransferUpdate` (interface-extension fallout).
+- `backend/internal/server/middleware/api_key_auth_google_test.go`: same.
+- `backend/internal/service/api_key_service_cache_test.go`: same.
+- `backend/internal/service/api_key_service_delete_test.go`: same.
+- `backend/internal/service/api_key_service_quota_test.go`: same.
 - `docs/ADMIN_PAYMENT_INTEGRATION_API.md`: endpoint documentation for payment integrators and sidecars.
 
 ### Shared Touchpoints
