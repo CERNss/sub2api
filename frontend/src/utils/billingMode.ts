@@ -32,17 +32,10 @@ export function isImageUsage(row: Pick<ImageBillingRow, 'image_count' | 'billing
 }
 
 export function getDisplayBillingMode(row: Pick<ImageBillingRow, 'billing_mode' | 'image_count'> | null | undefined): string | null | undefined {
-<<<<<<< HEAD
   if ((row?.image_count ?? 0) > 0 && !row?.billing_mode) {
     return BILLING_MODE_IMAGE
   }
   return row?.billing_mode
-=======
-  if (isImageUsage(row)) {
-    return BILLING_MODE_IMAGE
-  }
-  return row?.billing_mode ?? BILLING_MODE_TOKEN
->>>>>>> 4ca93707 (fix(frontend): derive image billing mode for historical usage)
 }
 
 export function imageUnitPrice(row: Pick<ImageBillingRow, 'image_count' | 'total_cost'> | null): number {

@@ -26,7 +26,7 @@
 
 | # | ID | 状态 | 一句话 | 新增文件 | 上游补丁文件 |
 |---|----|------|-------|---------|-------------|
-| 1 | `add-admin-user-api-key-creation`         | 🟢 active   | Admin 通过 Admin API Key 为指定用户创建/转移 API key | 0 | 15 |
+| 1 | `add-admin-user-api-key-creation`         | 🟢 active   | Admin 通过 Admin API Key 为指定用户创建/转移 API key | 0 | 20 |
 | 2 | `add-external-custom-menu-token-open`     | 🟢 active   | 自定义菜单支持以 `external` 方式新开页并透传 JWT | 2 | 11 |
 | 3 | `control-oidc-local-email-verification`   | 🟢 active   | OIDC 专用开关跳过二次本地邮箱验证                | 0 | 23 |
 | 4 | `refine-pending-oauth-account-resolution` | 🟢 active   | OAuth 回调跳过 chooser、邮箱预填规则             | 0 | 6 |
@@ -67,6 +67,11 @@ _无。本 change 全部为对上游文件的补丁。_
 | `backend/internal/service/admin_user.go` | 方法实现（上游把 adminServiceImpl 用户相关实现拆到此文件）；创建与转移均拒绝负数 quota（否则会被静默当作无限额）|
 | `backend/internal/service/admin_service_apikey_test.go` | service 层单测覆盖创建、分组更新、转移、quota reset、缓存失效 |
 | `backend/internal/service/api_key_service.go` | 暴露共享创建逻辑给 admin path，并扩展 API key repo contract |
+| `backend/internal/server/middleware/api_key_auth_test.go` | repo stub 补 `TransferUpdate`（接口扩展的连带）|
+| `backend/internal/server/middleware/api_key_auth_google_test.go` | 同上 |
+| `backend/internal/service/api_key_service_cache_test.go` | 同上 |
+| `backend/internal/service/api_key_service_delete_test.go` | 同上 |
+| `backend/internal/service/api_key_service_quota_test.go` | 同上 |
 | `docs/ADMIN_PAYMENT_INTEGRATION_API.md` | 文档新增创建与转移端点说明 |
 | `README.md` | 功能简述段落 |
 | `README_CN.md` | 中文文档同步 |
@@ -303,6 +308,8 @@ _待提交。_
 | 默认运行参数 | `deploy/docker-compose*.yml`（与 #5 部分重叠） | 补丁 |
 | 文档分支 | `DEV_GUIDE.md`；`README*.md` 中**非 OpenSpec 功能段落**（如部署/构建说明） | 补丁 |
 | CLA / License | `CLA.md` | 新增 |
+| OpenAI ops 观测 | `backend/internal/service/openai_upstream_transport_error.go` 及全部调用点（`openai_*`、`grok_media.go`）：`handleOpenAIUpstreamTransportError` 增加 `upstreamURL` 参数，request_error ops 事件标注上游端点 | 补丁 |
+| 前端杂项补丁 | `frontend/src/vite-env.d.ts`（Airwallex SDK 类型声明兜底）、`frontend/src/composables/usePersistedPageSize.ts`（页大小来源追踪，管理员默认值优先于陈旧 localStorage） | 补丁 |
 
 > 这一块文件数量大但大多是 `.github/action-mirrors/` 等"新增目录"，rebase 几乎不会冲突；真正需要看的是 `.goreleaser*.yaml`、`Dockerfile*`、`deploy/docker-compose*.yml` 三处的小补丁。
 
