@@ -2,15 +2,15 @@
   "change_id": "control-oidc-local-email-verification",
   "status": "active",
   "proposal_path": "openspec/changes/control-oidc-local-email-verification/proposal.md",
-  "captured_at": "2026-06-17T19:54:09+00:00",
-  "captured_at_commit": "6cdb78ede3a33977357bebc2ac6b00288bf4bf49",
-  "base": "main",
-  "base_commit": "4a5665da5b2c6b83c4597844ea6e573746c821b1",
+  "captured_at": "2026-07-13T05:58:47+00:00",
+  "captured_at_commit": "564245994f2c42b501cfe052d70708d8c10187da",
+  "base": "b73d8c3e",
+  "base_commit": "b73d8c3efe01a290eaaa9326b6e40ece02c67a0e",
   "new_files": [],
   "upstream_patch_files": [
     {
       "path": "backend/internal/handler/auth_oidc_oauth.go",
-      "reason": "OIDC callback returns `local_email_verification_required`."
+      "reason": "OIDC callback returns `local_email_verification_required`; binds `email_verified` to the adopted `compat_email` source via `oidcVerifiedFlagForEmail` so a verified flag from a different upstream email cannot suppress local verification."
     },
     {
       "path": "backend/internal/handler/auth_oidc_oauth_test.go",
@@ -18,7 +18,7 @@
     },
     {
       "path": "backend/internal/handler/auth_oauth_pending_flow.go",
-      "reason": "pending session carries verification state to the frontend."
+      "reason": "pending session carries verification state to the frontend; `pendingOAuthLocalEmailVerificationRequired` also suppresses local verification when site-wide `email_verify_enabled` is off, matching the client which hides the verify controls (prevents the rebase-fragile dead-end where the client hides the code field but the backend still demands a code)."
     },
     {
       "path": "backend/internal/handler/auth_oauth_pending_flow_test.go",
@@ -42,15 +42,31 @@
     },
     {
       "path": "backend/internal/handler/admin/setting_handler.go",
-      "reason": "passes the new admin field through."
+      "reason": "GET settings payload passes the new admin field through."
+    },
+    {
+      "path": "backend/internal/handler/admin/setting_handler_update.go",
+      "reason": "update request DTO field + service input + response payload passthrough (upstream split this out of `setting_handler.go`)."
+    },
+    {
+      "path": "backend/internal/handler/admin/setting_handler_audit.go",
+      "reason": "change-audit tracking for the new key (upstream split this out of `setting_handler.go`)."
     },
     {
       "path": "backend/internal/handler/dto/settings.go",
       "reason": "DTO field."
     },
     {
-      "path": "backend/internal/service/setting_service.go",
-      "reason": "persistence of the new toggle."
+      "path": "backend/internal/service/setting_features.go",
+      "reason": "`GetOIDCConnectRequireLocalEmailVerification` / `IsOIDCConnectLocalEmailVerificationRequired` getters (upstream split `setting_service.go`)."
+    },
+    {
+      "path": "backend/internal/service/setting_parse.go",
+      "reason": "default value (`true`) and settings-view parse of the new key (upstream split `setting_service.go`)."
+    },
+    {
+      "path": "backend/internal/service/setting_update.go",
+      "reason": "persistence of the new toggle in the updates map (upstream split `setting_service.go`)."
     },
     {
       "path": "frontend/src/api/admin/settings.ts",
@@ -62,7 +78,7 @@
     },
     {
       "path": "frontend/src/components/auth/PendingOAuthCreateAccountForm.vue",
-      "reason": "hides local verification input when flag says so."
+      "reason": "hides local verification input when flag says so; when send-code returns an `auth_result: pending_session` (email already registered) it routes to the bind flow instead of falsely reporting \"code sent\"."
     },
     {
       "path": "frontend/src/components/auth/__tests__/PendingOAuthCreateAccountForm.spec.ts",
@@ -77,27 +93,22 @@
       "reason": "callback view tests."
     },
     {
-      "path": "frontend/src/i18n/locales/en.ts",
-      "reason": "copy strings."
+      "path": "frontend/src/i18n/locales/en/admin/settings.ts",
+      "reason": "copy strings (upstream split the monolithic `en.ts`)."
     },
     {
-      "path": "frontend/src/i18n/locales/zh.ts",
-      "reason": "copy strings."
+      "path": "frontend/src/i18n/locales/zh/admin/settings.ts",
+      "reason": "copy strings (upstream split the monolithic `zh.ts`)."
     }
   ],
   "shared_touchpoints": [
     {
-      "path": "backend/internal/handler/admin/setting_handler.go",
+      "path": "backend/internal/handler/admin/setting_handler_update.go",
       "reason": "also owned by `add-external-custom-menu-token-open`.",
       "shared_with": "add-external-custom-menu-token-open"
     },
     {
       "path": "backend/internal/handler/dto/settings.go",
-      "reason": "also owned by `add-external-custom-menu-token-open`.",
-      "shared_with": "add-external-custom-menu-token-open"
-    },
-    {
-      "path": "backend/internal/service/setting_service.go",
       "reason": "also owned by `add-external-custom-menu-token-open`.",
       "shared_with": "add-external-custom-menu-token-open"
     },
