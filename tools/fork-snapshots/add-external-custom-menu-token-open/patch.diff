@@ -1,5 +1,5 @@
 diff --git a/backend/internal/handler/admin/setting_handler_update.go b/backend/internal/handler/admin/setting_handler_update.go
-index b4c1f3af..0937f633 100644
+index b4c1f3afc..0937f6338 100644
 --- a/backend/internal/handler/admin/setting_handler_update.go
 +++ b/backend/internal/handler/admin/setting_handler_update.go
 @@ -92,28 +92,29 @@ type UpdateSettingsRequest struct {
@@ -295,7 +295,7 @@ index b4c1f3af..0937f633 100644
  		OIDCConnectUserInfoIDPath:                              updatedSettings.OIDCConnectUserInfoIDPath,
  		OIDCConnectUserInfoUsernamePath:                        updatedSettings.OIDCConnectUserInfoUsernamePath,
 diff --git a/backend/internal/handler/dto/settings.go b/backend/internal/handler/dto/settings.go
-index 5b7e657f..a2885a80 100644
+index 5b7e657f2..a2885a808 100644
 --- a/backend/internal/handler/dto/settings.go
 +++ b/backend/internal/handler/dto/settings.go
 @@ -13,6 +13,7 @@ type CustomMenuItem struct {
@@ -359,7 +359,7 @@ index 5b7e657f..a2885a80 100644
  	GitHubOAuthEnabled                bool   `json:"github_oauth_enabled"`
  	GitHubOAuthClientID               string `json:"github_oauth_client_id"`
 diff --git a/backend/internal/service/setting_public.go b/backend/internal/service/setting_public.go
-index 5bcc9e4c..dee87a7b 100644
+index 5bcc9e4c0..dee87a7bc 100644
 --- a/backend/internal/service/setting_public.go
 +++ b/backend/internal/service/setting_public.go
 @@ -673,14 +673,16 @@ func parseCustomMenuItemURLs(raw string) []string {
@@ -382,7 +382,7 @@ index 5bcc9e4c..dee87a7b 100644
  		}
  	}
 diff --git a/frontend/src/components/layout/AppSidebar.vue b/frontend/src/components/layout/AppSidebar.vue
-index ad78c2d2..6621806b 100644
+index ad78c2d29..6621806bd 100644
 --- a/frontend/src/components/layout/AppSidebar.vue
 +++ b/frontend/src/components/layout/AppSidebar.vue
 @@ -77,6 +77,18 @@
@@ -600,7 +600,7 @@ index ad78c2d2..6621806b 100644
    const pathToSelector: Record<string, string> = {
      '/admin/groups': '#sidebar-group-manage',
 diff --git a/frontend/src/components/layout/__tests__/AppSidebar.spec.ts b/frontend/src/components/layout/__tests__/AppSidebar.spec.ts
-index 8439c23f..dc4dedc5 100644
+index 8439c23fc..dc4dedc5d 100644
 --- a/frontend/src/components/layout/__tests__/AppSidebar.spec.ts
 +++ b/frontend/src/components/layout/__tests__/AppSidebar.spec.ts
 @@ -6,6 +6,8 @@ import { describe, expect, it } from 'vitest'
@@ -629,7 +629,7 @@ index 8439c23f..dc4dedc5 100644
 +  })
 +})
 diff --git a/frontend/src/types/index.ts b/frontend/src/types/index.ts
-index b7095ebe..b4fa5e5b 100644
+index b7095ebe0..b4fa5e5be 100644
 --- a/frontend/src/types/index.ts
 +++ b/frontend/src/types/index.ts
 @@ -171,6 +171,7 @@ export interface CustomMenuItem {
@@ -681,7 +681,7 @@ index b7095ebe..b4fa5e5b 100644
  
  export type GroupPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok'
 diff --git a/frontend/src/views/admin/SettingsView.vue b/frontend/src/views/admin/SettingsView.vue
-index 26253c7e..ae03ea03 100644
+index 26253c7eb..ae03ea030 100644
 --- a/frontend/src/views/admin/SettingsView.vue
 +++ b/frontend/src/views/admin/SettingsView.vue
 @@ -2693,7 +2693,7 @@
@@ -807,7 +807,7 @@ index 26253c7e..ae03ea03 100644
        oidc_connect_userinfo_id_path: form.oidc_connect_userinfo_id_path,
        oidc_connect_userinfo_username_path:
 diff --git a/frontend/src/views/admin/__tests__/SettingsView.spec.ts b/frontend/src/views/admin/__tests__/SettingsView.spec.ts
-index 4705e9fa..84e8f4bf 100644
+index 4705e9fac..84e8f4bf8 100644
 --- a/frontend/src/views/admin/__tests__/SettingsView.spec.ts
 +++ b/frontend/src/views/admin/__tests__/SettingsView.spec.ts
 @@ -666,6 +666,39 @@ describe("admin SettingsView payment visible method controls", () => {
@@ -851,7 +851,7 @@ index 4705e9fa..84e8f4bf 100644
      getSettings.mockResolvedValueOnce({
        ...baseSettingsResponse,
 diff --git a/frontend/src/views/user/CustomPageView.vue b/frontend/src/views/user/CustomPageView.vue
-index 00a133eb..b2b0c43e 100644
+index 00a133eb0..b2b0c43e5 100644
 --- a/frontend/src/views/user/CustomPageView.vue
 +++ b/frontend/src/views/user/CustomPageView.vue
 @@ -155,10 +155,10 @@ const menuItemId = computed(() => route.params.id as string)

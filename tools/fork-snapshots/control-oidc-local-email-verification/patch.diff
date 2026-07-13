@@ -1,5 +1,5 @@
 diff --git a/backend/internal/handler/admin/setting_handler.go b/backend/internal/handler/admin/setting_handler.go
-index 1d506f50..a9335469 100644
+index 1d506f505..a93354696 100644
 --- a/backend/internal/handler/admin/setting_handler.go
 +++ b/backend/internal/handler/admin/setting_handler.go
 @@ -193,6 +193,7 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
@@ -11,7 +11,7 @@ index 1d506f50..a9335469 100644
  		OIDCConnectUserInfoIDPath:                              settings.OIDCConnectUserInfoIDPath,
  		OIDCConnectUserInfoUsernamePath:                        settings.OIDCConnectUserInfoUsernamePath,
 diff --git a/backend/internal/handler/admin/setting_handler_audit.go b/backend/internal/handler/admin/setting_handler_audit.go
-index 899030d1..7d01f1a1 100644
+index 899030d1b..7d01f1a13 100644
 --- a/backend/internal/handler/admin/setting_handler_audit.go
 +++ b/backend/internal/handler/admin/setting_handler_audit.go
 @@ -257,6 +257,9 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
@@ -25,7 +25,7 @@ index 899030d1..7d01f1a1 100644
  		changed = append(changed, "oidc_connect_userinfo_email_path")
  	}
 diff --git a/backend/internal/handler/admin/setting_handler_update.go b/backend/internal/handler/admin/setting_handler_update.go
-index b4c1f3af..0937f633 100644
+index b4c1f3afc..0937f6338 100644
 --- a/backend/internal/handler/admin/setting_handler_update.go
 +++ b/backend/internal/handler/admin/setting_handler_update.go
 @@ -92,28 +92,29 @@ type UpdateSettingsRequest struct {
@@ -321,7 +321,7 @@ index b4c1f3af..0937f633 100644
  		OIDCConnectUserInfoIDPath:                              updatedSettings.OIDCConnectUserInfoIDPath,
  		OIDCConnectUserInfoUsernamePath:                        updatedSettings.OIDCConnectUserInfoUsernamePath,
 diff --git a/backend/internal/handler/auth_oauth_pending_flow.go b/backend/internal/handler/auth_oauth_pending_flow.go
-index 79e9f0a8..f7cb638d 100644
+index 79e9f0a80..f7cb638d6 100644
 --- a/backend/internal/handler/auth_oauth_pending_flow.go
 +++ b/backend/internal/handler/auth_oauth_pending_flow.go
 @@ -325,6 +325,64 @@ func pendingSessionStringValue(values map[string]any, key string) string {
@@ -500,7 +500,7 @@ index 79e9f0a8..f7cb638d 100644
  	if err != nil {
  		if errors.Is(err, service.ErrEmailExists) {
 diff --git a/backend/internal/handler/auth_oauth_pending_flow_test.go b/backend/internal/handler/auth_oauth_pending_flow_test.go
-index 53360036..89085dcf 100644
+index 53360036a..89085dcf2 100644
 --- a/backend/internal/handler/auth_oauth_pending_flow_test.go
 +++ b/backend/internal/handler/auth_oauth_pending_flow_test.go
 @@ -1245,6 +1245,56 @@ func TestOAuthExistingUserLoginDoesNotApplyPromoCode(t *testing.T) {
@@ -561,7 +561,7 @@ index 53360036..89085dcf 100644
  	handler, client := newOAuthPendingFlowTestHandlerWithEmailVerification(t, false, "owner@example.com", "135790")
  	ctx := context.Background()
 diff --git a/backend/internal/handler/auth_oidc_oauth.go b/backend/internal/handler/auth_oidc_oauth.go
-index 904bdc22..c5e96b84 100644
+index 904bdc225..c5e96b84a 100644
 --- a/backend/internal/handler/auth_oidc_oauth.go
 +++ b/backend/internal/handler/auth_oidc_oauth.go
 @@ -94,6 +94,25 @@ type oidcUserInfoClaims struct {
@@ -745,7 +745,7 @@ index 904bdc22..c5e96b84 100644
 -	return true
 -}
 diff --git a/backend/internal/handler/auth_oidc_oauth_test.go b/backend/internal/handler/auth_oidc_oauth_test.go
-index 08bb459a..efc43c5b 100644
+index 08bb459a0..efc43c5bf 100644
 --- a/backend/internal/handler/auth_oidc_oauth_test.go
 +++ b/backend/internal/handler/auth_oidc_oauth_test.go
 @@ -456,6 +456,30 @@ func TestOIDCOAuthCallbackCreatesBindPendingSessionForCompatEmailUser(t *testing
@@ -1187,7 +1187,7 @@ index 08bb459a..efc43c5b 100644
  
  type oidcProviderFixture struct {
 diff --git a/backend/internal/handler/dto/settings.go b/backend/internal/handler/dto/settings.go
-index 5b7e657f..a2885a80 100644
+index 5b7e657f2..a2885a808 100644
 --- a/backend/internal/handler/dto/settings.go
 +++ b/backend/internal/handler/dto/settings.go
 @@ -13,6 +13,7 @@ type CustomMenuItem struct {
@@ -1251,7 +1251,7 @@ index 5b7e657f..a2885a80 100644
  	GitHubOAuthEnabled                bool   `json:"github_oauth_enabled"`
  	GitHubOAuthClientID               string `json:"github_oauth_client_id"`
 diff --git a/backend/internal/service/auth_oauth_email_flow.go b/backend/internal/service/auth_oauth_email_flow.go
-index 24d0eeee..ede369d0 100644
+index 24d0eeee7..ede369d0d 100644
 --- a/backend/internal/service/auth_oauth_email_flow.go
 +++ b/backend/internal/service/auth_oauth_email_flow.go
 @@ -106,6 +106,7 @@ func (s *AuthService) RegisterOAuthEmailAccount(
@@ -1278,7 +1278,7 @@ index 24d0eeee..ede369d0 100644
  
  	if _, err := s.validateOAuthRegistrationInvitation(ctx, invitationCode); err != nil {
 diff --git a/backend/internal/service/auth_oauth_email_flow_test.go b/backend/internal/service/auth_oauth_email_flow_test.go
-index 5a78a348..7f1bda63 100644
+index 5a78a348d..7f1bda638 100644
 --- a/backend/internal/service/auth_oauth_email_flow_test.go
 +++ b/backend/internal/service/auth_oauth_email_flow_test.go
 @@ -187,6 +187,7 @@ func TestRegisterOAuthEmailAccountRollsBackCreatedUserWhenTokenPairGenerationFai
@@ -1314,7 +1314,7 @@ index 5a78a348..7f1bda63 100644
  
  	require.NoError(t, err)
 diff --git a/backend/internal/service/domain_constants.go b/backend/internal/service/domain_constants.go
-index bc1db191..98a75dae 100644
+index bc1db1910..98a75daec 100644
 --- a/backend/internal/service/domain_constants.go
 +++ b/backend/internal/service/domain_constants.go
 @@ -210,28 +210,29 @@ const (
@@ -1370,7 +1370,7 @@ index bc1db191..98a75dae 100644
  	// GitHub / Google 邮箱快捷登录设置
  	SettingKeyGitHubOAuthEnabled             = "github_oauth_enabled"
 diff --git a/backend/internal/service/setting_features.go b/backend/internal/service/setting_features.go
-index 57c03686..3b178720 100644
+index 57c036861..3b1787208 100644
 --- a/backend/internal/service/setting_features.go
 +++ b/backend/internal/service/setting_features.go
 @@ -32,6 +32,25 @@ func (s *SettingService) IsEmailVerifyEnabled(ctx context.Context) bool {
@@ -1400,7 +1400,7 @@ index 57c03686..3b178720 100644
  func (s *SettingService) GetRegistrationEmailSuffixWhitelist(ctx context.Context) []string {
  	value, err := s.settingRepo.GetValue(ctx, SettingKeyRegistrationEmailSuffixWhitelist)
 diff --git a/backend/internal/service/setting_parse.go b/backend/internal/service/setting_parse.go
-index bf71b559..6834f7c3 100644
+index bf71b559a..6834f7c3c 100644
 --- a/backend/internal/service/setting_parse.go
 +++ b/backend/internal/service/setting_parse.go
 @@ -108,6 +108,7 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
@@ -1424,7 +1424,7 @@ index bf71b559..6834f7c3 100644
  		result.OIDCConnectUserInfoEmailPath = strings.TrimSpace(v)
  	} else {
 diff --git a/backend/internal/service/setting_update.go b/backend/internal/service/setting_update.go
-index ba819a5c..88a857d6 100644
+index ba819a5ce..88a857d67 100644
 --- a/backend/internal/service/setting_update.go
 +++ b/backend/internal/service/setting_update.go
 @@ -201,6 +201,7 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
@@ -1436,7 +1436,7 @@ index ba819a5c..88a857d6 100644
  	updates[SettingKeyOIDCConnectUserInfoIDPath] = settings.OIDCConnectUserInfoIDPath
  	updates[SettingKeyOIDCConnectUserInfoUsernamePath] = settings.OIDCConnectUserInfoUsernamePath
 diff --git a/backend/internal/service/settings_view.go b/backend/internal/service/settings_view.go
-index 285df80b..2ae42710 100644
+index 285df80ba..2ae427106 100644
 --- a/backend/internal/service/settings_view.go
 +++ b/backend/internal/service/settings_view.go
 @@ -89,29 +89,30 @@ type SystemSettings struct {
@@ -1494,7 +1494,7 @@ index 285df80b..2ae42710 100644
  	// GitHub / Google 邮箱快捷登录
  	GitHubOAuthEnabled                bool
 diff --git a/frontend/src/api/admin/settings.ts b/frontend/src/api/admin/settings.ts
-index 55c8088b..4e2d6523 100644
+index 55c8088be..4e2d65234 100644
 --- a/frontend/src/api/admin/settings.ts
 +++ b/frontend/src/api/admin/settings.ts
 @@ -249,7 +249,13 @@ export function appendAuthSourceDefaultsToUpdateRequest(
@@ -1529,7 +1529,7 @@ index 55c8088b..4e2d6523 100644
    oidc_connect_userinfo_id_path?: string;
    oidc_connect_userinfo_username_path?: string;
 diff --git a/frontend/src/components/auth/PendingOAuthCreateAccountForm.vue b/frontend/src/components/auth/PendingOAuthCreateAccountForm.vue
-index 112a25ce..8f5d367b 100644
+index 112a25cec..8f5d367b2 100644
 --- a/frontend/src/components/auth/PendingOAuthCreateAccountForm.vue
 +++ b/frontend/src/components/auth/PendingOAuthCreateAccountForm.vue
 @@ -16,7 +16,7 @@
@@ -1636,7 +1636,7 @@ index 112a25ce..8f5d367b 100644
    })
  }
 diff --git a/frontend/src/components/auth/__tests__/PendingOAuthCreateAccountForm.spec.ts b/frontend/src/components/auth/__tests__/PendingOAuthCreateAccountForm.spec.ts
-index d41c1dd7..1f627c7a 100644
+index d41c1dd7f..1f627c7a9 100644
 --- a/frontend/src/components/auth/__tests__/PendingOAuthCreateAccountForm.spec.ts
 +++ b/frontend/src/components/auth/__tests__/PendingOAuthCreateAccountForm.spec.ts
 @@ -176,6 +176,54 @@ describe('PendingOAuthCreateAccountForm', () => {
@@ -1695,7 +1695,7 @@ index d41c1dd7..1f627c7a 100644
      sendPendingOAuthVerifyCode.mockRejectedValue(new Error('send failed'))
  
 diff --git a/frontend/src/i18n/locales/en/admin/settings.ts b/frontend/src/i18n/locales/en/admin/settings.ts
-index e08be9f5..22e995b0 100644
+index e08be9f59..22e995b03 100644
 --- a/frontend/src/i18n/locales/en/admin/settings.ts
 +++ b/frontend/src/i18n/locales/en/admin/settings.ts
 @@ -248,6 +248,7 @@ export default {
@@ -1707,7 +1707,7 @@ index e08be9f5..22e995b0 100644
          userinfoEmailPathPlaceholder: 'for example data.email',
          userinfoIdPath: 'UserInfo ID Path',
 diff --git a/frontend/src/i18n/locales/zh/admin/settings.ts b/frontend/src/i18n/locales/zh/admin/settings.ts
-index 08c0dbcd..0ed56b55 100644
+index 08c0dbcd5..0ed56b557 100644
 --- a/frontend/src/i18n/locales/zh/admin/settings.ts
 +++ b/frontend/src/i18n/locales/zh/admin/settings.ts
 @@ -246,6 +246,7 @@ export default {
@@ -1719,7 +1719,7 @@ index 08c0dbcd..0ed56b55 100644
          userinfoEmailPathPlaceholder: '例如 data.email',
          userinfoIdPath: 'UserInfo ID 字段路径',
 diff --git a/frontend/src/views/admin/SettingsView.vue b/frontend/src/views/admin/SettingsView.vue
-index 26253c7e..ae03ea03 100644
+index 26253c7eb..ae03ea030 100644
 --- a/frontend/src/views/admin/SettingsView.vue
 +++ b/frontend/src/views/admin/SettingsView.vue
 @@ -2693,7 +2693,7 @@
@@ -1845,7 +1845,7 @@ index 26253c7e..ae03ea03 100644
        oidc_connect_userinfo_id_path: form.oidc_connect_userinfo_id_path,
        oidc_connect_userinfo_username_path:
 diff --git a/frontend/src/views/auth/OidcCallbackView.vue b/frontend/src/views/auth/OidcCallbackView.vue
-index e17f05e9..3d546a03 100644
+index e17f05e91..3d546a038 100644
 --- a/frontend/src/views/auth/OidcCallbackView.vue
 +++ b/frontend/src/views/auth/OidcCallbackView.vue
 @@ -158,6 +158,8 @@
@@ -1912,7 +1912,7 @@ index e17f05e9..3d546a03 100644
    const email = extractPendingAccountEmail(completion)
    if (action === 'choose_account_action') {
 diff --git a/frontend/src/views/auth/__tests__/OidcCallbackView.spec.ts b/frontend/src/views/auth/__tests__/OidcCallbackView.spec.ts
-index 77af4d3d..6d6cd64f 100644
+index 77af4d3da..6d6cd64f3 100644
 --- a/frontend/src/views/auth/__tests__/OidcCallbackView.spec.ts
 +++ b/frontend/src/views/auth/__tests__/OidcCallbackView.spec.ts
 @@ -430,6 +430,40 @@ describe('OidcCallbackView', () => {
