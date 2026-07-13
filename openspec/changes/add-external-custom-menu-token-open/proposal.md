@@ -30,9 +30,9 @@ Operators need to open a standalone sidecar service from the Sub2API sidebar whi
 - `frontend/src/utils/__tests__/external-menu-url.spec.ts`: unit tests for URL building edge cases.
 
 ### Upstream Patch Files
-- `backend/internal/handler/admin/setting_handler.go`: passes the new `open_mode` field through to persistence.
+- `backend/internal/handler/admin/setting_handler_update.go`: validates `open_mode` (`iframe`/`external`) and rejects `md:` slugs for external menus (upstream split this out of `setting_handler.go`).
 - `backend/internal/handler/dto/settings.go`: DTO validation extended for `open_mode`.
-- `backend/internal/service/setting_service.go`: persists and validates the external menu mode.
+- `backend/internal/service/setting_public.go`: `parseCustomMenuItemURLs` only exposes iframe-mode URLs to CSP frame-src (upstream split this out of `setting_service.go`).
 - `frontend/src/components/layout/AppSidebar.vue`: dispatches by mode (`iframe` → existing route, `external` → `window.open`).
 - `frontend/src/components/layout/__tests__/AppSidebar.spec.ts`: behavior coverage.
 - `frontend/src/views/user/CustomPageView.vue`: keeps iframe-mode fallback intact.
@@ -41,9 +41,8 @@ Operators need to open a standalone sidecar service from the Sub2API sidebar whi
 - `frontend/src/views/admin/__tests__/SettingsView.spec.ts`: UI test coverage.
 
 ### Shared Touchpoints
-- `backend/internal/handler/admin/setting_handler.go`: also owned by `control-oidc-local-email-verification` — both changes add admin settings; preserve both DTO field passthroughs.
+- `backend/internal/handler/admin/setting_handler_update.go`: also owned by `control-oidc-local-email-verification` — both changes patch the update path; preserve both.
 - `backend/internal/handler/dto/settings.go`: also owned by `control-oidc-local-email-verification`.
-- `backend/internal/service/setting_service.go`: also owned by `control-oidc-local-email-verification`.
 - `frontend/src/views/admin/SettingsView.vue`: also owned by `control-oidc-local-email-verification` — preserve both settings panels.
 - `frontend/src/types/index.ts`: also owned by archived `2026-04-28-support-mounted-frontend-client-templates` — preserve both `CustomMenuItem` and `PublicSettings` extensions.
 - `README.md`: also owned by `add-admin-user-api-key-creation` — both append feature blurb paragraphs.
