@@ -1041,7 +1041,10 @@ jobs:
               }')"
 
   sync_version_file:
-    if: ${{ needs.release_macos.result == 'success' || needs.release_linux.result == 'success' }}
+    # !cancelled() overrides the implicit success() gate: with a single-runner
+    # release one of release_macos/release_linux is always skipped, which would
+    # otherwise skip this job too (v2.0.2 shipped fine but VERSION never synced).
+    if: ${{ !cancelled() && (needs.release_macos.result == 'success' || needs.release_linux.result == 'success') }}
     needs: [init, release_macos, release_linux]
     runs-on: ${{ fromJSON(needs.init.outputs.runs_on) }}
     timeout-minutes: 15
