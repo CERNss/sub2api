@@ -2,10 +2,10 @@
   "change_id": "add-external-custom-menu-token-open",
   "status": "active",
   "proposal_path": "openspec/changes/add-external-custom-menu-token-open/proposal.md",
-  "captured_at": "2026-07-13T04:25:53+00:00",
-  "captured_at_commit": "85fa014674b01493adac6571fccbb4d9c1013f00",
-  "base": "d430343f",
-  "base_commit": "d430343f513aa811be4ef949a945d3d69e3dd0df",
+  "captured_at": "2026-07-13T04:52:34+00:00",
+  "captured_at_commit": "f8df914e86bd57d03a4177fb4451265b075725c8",
+  "base": "upstream/main",
+  "base_commit": "a1930ea6f29fc5f17ae0020f4e2d38e789c49d73",
   "new_files": [
     {
       "path": "frontend/src/utils/external-menu-url.ts",
@@ -18,16 +18,16 @@
   ],
   "upstream_patch_files": [
     {
-      "path": "backend/internal/handler/admin/setting_handler.go",
-      "reason": "passes the new `open_mode` field through to persistence."
+      "path": "backend/internal/handler/admin/setting_handler_update.go",
+      "reason": "validates `open_mode` (`iframe`/`external`) and rejects `md:` slugs for external menus (upstream split this out of `setting_handler.go`)."
     },
     {
       "path": "backend/internal/handler/dto/settings.go",
       "reason": "DTO validation extended for `open_mode`."
     },
     {
-      "path": "backend/internal/service/setting_service.go",
-      "reason": "persists and validates the external menu mode."
+      "path": "backend/internal/service/setting_public.go",
+      "reason": "`parseCustomMenuItemURLs` only exposes iframe-mode URLs to CSP frame-src (upstream split this out of `setting_service.go`)."
     },
     {
       "path": "frontend/src/components/layout/AppSidebar.vue",
@@ -56,17 +56,12 @@
   ],
   "shared_touchpoints": [
     {
-      "path": "backend/internal/handler/admin/setting_handler.go",
-      "reason": "also owned by `control-oidc-local-email-verification` — both changes add admin settings; preserve both DTO field passthroughs.",
+      "path": "backend/internal/handler/admin/setting_handler_update.go",
+      "reason": "also owned by `control-oidc-local-email-verification` — both changes patch the update path; preserve both.",
       "shared_with": "control-oidc-local-email-verification"
     },
     {
       "path": "backend/internal/handler/dto/settings.go",
-      "reason": "also owned by `control-oidc-local-email-verification`.",
-      "shared_with": "control-oidc-local-email-verification"
-    },
-    {
-      "path": "backend/internal/service/setting_service.go",
       "reason": "also owned by `control-oidc-local-email-verification`.",
       "shared_with": "control-oidc-local-email-verification"
     },
