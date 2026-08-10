@@ -970,7 +970,7 @@ func (s *APIKeyService) UpdateGroup(ctx context.Context, id int64, userID int64,
 		apiKey.Group = group
 	}
 
-	if err := s.apiKeyRepo.Update(ctx, apiKey); err != nil {
+	if err := s.apiKeyRepo.Update(ctx, apiKey, APIKeyUpdateFields{GroupID: true}); err != nil {
 		return nil, fmt.Errorf("update api key: %w", err)
 	}
 
