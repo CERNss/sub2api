@@ -306,12 +306,17 @@ _待提交。_
 | Docker 打包 | `Dockerfile.goreleaser`（`Dockerfile` 已与上游一致，无补丁） | 补丁/新增 |
 | Action 镜像化 | `.github/action-mirrors/**`、`tools/sync-action-mirrors.sh`、`tools/install-goreleaser.sh`、`tools/run-goreleaser-release.sh` | 几乎全新增 |
 | 默认运行参数 | `deploy/docker-compose*.yml`（与 #5 部分重叠） | 补丁 |
-| 文档分支 | `DEV_GUIDE.md`；`README*.md` 中**非 OpenSpec 功能段落**（如部署/构建说明） | 补丁 |
-| CLA / License | `CLA.md` | 新增 |
-| OpenAI ops 观测 | `backend/internal/service/openai_upstream_transport_error.go` 及全部调用点（`openai_*`、`grok_media.go`）：`handleOpenAIUpstreamTransportError` 增加 `upstreamURL` 参数，request_error ops 事件标注上游端点 | 补丁 |
+| 文档分支 | `README*.md` 中**非 OpenSpec 功能段落**（如部署/构建说明） | 补丁 |
+| OpenAI ops 观测 | `backend/internal/service/openai_upstream_transport_error.go` 及全部调用点（`openai_*`、`grok_audio.go`、`grok_media.go`、`openai_ws_http_bridge.go`）：`handleOpenAIUpstreamTransportError` 增加 `upstreamURL` 参数，request_error ops 事件标注上游端点。**上游每次新增 transport-error 调用点都会编译失败**，rebase 后按报错逐个补 `safeUpstreamURL(<req>.URL.String())` | 补丁 |
 | 前端杂项补丁 | `frontend/src/vite-env.d.ts`（Airwallex SDK 类型声明兜底）、`frontend/src/composables/usePersistedPageSize.ts`（页大小来源追踪，管理员默认值优先于陈旧 localStorage） | 补丁 |
 
 > 这一块文件数量大但大多是 `.github/action-mirrors/` 等"新增目录"，rebase 几乎不会冲突；真正需要看的是 `.goreleaser*.yaml`、`Dockerfile*`、`deploy/docker-compose*.yml` 三处的小补丁。
+
+> **已被上游收编（不再是 fork 补丁）**
+> - `CLA.md`、`DEV_GUIDE.md` — 上游已自带同名同内容文件，`develop` 相对上游零差异。
+> - `frontend/src/utils/billingMode.ts`、`frontend/src/components/admin/usage/UsageTable.vue` —
+>   历史图片计费模式推导补丁已进入上游，且上游多加了「显式 video/token 模式优先」守卫，
+>   覆盖面更广；2026-08-10 rebase 到 `10a4c6e3a` 时整段改用上游实现。
 
 ---
 
