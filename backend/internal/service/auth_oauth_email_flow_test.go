@@ -226,6 +226,7 @@ func TestRegisterOAuthEmailAccount_NonWhitelistDomainLimit(t *testing.T) {
 		"246810",
 		"",
 		"oidc",
+		true,
 	)
 
 	require.ErrorIs(t, err, ErrEmailDomainRegistrationLimit)

@@ -474,16 +474,23 @@ func TestAPIContracts(t *testing.T) {
 						"video_rate_independent": false,
 						"video_rate_multiplier": 0,
 						"web_search_price_per_call": null,
+						"search_price_per_1k": null,
+						"audio_tts_price_per_million_chars": null,
+						"audio_stt_price_per_hour": null,
+						"audio_realtime_price_per_min": null,
 						"peak_rate_enabled": false,
 						"peak_rate_multiplier": 0,
 						"peak_start": "",
 						"peak_end": "",
 						"claude_code_only": false,
 						"allow_messages_dispatch": false,
+						"allow_live": false,
 						"fallback_group_id": null,
 						"fallback_group_id_on_invalid_request": null,
 						"require_oauth_only": false,
 						"require_privacy_set": false,
+						"max_reasoning_effort": "",
+						"reasoning_effort_mappings": null,
 						"rpm_limit": 0,
 						"created_at": "2025-01-02T03:04:05Z",
 						"updated_at": "2025-01-02T03:04:05Z"
@@ -1586,13 +1593,16 @@ func TestAdminCreateUserAPIKeyWithAdminAPIKeyMockData(t *testing.T) {
 		userSubRepo,
 		nil,
 		nil,
+		nil,
+		nil,
+		nil,
 	)
 
 	settingRepo := newStubSettingRepo()
 	require.NoError(t, settingRepo.Set(context.Background(), service.SettingKeyAdminAPIKey, adminKey))
 	settingService := service.NewSettingService(settingRepo, cfg)
 	userService := service.NewUserService(userRepo, nil, nil, nil)
-	adminAuth := middleware.NewAdminAuthMiddleware(nil, userService, settingService)
+	adminAuth := middleware.NewAdminAuthMiddleware(nil, userService, settingService, nil)
 
 	router := gin.New()
 	adminGroup := router.Group("/api/v1/admin")
@@ -1742,13 +1752,16 @@ func TestAdminTransferAPIKeyWithAdminAPIKeyMockData(t *testing.T) {
 		&stubUserSubscriptionRepo{},
 		nil,
 		nil,
+		nil,
+		nil,
+		nil,
 	)
 
 	settingRepo := newStubSettingRepo()
 	require.NoError(t, settingRepo.Set(context.Background(), service.SettingKeyAdminAPIKey, adminKey))
 	settingService := service.NewSettingService(settingRepo, cfg)
 	userService := service.NewUserService(userRepo, nil, nil, nil)
-	adminAuth := middleware.NewAdminAuthMiddleware(nil, userService, settingService)
+	adminAuth := middleware.NewAdminAuthMiddleware(nil, userService, settingService, nil)
 
 	router := gin.New()
 	adminGroup := router.Group("/api/v1/admin")
@@ -2816,7 +2829,17 @@ func (r *stubApiKeyRepo) Update(ctx context.Context, key *service.APIKey, _ serv
 }
 
 func (r *stubApiKeyRepo) TransferUpdate(ctx context.Context, key *service.APIKey) error {
-	return r.Update(ctx, key)
+	// 转移是显式全列写路径：owner/group/quota/status 一并落库。
+	return r.Update(ctx, key, service.APIKeyUpdateFields{
+		Name:       true,
+		Status:     true,
+		Quota:      true,
+		GroupID:    true,
+		ExpiresAt:  true,
+		QuotaUsed:  true,
+		RateLimits: true,
+		IPRules:    true,
+	})
 }
 
 func (r *stubApiKeyRepo) Delete(ctx context.Context, id int64) error {

@@ -227,8 +227,8 @@ func TestHandleOpenAIUpstreamTransportError_RecordsOllamaActivityOnly(t *testing
 	}
 	c, _ := newOpenAITransportErrTestContext()
 
-	_ = svc.handleOpenAIUpstreamTransportError(context.Background(), c, ollama, errors.New("connection reset"), false)
-	_ = svc.handleOpenAIUpstreamTransportError(context.Background(), c, other, errors.New("connection reset"), false)
+	_ = svc.handleOpenAIUpstreamTransportError(context.Background(), c, ollama, errors.New("connection reset"), false, "")
+	_ = svc.handleOpenAIUpstreamTransportError(context.Background(), c, other, errors.New("connection reset"), false, "")
 
 	_, ok := deferred.lastUsedUpdates.Load(int64(501))
 	require.True(t, ok, "Ollama Cloud transport error must schedule last_used activity")
@@ -248,7 +248,7 @@ func TestHandleOpenAIUpstreamTransportError_ContextCanceledSkipsOllamaActivity(t
 	}
 	c, _ := newOpenAITransportErrTestContext()
 
-	err := svc.handleOpenAIUpstreamTransportError(context.Background(), c, ollama, context.Canceled, false)
+	err := svc.handleOpenAIUpstreamTransportError(context.Background(), c, ollama, context.Canceled, false, "")
 
 	require.ErrorIs(t, err, context.Canceled)
 	_, ok := deferred.lastUsedUpdates.Load(int64(503))

@@ -241,7 +241,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
 	if err != nil {
 		if turn == 1 {
-			return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, true)
+			return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, true, safeUpstreamURL(upstreamReq.URL.String()))
 		}
 		safeErr := sanitizeUpstreamErrorMessage(err.Error())
 		_ = writeClientMessage(buildOpenAIWSHTTPBridgeErrorEvent(http.StatusBadGateway, "Upstream request failed"))
@@ -501,7 +501,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 	if err := scanner.Err(); err != nil {
 		streamErr := fmt.Errorf("read upstream http bridge stream: %w", err)
 		if turn == 1 && !wroteDownstream {
-			return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, streamErr, true)
+			return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, streamErr, true, safeUpstreamURL(upstreamReq.URL.String()))
 		}
 		return resultWithUsage(), streamErr
 	}
@@ -510,7 +510,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 		terminalErr = errors.New("upstream http bridge stream sent [DONE] before terminal event")
 	}
 	if turn == 1 && !wroteDownstream {
-		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, terminalErr, true)
+		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, terminalErr, true, safeUpstreamURL(upstreamReq.URL.String()))
 	}
 	return resultWithUsage(), terminalErr
 }
