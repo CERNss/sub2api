@@ -1,7 +1,17 @@
 # key-client-template-rendering Specification
 
 ## Purpose
-TBD - created by archiving change support-mounted-frontend-client-templates. Update Purpose after archive.
+Define how the Use Key flow renders resolved client templates into the files and links users copy.
+
+Once templates are resolved, each supported client surface (Codex, Codex WS, OpenCode, CCS import)
+may be overridden independently. This capability owns per-surface override semantics, the shared
+placeholder engine (`${name}` and `{{ name }}`, unknown keys preserved), and CCS deeplink
+construction from merged defaults and template params. Overrides are strictly additive: any surface
+without configured templates keeps its built-in generated output, so partial configuration can
+never leave a client tab empty.
+
+Resolution of the template source is a separate capability: see `frontend-client-template-loading`.
+
 ## Requirements
 ### Requirement: Use Key flows SHALL render configured client template files when present
 The Use Key flow SHALL treat configured template files as targeted overrides for supported client surfaces. When a matching template section is present, it SHALL render those files with placeholder substitution instead of the built-in generated output for that surface.
