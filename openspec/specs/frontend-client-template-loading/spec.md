@@ -1,7 +1,16 @@
 # frontend-client-template-loading Specification
 
 ## Purpose
-TBD - created by archiving change support-mounted-frontend-client-templates. Update Purpose after archive.
+Define how the frontend discovers, prioritizes, and validates client-template payloads at runtime.
+
+Operators need to customize the client configs shown in the Use Key flow without rebuilding the
+image or changing backend code. This capability lets them supply templates by mounting a static
+`/client-templates.json`, while still allowing public settings to remain authoritative when the
+backend provides templates. It owns the source precedence order, payload normalization, and the
+safe fallback to built-in client generation when no source yields a usable configuration.
+
+Rendering of the resolved templates is a separate capability: see `key-client-template-rendering`.
+
 ## Requirements
 ### Requirement: The frontend SHALL resolve client templates from a stable runtime source order
 The frontend SHALL support client templates from multiple runtime sources and SHALL resolve them in a stable precedence order. It SHALL prefer public-settings templates, then cached public-settings templates, then `window.__APP_CONFIG__.client_templates`, then a static `/client-templates.json` file, and SHALL fall back to built-in client generation when no template source yields a usable configuration.
