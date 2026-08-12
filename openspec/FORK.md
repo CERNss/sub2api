@@ -227,6 +227,7 @@ _无。_
 | 路径 | 用途 |
 |------|------|
 | `backend/internal/service/api_key_service_group_test.go` | 用户 key 分组轮换 service 单测 |
+| `backend/internal/server/routes/auth_token_alias_routes_test.go` | 锁定三条 token 登录别名的注册，并断言其复用规范端点的 handler |
 
 #### 上游补丁
 | 路径 | 改动要点 |
@@ -235,7 +236,7 @@ _无。_
 | `backend/internal/server/routes/user.go` | 注册 `PUT /api/v1/keys/:id/group`，用于用户侧 key 分组轮换 |
 | `backend/internal/handler/api_key_handler.go` | 新增 `UpdateGroup` handler 与 `group_id` 请求 DTO |
 | `backend/internal/service/api_key_service.go` | 新增 `UpdateGroup`，校验 key owner、非负 group_id、用户可用分组，并保持其它 key 字段不变 |
-| `backend/internal/server/api_contract_test.go` | API 契约测试覆盖 token alias 与 key group rotation endpoint |
+| `backend/internal/server/api_contract_test.go` | API 契约测试覆盖 key group rotation（`PUT /keys/:id/group`）与 `GET /groups/available`。⚠ token alias **不在**契约测试内：该 harness 的 `authService` 为 nil，跑不了 `Login` 路径；别名改由 `routes/auth_token_alias_routes_test.go` 在路由注册层锁定 |
 | `frontend/src/api/auth.ts` | 新增 `exchangeToken`、`exchangeToken2FA`、`refreshTokenViaTokenEndpoint` helper |
 | `frontend/src/api/keys.ts` | 新增 `updateGroup` helper |
 | `README.md` | 新增用户 token 自动化流程、可用接口、创建 key 与分组轮换说明 |
