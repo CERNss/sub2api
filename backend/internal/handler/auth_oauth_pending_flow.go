@@ -356,7 +356,22 @@ func pendingOIDCTrustedEmail(upstream map[string]any) string {
 	return email
 }
 
+// siteWideEmailVerificationDisabled 报告站点级邮箱验证开关是否已关闭。
+//
+// 关闭时，任何 pending OAuth 注册路径都不得再要求本地验证码：前端在该开关关闭时
+// 会隐藏验证码控件，后端若仍强制要码，注册就会静默走进死路（UI 无处输入、后端拒空码）。
+// 该判定必须对"回调阶段告知前端的期望值"和"创建账号阶段的实际校验"用同一口径，
+// 否则同一语义字段会在两个端点上给出不同答案。
+func (h *AuthHandler) siteWideEmailVerificationDisabled(ctx context.Context) bool {
+	return h != nil && h.authService != nil && !h.authService.IsEmailVerifyEnabled(ctx)
+}
+
 func (h *AuthHandler) pendingOIDCLocalEmailVerificationRequired(ctx context.Context, upstream map[string]any, email string) bool {
+	// 站点级开关优先于 OIDC 专用策略：OIDC 的可信邮箱旁路只是在"要验证"的前提下
+	// 再放宽一层，不能反过来把已经关闭的站点级验证重新打开。
+	if h.siteWideEmailVerificationDisabled(ctx) {
+		return false
+	}
 	if h == nil || h.settingSvc == nil || h.settingSvc.GetOIDCConnectRequireLocalEmailVerification(ctx) {
 		return true
 	}
@@ -379,7 +394,10 @@ func (h *AuthHandler) pendingOAuthLocalEmailVerificationRequired(ctx context.Con
 	// that case (see PendingOAuthCreateAccountForm), so still requiring a code here would
 	// silently dead-end the signup. The OIDC trusted-email bypass below is a narrower,
 	// additional relaxation layered on top of this site-wide switch.
-	if h != nil && h.authService != nil && !h.authService.IsEmailVerifyEnabled(ctx) {
+	//
+	// 非 OIDC provider 在此提前返回；OIDC 分支同样会在自身入口再核对一次该开关，
+	// 使回调阶段（无 session）与创建账号阶段（有 session）的口径保持一致。
+	if h.siteWideEmailVerificationDisabled(ctx) {
 		return false
 	}
 	if session == nil || !strings.EqualFold(strings.TrimSpace(session.ProviderType), "oidc") {
