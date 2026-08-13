@@ -615,6 +615,18 @@ const currentFiles = computed((): FileConfig[] => {
         return generateGrokClaudeFiles(baseRoot, apiKey)
       }
       if (activeClientTab.value === 'codex') {
+        const shell = activeTab.value
+        const isWindowsPath = shell === 'windows' || shell === 'cmd' || shell === 'powershell'
+        const configDir = isWindowsPath ? '%userprofile%\\.codex' : '~/.codex'
+        const configuredGrokCodexFiles = renderConfiguredFiles(
+          props.clientTemplates?.grok_codex?.files,
+          baseUrl,
+          apiKey,
+          apiBase,
+          'codex',
+          configDir
+        )
+        if (configuredGrokCodexFiles) return configuredGrokCodexFiles
         return generateGrokCodexFiles(apiBase, apiKey)
       }
       return generateGrokFiles(apiBase, apiKey)

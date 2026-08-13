@@ -55,7 +55,7 @@ export function normalizeClientTemplatesConfig(payload: unknown): ClientTemplate
   if (!isRecord(payload)) return null
 
   const candidate = isRecord(payload.client_templates) ? payload.client_templates : payload
-  const hasKnownSection = ['codex', 'opencode', 'ccs_import'].some((key) =>
+  const hasKnownSection = ['codex', 'grok_codex', 'opencode', 'ccs_import'].some((key) =>
     Object.prototype.hasOwnProperty.call(candidate, key)
   )
 
