@@ -1,3 +1,145 @@
+diff --git a/README.md b/README.md
+index f4ad2fa6b..7b40686bf 100644
+--- a/README.md
++++ b/README.md
+@@ -27,6 +27,137 @@ Please read the following carefully before using this project:
+ - **📖 Disclaimer**: This project is provided for technical learning and research purposes only. The authors assume no liability for account bans, service interruptions, data loss, or any other direct or indirect damages resulting from the use of this project.
+ - **🚫 No Commercial Authorization**: The developers of this project have never authorized any individual or organization to conduct any form of commercial operation based on this project. Any commercial activity conducted in the name of or based on this project is unrelated to this project and its developers, and all resulting disputes, losses, and legal liabilities shall be borne solely by the party conducting such activity.
+ 
++## Fork Additions
++
++### Admin API User Key Provisioning And Transfer
++
++External provisioning or payment systems can create a normal AI-usable API key for a specific user through the Admin API Key flow:
++
++```bash
++POST /api/v1/admin/users/:id/api-keys
++```
++
++The target user is selected by the `:id` path parameter. The request supports the same create-key controls as the user modal, including group binding, optional custom key, IP restrictions, quota, rolling rate limits, and expiration. The full created key is returned at `data.api_key.key`.
++
++Sidecar integrations can also transfer an existing API key to the correct owner and optionally update group binding, quota, or clear used quota:
++
++```bash
++POST /api/v1/admin/api-keys/:id/transfer
++```
++
++The transfer response confirms `data.api_key.user_id`, `quota`, and `quota_used`, and successful transfers invalidate API key auth cache.
++
++### User Token API Key Automation
++
++External user-side tools can log in as a normal user, exchange the login for a JWT token pair, and then call the same user API key endpoints that the web dashboard uses. The capability scope is identical to that user account: group binding is limited to the user's available groups, and Turnstile, backend-mode login restrictions, account status checks, and TOTP 2FA still apply.
++
++```bash
++POST /api/v1/auth/token
++```
++
++Request body:
++
++```json
++{
++  "email": "user@example.com",
++  "password": "password",
++  "turnstile_token": "optional-turnstile-token"
++}
++```
++
++When 2FA is enabled, the login response contains `requires_2fa` and `temp_token`. Complete the exchange with:
++
++```bash
++POST /api/v1/auth/token/2fa
++```
++
++```json
++{
++  "temp_token": "temp-token-from-login",
++  "totp_code": "123456"
++}
++```
++
++Refresh the access/refresh token pair with:
++
++```bash
++POST /api/v1/auth/token/refresh
++```
++
++```json
++{
++  "refresh_token": "refresh-token-from-login"
++}
++```
++
++Use the returned access token for user API calls:
++
++```bash
++Authorization: Bearer <access_token>
++```
++
++Available key-management endpoints for this flow:
++
++```bash
++GET  /api/v1/groups/available
++POST /api/v1/keys
++PUT  /api/v1/keys/:id/group
++```
++
++Create a key with the same controls as the user dashboard:
++
++```json
++{
++  "name": "sidecar-key",
++  "group_id": 123,
++  "custom_key": "optional-custom-key",
++  "ip_whitelist": ["203.0.113.10"],
++  "ip_blacklist": [],
++  "quota": 20,
++  "expires_in_days": 30,
++  "rate_limit_5h": 100,
++  "rate_limit_1d": 300,
++  "rate_limit_7d": 1000
++}
++```
++
++Rotate only the key's group without changing the key value, quota, expiration, IP ACLs, status, or rate-limit settings:
++
++```json
++{
++  "group_id": 456
++}
++```
++
++Use `group_id: 0` to unbind the key from any group. The generated API key is still the credential used for model gateway requests; the login JWT is only for user REST API automation and key management.
++
++### External Custom Menu Launch
++
++Custom admin menu entries can now choose between the existing iframe mode and an external launch mode. External entries open the configured absolute URL in a new tab and append the current Sub2API JWT as a `token` query parameter, so sidecar admin tools can bootstrap their own session.
++
++### OIDC Local Email Verification Control
++
++Admins can keep the secure default that requires local email-code verification for pending OIDC account creation, or disable that duplicate step when the upstream OIDC provider already supplied a verified, non-synthetic trusted `compat_email`.
++
++The backend returns `local_email_verification_required` with pending OIDC completion responses, and the frontend hides verification controls only while the form email still matches the trusted OIDC email. If the user edits the email, local verification is restored.
++
++### Pending OAuth Account Flow Refinements
++
++OIDC, LinuxDo, and WeChat callback pages now resolve pending account actions from both state and bindability hints. When no existing account can be bound and account creation is allowed, brand-new users go directly to account creation instead of seeing an unnecessary bind/create chooser.
++
++### Better OAuth Email Prefill
++
++Pending OAuth create-account and bind-login forms now prefer the most useful human email, including `pending_email`, `existing_account_email`, and `compat_email`, before falling back to provider-specific values. Synthetic provider fallback emails are avoided when better data exists.
++
++### OpenSpec References
++
++The README summary is based on these OpenSpec changes:
++
++- [Admin API user key provisioning](openspec/changes/add-admin-user-api-key-creation/proposal.md)
++- [External custom menu launch](openspec/changes/add-external-custom-menu-token-open/proposal.md)
++- [OIDC local email verification control](openspec/changes/control-oidc-local-email-verification/proposal.md)
++- [Pending OAuth account resolution refinements](openspec/changes/refine-pending-oauth-account-resolution/proposal.md)
++
+ ## ❤️ Sponsors
+ 
+ > [Want to appear here?](mailto:support@sub2api.org)
 diff --git a/backend/cmd/server/wire_gen.go b/backend/cmd/server/wire_gen.go
 index ab9f4530b..096c265a7 100644
 --- a/backend/cmd/server/wire_gen.go
