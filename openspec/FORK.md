@@ -30,8 +30,8 @@
 | 2 | `add-external-custom-menu-token-open`     | 🟢 active   | 自定义菜单支持以 `external` 方式新开页并透传 JWT | 2 | 11 |
 | 3 | `control-oidc-local-email-verification`   | 🟢 active   | OIDC 专用开关跳过二次本地邮箱验证                | 1 | 23 |
 | 4 | `refine-pending-oauth-account-resolution` | 🟢 active   | OAuth 回调跳过 chooser、邮箱预填规则             | 0 | 6 |
-| 5 | `user-token-api-key-automation`           | 🟢 active   | 用户登录换 JWT 后创建 API key 并安全轮换 key 分组 | 1 | 8 |
-| 6 | `support-mounted-frontend-client-templates` | 📦 archived | 前端 `client-templates.json` 挂载渲染 Codex/OpenCode/CCS | 9 | ~6 |
+| 5 | `user-token-api-key-automation`           | 🟢 active   | 用户登录换 JWT 后创建 API key 并安全轮换 key 分组 | 2 | 8 |
+| 6 | `support-mounted-frontend-client-templates` | 📦 archived | 前端 `client-templates.json` 挂载渲染 Codex/OpenCode/CCS | 9 | 7 |
 | 7 | `add-openai-compatible-prompt-audit`      | ⬆️ upstreamed | 提示词输入审计（Qwen3Guard 三态门禁 + 审计台） | 0 | 0 |
 
 **状态图例**
@@ -80,7 +80,9 @@ _无。本 change 全部为对上游文件的补丁。_
 
 #### ⚠ 跨 change 共享文件
 > 以下文件本 change 修改，**同时也被其他 change 修改**。rebase 解决冲突时，必须同时核对本 change 与对方 change 的修改是否都已包含。
-- `README.md` → 也属于 #2
+- `backend/internal/server/api_contract_test.go` → 也属于 #5
+- `backend/internal/service/api_key_service.go` → 也属于 #5
+- `README.md` → 也属于 #2、#5
 - `README_CN.md` → 也属于 #2
 
 #### 关联 commits
@@ -122,8 +124,8 @@ _无。本 change 全部为对上游文件的补丁。_
 - `backend/internal/handler/admin/setting_handler_update.go` → 也属于 #3
 - `backend/internal/handler/dto/settings.go` → 也属于 #3
 - `frontend/src/views/admin/SettingsView.vue` → 也属于 #3
-- `frontend/src/types/index.ts` → 也属于 #5
-- `README.md` → 也属于 #1
+- `frontend/src/types/index.ts` → 也属于 #6
+- `README.md` → 也属于 #1、#5
 - `README_CN.md` → 也属于 #1
 
 #### 关联 commits
