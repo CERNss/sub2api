@@ -60,6 +60,8 @@ External sidecars also need to repair or migrate keys that were originally creat
 - `backend/internal/service/api_key_service_delete_test.go`: same.
 - `backend/internal/service/api_key_service_quota_test.go`: same.
 - `docs/ADMIN_PAYMENT_INTEGRATION_API.md`: endpoint documentation for payment integrators and sidecars.
+- `README.md`: fork-additions blurb for admin key provisioning and transfer (also shared, see below).
+- `README_CN.md`: Chinese counterpart of the fork-additions blurb (also shared, see below); listed here so `fork_overlay.py verify` diff-checks its content — this patch was silently lost once because shared-only entries are not content-checked.
 
 ### Shared Touchpoints
 - `README.md`: also owned by `add-external-custom-menu-token-open` — both changes append a feature blurb section, do not delete the other change's paragraph during rebase.

@@ -39,6 +39,8 @@ Operators need to open a standalone sidecar service from the Sub2API sidebar whi
 - `frontend/src/types/index.ts`: extends `CustomMenuItem` type with `open_mode`.
 - `frontend/src/views/admin/SettingsView.vue`: admin UI gains mode selector.
 - `frontend/src/views/admin/__tests__/SettingsView.spec.ts`: UI test coverage.
+- `README.md`: fork-additions blurb for external custom menu launch (also shared, see below).
+- `README_CN.md`: Chinese counterpart of the fork-additions blurb (also shared, see below); listed here so `fork_overlay.py verify` diff-checks its content.
 
 ### Shared Touchpoints
 - `backend/internal/handler/admin/setting_handler_update.go`: also owned by `control-oidc-local-email-verification` — both changes patch the update path; preserve both.
