@@ -279,6 +279,28 @@ func TestPatchGrokResponsesBodyNormalizesReasoningEffortAliases(t *testing.T) {
 	}
 }
 
+func TestPatchGrokResponsesBodyKeepsXHighForGrok46(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		body string
+		path string
+	}{
+		{name: "xhigh nested", body: `{"input":"hi","reasoning":{"effort":"xhigh"}}`, path: "reasoning.effort"},
+		{name: "xhigh snake", body: `{"input":"hi","reasoning_effort":"xhigh"}`, path: "reasoning_effort"},
+		{name: "max camel", body: `{"input":"hi","reasoningEffort":"max"}`, path: "reasoning_effort"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			patched, err := patchGrokResponsesBody([]byte(tt.body), "grok-4.6")
+			require.NoError(t, err)
+			require.Equal(t, "xhigh", gjson.GetBytes(patched, tt.path).String(), string(patched))
+			require.False(t, gjson.GetBytes(patched, "reasoningEffort").Exists())
+		})
+	}
+}
+
 func TestPatchGrokResponsesBodyAddsDefaultFunctionParameters(t *testing.T) {
 	patched, err := patchGrokResponsesBody(
 		[]byte(`{"input":"hi","tools":[{"type":"function","name":"lookup","large_id":9007199254740993},{"type":"function","name":"wait","parameters":null}]}`),
@@ -305,6 +327,19 @@ func TestNormalizeGrokChatReasoningEffort(t *testing.T) {
 	patched, err = normalizeGrokChatReasoningEffort([]byte(`{"reasoning_effort":"high"}`), "grok-composer-2.5-fast")
 	require.NoError(t, err)
 	require.False(t, gjson.GetBytes(patched, "reasoning_effort").Exists())
+}
+
+func TestNormalizeGrokChatReasoningEffortKeepsXHighForGrok46(t *testing.T) {
+	for _, model := range []string{"grok-4.6", "grok-4.6-latest"} {
+		patched, err := normalizeGrokChatReasoningEffort([]byte(`{"reasoning_effort":"xhigh"}`), model)
+		require.NoError(t, err)
+		require.Equal(t, "xhigh", gjson.GetBytes(patched, "reasoning_effort").String(), model)
+	}
+
+	// Models older than grok-4.6 keep the historical flattening.
+	patched, err := normalizeGrokChatReasoningEffort([]byte(`{"reasoning_effort":"xhigh"}`), "grok-4.5")
+	require.NoError(t, err)
+	require.Equal(t, "high", gjson.GetBytes(patched, "reasoning_effort").String())
 }
 
 func TestPatchGrokResponsesBodyDropsNestedUnsupportedFields(t *testing.T) {
