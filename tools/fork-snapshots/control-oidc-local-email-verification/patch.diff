@@ -1,8 +1,8 @@
 diff --git a/backend/internal/handler/admin/setting_handler.go b/backend/internal/handler/admin/setting_handler.go
-index 1d506f505..a93354696 100644
+index a5f3d41d9..13807f36d 100644
 --- a/backend/internal/handler/admin/setting_handler.go
 +++ b/backend/internal/handler/admin/setting_handler.go
-@@ -193,6 +193,7 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
+@@ -233,6 +233,7 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
  		OIDCConnectAllowedSigningAlgs:                          settings.OIDCConnectAllowedSigningAlgs,
  		OIDCConnectClockSkewSeconds:                            settings.OIDCConnectClockSkewSeconds,
  		OIDCConnectRequireEmailVerified:                        settings.OIDCConnectRequireEmailVerified,
@@ -11,10 +11,10 @@ index 1d506f505..a93354696 100644
  		OIDCConnectUserInfoIDPath:                              settings.OIDCConnectUserInfoIDPath,
  		OIDCConnectUserInfoUsernamePath:                        settings.OIDCConnectUserInfoUsernamePath,
 diff --git a/backend/internal/handler/admin/setting_handler_audit.go b/backend/internal/handler/admin/setting_handler_audit.go
-index 899030d1b..7d01f1a13 100644
+index d6110f43d..53a822b31 100644
 --- a/backend/internal/handler/admin/setting_handler_audit.go
 +++ b/backend/internal/handler/admin/setting_handler_audit.go
-@@ -257,6 +257,9 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
+@@ -308,6 +308,9 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
  	if before.OIDCConnectRequireEmailVerified != after.OIDCConnectRequireEmailVerified {
  		changed = append(changed, "oidc_connect_require_email_verified")
  	}
@@ -25,10 +25,10 @@ index 899030d1b..7d01f1a13 100644
  		changed = append(changed, "oidc_connect_userinfo_email_path")
  	}
 diff --git a/backend/internal/handler/admin/setting_handler_update.go b/backend/internal/handler/admin/setting_handler_update.go
-index b4c1f3afc..0937f6338 100644
+index 5884dc392..890486f11 100644
 --- a/backend/internal/handler/admin/setting_handler_update.go
 +++ b/backend/internal/handler/admin/setting_handler_update.go
-@@ -92,28 +92,29 @@ type UpdateSettingsRequest struct {
+@@ -118,28 +118,29 @@ type UpdateSettingsRequest struct {
  	WeChatConnectFrontendRedirectURL string `json:"wechat_connect_frontend_redirect_url"`
  
  	// Generic OIDC OAuth 登录
@@ -80,7 +80,7 @@ index b4c1f3afc..0937f6338 100644
  
  	GitHubOAuthEnabled             bool   `json:"github_oauth_enabled"`
  	GitHubOAuthClientID            string `json:"github_oauth_client_id"`
-@@ -953,8 +954,21 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
+@@ -1274,8 +1275,21 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
  				response.BadRequest(c, "Custom menu item label is too long (max 50 characters)")
  				return
  			}
@@ -102,10 +102,11 @@ index b4c1f3afc..0937f6338 100644
  				// Markdown page mode: URL = "md:<slug>"
  				slug := strings.TrimPrefix(urlTrimmed, "md:")
  				if slug == "" {
-@@ -1191,107 +1205,108 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
+@@ -1539,110 +1553,111 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
  			}
  			return previousSettings.APIKeyACLTrustForwardedIP
  		}(),
+-		ForwardedClientIPHeaders:               forwardedClientIPHeaders,
 -		LinuxDoConnectEnabled:                  req.LinuxDoConnectEnabled,
 -		LinuxDoConnectClientID:                 req.LinuxDoConnectClientID,
 -		LinuxDoConnectClientSecret:             req.LinuxDoConnectClientSecret,
@@ -181,6 +182,7 @@ index b4c1f3afc..0937f6338 100644
 -		ContactInfo:                            req.ContactInfo,
 -		DocURL:                                 req.DocURL,
 -		HomeContent:                            req.HomeContent,
+-		CompactHomeEnabled:                     req.CompactHomeEnabled,
 -		HideCcsImportButton:                    req.HideCcsImportButton,
 -		PurchaseSubscriptionEnabled:            purchaseEnabled,
 -		PurchaseSubscriptionURL:                purchaseURL,
@@ -194,6 +196,7 @@ index b4c1f3afc..0937f6338 100644
 -		AffiliateRebateFreezeHours:             affiliateRebateFreezeHours,
 -		AffiliateRebateDurationDays:            affiliateRebateDurationDays,
 -		AffiliateRebatePerInviteeCap:           affiliateRebatePerInviteeCap,
+-		AdminRechargeRebateEnabled:             adminRechargeRebateEnabled,
 -		DefaultUserRPMLimit:                    req.DefaultUserRPMLimit,
 -		DefaultSubscriptions:                   defaultSubscriptions,
 -		EnableModelFallback:                    req.EnableModelFallback,
@@ -207,6 +210,7 @@ index b4c1f3afc..0937f6338 100644
 -		MaxClaudeCodeVersion:                   req.MaxClaudeCodeVersion,
 -		AllowUngroupedKeyScheduling:            req.AllowUngroupedKeyScheduling,
 -		BackendModeEnabled:                     req.BackendModeEnabled,
++		ForwardedClientIPHeaders:                 forwardedClientIPHeaders,
 +		LinuxDoConnectEnabled:                    req.LinuxDoConnectEnabled,
 +		LinuxDoConnectClientID:                   req.LinuxDoConnectClientID,
 +		LinuxDoConnectClientSecret:               req.LinuxDoConnectClientSecret,
@@ -283,6 +287,7 @@ index b4c1f3afc..0937f6338 100644
 +		ContactInfo:                              req.ContactInfo,
 +		DocURL:                                   req.DocURL,
 +		HomeContent:                              req.HomeContent,
++		CompactHomeEnabled:                       req.CompactHomeEnabled,
 +		HideCcsImportButton:                      req.HideCcsImportButton,
 +		PurchaseSubscriptionEnabled:              purchaseEnabled,
 +		PurchaseSubscriptionURL:                  purchaseURL,
@@ -296,6 +301,7 @@ index b4c1f3afc..0937f6338 100644
 +		AffiliateRebateFreezeHours:               affiliateRebateFreezeHours,
 +		AffiliateRebateDurationDays:              affiliateRebateDurationDays,
 +		AffiliateRebatePerInviteeCap:             affiliateRebatePerInviteeCap,
++		AdminRechargeRebateEnabled:               adminRechargeRebateEnabled,
 +		DefaultUserRPMLimit:                      req.DefaultUserRPMLimit,
 +		DefaultSubscriptions:                     defaultSubscriptions,
 +		EnableModelFallback:                      req.EnableModelFallback,
@@ -312,7 +318,7 @@ index b4c1f3afc..0937f6338 100644
  		AllowUserViewErrorRequests: func() bool {
  			if req.AllowUserViewErrorRequests != nil {
  				return *req.AllowUserViewErrorRequests
-@@ -1753,6 +1768,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
+@@ -2205,6 +2220,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
  		OIDCConnectAllowedSigningAlgs:                          updatedSettings.OIDCConnectAllowedSigningAlgs,
  		OIDCConnectClockSkewSeconds:                            updatedSettings.OIDCConnectClockSkewSeconds,
  		OIDCConnectRequireEmailVerified:                        updatedSettings.OIDCConnectRequireEmailVerified,
@@ -321,10 +327,10 @@ index b4c1f3afc..0937f6338 100644
  		OIDCConnectUserInfoIDPath:                              updatedSettings.OIDCConnectUserInfoIDPath,
  		OIDCConnectUserInfoUsernamePath:                        updatedSettings.OIDCConnectUserInfoUsernamePath,
 diff --git a/backend/internal/handler/auth_oauth_pending_flow.go b/backend/internal/handler/auth_oauth_pending_flow.go
-index 79e9f0a80..f7cb638d6 100644
+index 7b1d71dca..e2b26c56f 100644
 --- a/backend/internal/handler/auth_oauth_pending_flow.go
 +++ b/backend/internal/handler/auth_oauth_pending_flow.go
-@@ -325,6 +325,64 @@ func pendingSessionStringValue(values map[string]any, key string) string {
+@@ -330,6 +330,82 @@ func pendingSessionStringValue(values map[string]any, key string) string {
  	return strings.TrimSpace(value)
  }
  
@@ -354,7 +360,22 @@ index 79e9f0a80..f7cb638d6 100644
 +	return email
 +}
 +
++// siteWideEmailVerificationDisabled 报告站点级邮箱验证开关是否已关闭。
++//
++// 关闭时，任何 pending OAuth 注册路径都不得再要求本地验证码：前端在该开关关闭时
++// 会隐藏验证码控件，后端若仍强制要码，注册就会静默走进死路（UI 无处输入、后端拒空码）。
++// 该判定必须对"回调阶段告知前端的期望值"和"创建账号阶段的实际校验"用同一口径，
++// 否则同一语义字段会在两个端点上给出不同答案。
++func (h *AuthHandler) siteWideEmailVerificationDisabled(ctx context.Context) bool {
++	return h != nil && h.authService != nil && !h.authService.IsEmailVerifyEnabled(ctx)
++}
++
 +func (h *AuthHandler) pendingOIDCLocalEmailVerificationRequired(ctx context.Context, upstream map[string]any, email string) bool {
++	// 站点级开关优先于 OIDC 专用策略：OIDC 的可信邮箱旁路只是在"要验证"的前提下
++	// 再放宽一层，不能反过来把已经关闭的站点级验证重新打开。
++	if h.siteWideEmailVerificationDisabled(ctx) {
++		return false
++	}
 +	if h == nil || h.settingSvc == nil || h.settingSvc.GetOIDCConnectRequireLocalEmailVerification(ctx) {
 +		return true
 +	}
@@ -377,7 +398,10 @@ index 79e9f0a80..f7cb638d6 100644
 +	// that case (see PendingOAuthCreateAccountForm), so still requiring a code here would
 +	// silently dead-end the signup. The OIDC trusted-email bypass below is a narrower,
 +	// additional relaxation layered on top of this site-wide switch.
-+	if h != nil && h.authService != nil && !h.authService.IsEmailVerifyEnabled(ctx) {
++	//
++	// 非 OIDC provider 在此提前返回；OIDC 分支同样会在自身入口再核对一次该开关，
++	// 使回调阶段（无 session）与创建账号阶段（有 session）的口径保持一致。
++	if h.siteWideEmailVerificationDisabled(ctx) {
 +		return false
 +	}
 +	if session == nil || !strings.EqualFold(strings.TrimSpace(session.ProviderType), "oidc") {
@@ -389,7 +413,7 @@ index 79e9f0a80..f7cb638d6 100644
  func pendingSessionWantsInvitation(payload map[string]any) bool {
  	return strings.EqualFold(strings.TrimSpace(pendingSessionStringValue(payload, "error")), "invitation_required")
  }
-@@ -382,12 +440,14 @@ func buildLegacyCompleteRegistrationPendingResponse(
+@@ -387,12 +463,14 @@ func buildLegacyCompleteRegistrationPendingResponse(
  	session *dbent.PendingAuthSession,
  	forceEmailOnSignup bool,
  	emailVerificationRequired bool,
@@ -408,7 +432,7 @@ index 79e9f0a80..f7cb638d6 100644
  	}))
  
  	if email := strings.TrimSpace(session.ResolvedEmail); email != "" {
-@@ -429,6 +489,7 @@ func (h *AuthHandler) legacyCompleteRegistrationSessionStatus(
+@@ -434,6 +512,7 @@ func (h *AuthHandler) legacyCompleteRegistrationSessionStatus(
  	if !emailVerificationRequired && !forceEmailOnSignup {
  		return session, false, nil
  	}
@@ -416,7 +440,7 @@ index 79e9f0a80..f7cb638d6 100644
  
  	client := h.entClient()
  	if client == nil {
-@@ -442,7 +503,12 @@ func (h *AuthHandler) legacyCompleteRegistrationSessionStatus(
+@@ -447,7 +526,12 @@ func (h *AuthHandler) legacyCompleteRegistrationSessionStatus(
  		strings.TrimSpace(session.Intent),
  		strings.TrimSpace(session.ResolvedEmail),
  		nil,
@@ -430,7 +454,7 @@ index 79e9f0a80..f7cb638d6 100644
  	)
  	if err != nil {
  		return nil, false, infraerrors.InternalServer("PENDING_AUTH_SESSION_UPDATE_FAILED", "failed to update pending oauth session").WithCause(err)
-@@ -479,6 +545,25 @@ func cloneOAuthMetadata(values map[string]any) map[string]any {
+@@ -484,6 +568,25 @@ func cloneOAuthMetadata(values map[string]any) map[string]any {
  	return cloned
  }
  
@@ -456,7 +480,7 @@ index 79e9f0a80..f7cb638d6 100644
  func mergeOAuthMetadata(base map[string]any, overlay map[string]any) map[string]any {
  	merged := cloneOAuthMetadata(base)
  	for key, value := range overlay {
-@@ -864,7 +949,7 @@ func ensurePendingOAuthIdentityForUser(ctx context.Context, tx *dbent.Tx, sessio
+@@ -870,7 +973,7 @@ func ensurePendingOAuthIdentityForUser(ctx context.Context, tx *dbent.Tx, sessio
  		SetProviderType(strings.TrimSpace(session.ProviderType)).
  		SetProviderKey(strings.TrimSpace(session.ProviderKey)).
  		SetProviderSubject(strings.TrimSpace(session.ProviderSubject)).
@@ -465,7 +489,7 @@ index 79e9f0a80..f7cb638d6 100644
  	if issuer := oauthIdentityIssuer(session); issuer != nil {
  		create = create.SetIssuer(strings.TrimSpace(*issuer))
  	}
-@@ -880,7 +965,7 @@ func ensurePendingWeChatOAuthIdentityForUser(ctx context.Context, tx *dbent.Tx,
+@@ -886,7 +989,7 @@ func ensurePendingWeChatOAuthIdentityForUser(ctx context.Context, tx *dbent.Tx,
  	channel := strings.TrimSpace(pendingSessionStringValue(session.UpstreamIdentityClaims, "channel"))
  	channelAppID := strings.TrimSpace(pendingSessionStringValue(session.UpstreamIdentityClaims, "channel_app_id"))
  	channelSubject := strings.TrimSpace(pendingSessionStringValue(session.UpstreamIdentityClaims, "channel_subject"))
@@ -474,7 +498,7 @@ index 79e9f0a80..f7cb638d6 100644
  
  	identityRecords, err := client.AuthIdentity.Query().
  		Where(
-@@ -1216,7 +1301,7 @@ func applyPendingOAuthBindingTx(
+@@ -1222,7 +1325,7 @@ func applyPendingOAuthBindingTx(
  	}
  
  	metadata := cloneOAuthMetadata(identity.Metadata)
@@ -483,7 +507,7 @@ index 79e9f0a80..f7cb638d6 100644
  		metadata[key] = value
  	}
  	if decision != nil && decision.AdoptDisplayName && adoptedDisplayName != "" {
-@@ -1754,6 +1839,7 @@ func (h *AuthHandler) createPendingOAuthAccount(c *gin.Context, provider string)
+@@ -1765,6 +1868,7 @@ func (h *AuthHandler) createPendingOAuthAccount(c *gin.Context, provider string)
  		response.ErrorFrom(c, err)
  		return
  	}
@@ -491,7 +515,7 @@ index 79e9f0a80..f7cb638d6 100644
  
  	tokenPair, user, err := h.authService.RegisterOAuthEmailAccount(
  		c.Request.Context(),
-@@ -1762,6 +1848,7 @@ func (h *AuthHandler) createPendingOAuthAccount(c *gin.Context, provider string)
+@@ -1773,6 +1877,7 @@ func (h *AuthHandler) createPendingOAuthAccount(c *gin.Context, provider string)
  		strings.TrimSpace(req.VerifyCode),
  		strings.TrimSpace(req.InvitationCode),
  		strings.TrimSpace(session.ProviderType),
@@ -500,10 +524,10 @@ index 79e9f0a80..f7cb638d6 100644
  	if err != nil {
  		if errors.Is(err, service.ErrEmailExists) {
 diff --git a/backend/internal/handler/auth_oauth_pending_flow_test.go b/backend/internal/handler/auth_oauth_pending_flow_test.go
-index 53360036a..89085dcf2 100644
+index 91a65d5f1..42bdbe87f 100644
 --- a/backend/internal/handler/auth_oauth_pending_flow_test.go
 +++ b/backend/internal/handler/auth_oauth_pending_flow_test.go
-@@ -1245,6 +1245,56 @@ func TestOAuthExistingUserLoginDoesNotApplyPromoCode(t *testing.T) {
+@@ -1331,6 +1331,56 @@ func TestOAuthExistingUserLoginDoesNotApplyPromoCode(t *testing.T) {
  	require.Equal(t, 7.0, reloadedUser.Balance)
  }
  
@@ -561,7 +585,7 @@ index 53360036a..89085dcf2 100644
  	handler, client := newOAuthPendingFlowTestHandlerWithEmailVerification(t, false, "owner@example.com", "135790")
  	ctx := context.Background()
 diff --git a/backend/internal/handler/auth_oidc_oauth.go b/backend/internal/handler/auth_oidc_oauth.go
-index 904bdc225..c5e96b84a 100644
+index 0367e4cff..ae6dfc897 100644
 --- a/backend/internal/handler/auth_oidc_oauth.go
 +++ b/backend/internal/handler/auth_oidc_oauth.go
 @@ -94,6 +94,25 @@ type oidcUserInfoClaims struct {
@@ -590,7 +614,7 @@ index 904bdc225..c5e96b84a 100644
  type oidcJWKSet struct {
  	Keys []oidcJWK `json:"keys"`
  }
-@@ -339,10 +358,6 @@ func (h *AuthHandler) OIDCOAuthCallback(c *gin.Context) {
+@@ -342,10 +361,6 @@ func (h *AuthHandler) OIDCOAuthCallback(c *gin.Context) {
  		return
  	}
  
@@ -601,7 +625,7 @@ index 904bdc225..c5e96b84a 100644
  	if idClaims != nil && userInfoClaims.Subject != "" && idClaims.Subject != "" && strings.TrimSpace(userInfoClaims.Subject) != strings.TrimSpace(idClaims.Subject) {
  		redirectOAuthError(c, frontendCallback, "subject_mismatch", "userinfo subject does not match id_token", "")
  		return
-@@ -353,6 +368,12 @@ func (h *AuthHandler) OIDCOAuthCallback(c *gin.Context) {
+@@ -356,6 +371,12 @@ func (h *AuthHandler) OIDCOAuthCallback(c *gin.Context) {
  	if compatEmail == "" && idClaims != nil {
  		compatEmail = strings.TrimSpace(idClaims.Email)
  	}
@@ -614,7 +638,7 @@ index 904bdc225..c5e96b84a 100644
  	email := oidcSyntheticEmailFromIdentityKey(identityKey)
  	username := firstNonEmpty(
  		userInfoClaims.Username,
-@@ -456,24 +477,6 @@ func (h *AuthHandler) OIDCOAuthCallback(c *gin.Context) {
+@@ -459,24 +480,6 @@ func (h *AuthHandler) OIDCOAuthCallback(c *gin.Context) {
  		}
  	}
  
@@ -639,7 +663,7 @@ index 904bdc225..c5e96b84a 100644
  	if h.isForceEmailOnThirdPartySignup(c.Request.Context()) {
  		if err := h.createOIDCOAuthChoicePendingSession(
  			c,
-@@ -556,16 +559,17 @@ func (h *AuthHandler) createOIDCOAuthChoicePendingSession(
+@@ -559,16 +562,17 @@ func (h *AuthHandler) createOIDCOAuthChoicePendingSession(
  	}
  
  	completionResponse := map[string]any{
@@ -667,7 +691,7 @@ index 904bdc225..c5e96b84a 100644
  	}
  	if strings.TrimSpace(compatEmail) != "" {
  		completionResponse["compat_email"] = strings.TrimSpace(compatEmail)
-@@ -1218,76 +1222,3 @@ func oidcClearCookie(c *gin.Context, name string, secure bool) {
+@@ -1221,76 +1225,3 @@ func oidcClearCookie(c *gin.Context, name string, secure bool) {
  		SameSite: http.SameSiteLaxMode,
  	})
  }
@@ -1187,7 +1211,7 @@ index 08bb459a0..efc43c5bf 100644
  
  type oidcProviderFixture struct {
 diff --git a/backend/internal/handler/dto/settings.go b/backend/internal/handler/dto/settings.go
-index 5b7e657f2..a2885a808 100644
+index 5ab5eaa68..9a5c95305 100644
 --- a/backend/internal/handler/dto/settings.go
 +++ b/backend/internal/handler/dto/settings.go
 @@ -13,6 +13,7 @@ type CustomMenuItem struct {
@@ -1198,7 +1222,7 @@ index 5b7e657f2..a2885a808 100644
  	PageSlug   string `json:"page_slug,omitempty"`
  	Visibility string `json:"visibility"` // "user" or "admin"
  	SortOrder  int    `json:"sort_order"`
-@@ -93,28 +94,29 @@ type SystemSettings struct {
+@@ -114,28 +115,29 @@ type SystemSettings struct {
  	WeChatConnectRedirectURL               string `json:"wechat_connect_redirect_url"`
  	WeChatConnectFrontendRedirectURL       string `json:"wechat_connect_frontend_redirect_url"`
  
@@ -1251,10 +1275,10 @@ index 5b7e657f2..a2885a808 100644
  	GitHubOAuthEnabled                bool   `json:"github_oauth_enabled"`
  	GitHubOAuthClientID               string `json:"github_oauth_client_id"`
 diff --git a/backend/internal/service/auth_oauth_email_flow.go b/backend/internal/service/auth_oauth_email_flow.go
-index 24d0eeee7..ede369d0d 100644
+index 300bb7172..6e3348854 100644
 --- a/backend/internal/service/auth_oauth_email_flow.go
 +++ b/backend/internal/service/auth_oauth_email_flow.go
-@@ -106,6 +106,7 @@ func (s *AuthService) RegisterOAuthEmailAccount(
+@@ -109,6 +109,7 @@ func (s *AuthService) RegisterOAuthEmailAccount(
  	verifyCode string,
  	invitationCode string,
  	signupSource string,
@@ -1262,9 +1286,9 @@ index 24d0eeee7..ede369d0d 100644
  ) (*TokenPair, *User, error) {
  	if s == nil {
  		return nil, nil, ErrServiceUnavailable
-@@ -122,9 +123,11 @@ func (s *AuthService) RegisterOAuthEmailAccount(
- 		slog.Error("oauth email register: policy rejected", "email", email, "error", err.Error())
- 		return nil, nil, err
+@@ -121,9 +122,11 @@ func (s *AuthService) RegisterOAuthEmailAccount(
+ 	if isReservedEmail(email) {
+ 		return nil, nil, ErrEmailReserved
  	}
 -	if err := s.VerifyOAuthEmailCode(ctx, email, verifyCode); err != nil {
 -		slog.Error("oauth email register: verify code failed", "email", email, "error", err.Error())
@@ -1278,7 +1302,7 @@ index 24d0eeee7..ede369d0d 100644
  
  	if _, err := s.validateOAuthRegistrationInvitation(ctx, invitationCode); err != nil {
 diff --git a/backend/internal/service/auth_oauth_email_flow_test.go b/backend/internal/service/auth_oauth_email_flow_test.go
-index 5a78a348d..7f1bda638 100644
+index 6e57e9501..8d8a1ba6d 100644
 --- a/backend/internal/service/auth_oauth_email_flow_test.go
 +++ b/backend/internal/service/auth_oauth_email_flow_test.go
 @@ -187,6 +187,7 @@ func TestRegisterOAuthEmailAccountRollsBackCreatedUserWhenTokenPairGenerationFai
@@ -1289,7 +1313,15 @@ index 5a78a348d..7f1bda638 100644
  	)
  
  	require.Nil(t, tokenPair)
-@@ -228,6 +229,7 @@ func TestRegisterOAuthEmailAccountSetsNormalizedSignupSourceOnCreatedUser(t *tes
+@@ -225,6 +226,7 @@ func TestRegisterOAuthEmailAccount_NonWhitelistDomainLimit(t *testing.T) {
+ 		"246810",
+ 		"",
+ 		"oidc",
++		true,
+ 	)
+ 
+ 	require.ErrorIs(t, err, ErrEmailDomainRegistrationLimit)
+@@ -331,6 +333,7 @@ func TestRegisterOAuthEmailAccountSetsNormalizedSignupSourceOnCreatedUser(t *tes
  		"246810",
  		"",
  		" OIDC ",
@@ -1297,7 +1329,7 @@ index 5a78a348d..7f1bda638 100644
  	)
  
  	require.NoError(t, err)
-@@ -288,6 +290,7 @@ func TestRegisterOAuthEmailAccountKeepsGitHubAndGoogleSignupSource(t *testing.T)
+@@ -391,6 +394,7 @@ func TestRegisterOAuthEmailAccountKeepsGitHubAndGoogleSignupSource(t *testing.T)
  				"246810",
  				"",
  				tt.signupSource,
@@ -1305,7 +1337,7 @@ index 5a78a348d..7f1bda638 100644
  			)
  
  			require.NoError(t, err)
-@@ -328,6 +331,7 @@ func TestRegisterOAuthEmailAccountFallsBackUnknownSignupSourceToEmail(t *testing
+@@ -431,6 +435,7 @@ func TestRegisterOAuthEmailAccountFallsBackUnknownSignupSourceToEmail(t *testing
  		"246810",
  		"",
  		"unknown-provider",
@@ -1314,10 +1346,10 @@ index 5a78a348d..7f1bda638 100644
  
  	require.NoError(t, err)
 diff --git a/backend/internal/service/domain_constants.go b/backend/internal/service/domain_constants.go
-index bc1db1910..98a75daec 100644
+index 2d5311bb2..cf55eff00 100644
 --- a/backend/internal/service/domain_constants.go
 +++ b/backend/internal/service/domain_constants.go
-@@ -210,28 +210,29 @@ const (
+@@ -258,28 +258,29 @@ const (
  	SettingKeyWeChatConnectFrontendRedirectURL = "wechat_connect_frontend_redirect_url"
  
  	// Generic OIDC OAuth 登录设置
@@ -1370,10 +1402,10 @@ index bc1db1910..98a75daec 100644
  	// GitHub / Google 邮箱快捷登录设置
  	SettingKeyGitHubOAuthEnabled             = "github_oauth_enabled"
 diff --git a/backend/internal/service/setting_features.go b/backend/internal/service/setting_features.go
-index 57c036861..3b1787208 100644
+index 7cd647e9f..da7aeec70 100644
 --- a/backend/internal/service/setting_features.go
 +++ b/backend/internal/service/setting_features.go
-@@ -32,6 +32,25 @@ func (s *SettingService) IsEmailVerifyEnabled(ctx context.Context) bool {
+@@ -43,6 +43,25 @@ func (s *SettingService) IsRegistrationEmailDomainQuotaEnabled(ctx context.Conte
  	return value == "true"
  }
  
@@ -1400,10 +1432,10 @@ index 57c036861..3b1787208 100644
  func (s *SettingService) GetRegistrationEmailSuffixWhitelist(ctx context.Context) []string {
  	value, err := s.settingRepo.GetValue(ctx, SettingKeyRegistrationEmailSuffixWhitelist)
 diff --git a/backend/internal/service/setting_parse.go b/backend/internal/service/setting_parse.go
-index bf71b559a..6834f7c3c 100644
+index 283c76f8f..062ca975c 100644
 --- a/backend/internal/service/setting_parse.go
 +++ b/backend/internal/service/setting_parse.go
-@@ -108,6 +108,7 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
+@@ -120,6 +120,7 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
  		SettingKeyOIDCConnectAllowedSigningAlgs:             "RS256,ES256,PS256",
  		SettingKeyOIDCConnectClockSkewSeconds:               "120",
  		SettingKeyOIDCConnectRequireEmailVerified:           "false",
@@ -1411,7 +1443,7 @@ index bf71b559a..6834f7c3c 100644
  		SettingKeyOIDCConnectUserInfoEmailPath:              "",
  		SettingKeyOIDCConnectUserInfoIDPath:                 "",
  		SettingKeyOIDCConnectUserInfoUsernamePath:           "",
-@@ -611,6 +612,11 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
+@@ -695,6 +696,11 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
  	} else {
  		result.OIDCConnectRequireEmailVerified = oidcBase.RequireEmailVerified
  	}
@@ -1424,10 +1456,10 @@ index bf71b559a..6834f7c3c 100644
  		result.OIDCConnectUserInfoEmailPath = strings.TrimSpace(v)
  	} else {
 diff --git a/backend/internal/service/setting_update.go b/backend/internal/service/setting_update.go
-index ba819a5ce..88a857d67 100644
+index f77a914fd..41ced7638 100644
 --- a/backend/internal/service/setting_update.go
 +++ b/backend/internal/service/setting_update.go
-@@ -201,6 +201,7 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
+@@ -286,6 +286,7 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
  	updates[SettingKeyOIDCConnectAllowedSigningAlgs] = settings.OIDCConnectAllowedSigningAlgs
  	updates[SettingKeyOIDCConnectClockSkewSeconds] = strconv.Itoa(settings.OIDCConnectClockSkewSeconds)
  	updates[SettingKeyOIDCConnectRequireEmailVerified] = strconv.FormatBool(settings.OIDCConnectRequireEmailVerified)
@@ -1436,10 +1468,10 @@ index ba819a5ce..88a857d67 100644
  	updates[SettingKeyOIDCConnectUserInfoIDPath] = settings.OIDCConnectUserInfoIDPath
  	updates[SettingKeyOIDCConnectUserInfoUsernamePath] = settings.OIDCConnectUserInfoUsernamePath
 diff --git a/backend/internal/service/settings_view.go b/backend/internal/service/settings_view.go
-index 285df80ba..2ae427106 100644
+index 8580f0c8f..f94991621 100644
 --- a/backend/internal/service/settings_view.go
 +++ b/backend/internal/service/settings_view.go
-@@ -89,29 +89,30 @@ type SystemSettings struct {
+@@ -111,29 +111,30 @@ type SystemSettings struct {
  	WeChatConnectFrontendRedirectURL       string
  
  	// Generic OIDC OAuth 登录
@@ -1494,10 +1526,10 @@ index 285df80ba..2ae427106 100644
  	// GitHub / Google 邮箱快捷登录
  	GitHubOAuthEnabled                bool
 diff --git a/frontend/src/api/admin/settings.ts b/frontend/src/api/admin/settings.ts
-index 55c8088be..4e2d65234 100644
+index b176024ae..00581fa2f 100644
 --- a/frontend/src/api/admin/settings.ts
 +++ b/frontend/src/api/admin/settings.ts
-@@ -249,7 +249,13 @@ export function appendAuthSourceDefaultsToUpdateRequest(
+@@ -281,7 +281,13 @@ export function appendAuthSourceDefaultsToUpdateRequest(
    const target = payload as Record<string, unknown>;
  
    for (const source of AUTH_SOURCE_TYPES) {
@@ -1512,7 +1544,7 @@ index 55c8088be..4e2d65234 100644
      target[`auth_source_default_${source}_balance`] =
        Number(current.balance) || 0;
      target[`auth_source_default_${source}_concurrency`] = Math.max(
-@@ -514,6 +520,7 @@ export interface SystemSettings {
+@@ -569,6 +575,7 @@ export interface SystemSettings {
    oidc_connect_allowed_signing_algs: string;
    oidc_connect_clock_skew_seconds: number;
    oidc_connect_require_email_verified: boolean;
@@ -1520,7 +1552,7 @@ index 55c8088be..4e2d65234 100644
    oidc_connect_userinfo_email_path: string;
    oidc_connect_userinfo_id_path: string;
    oidc_connect_userinfo_username_path: string;
-@@ -800,6 +807,7 @@ export interface UpdateSettingsRequest {
+@@ -896,6 +903,7 @@ export interface UpdateSettingsRequest {
    oidc_connect_allowed_signing_algs?: string;
    oidc_connect_clock_skew_seconds?: number;
    oidc_connect_require_email_verified?: boolean;
@@ -1529,19 +1561,10 @@ index 55c8088be..4e2d65234 100644
    oidc_connect_userinfo_id_path?: string;
    oidc_connect_userinfo_username_path?: string;
 diff --git a/frontend/src/components/auth/PendingOAuthCreateAccountForm.vue b/frontend/src/components/auth/PendingOAuthCreateAccountForm.vue
-index 112a25cec..8f5d367b2 100644
+index 5a8ed84fe..eb8b5bb0a 100644
 --- a/frontend/src/components/auth/PendingOAuthCreateAccountForm.vue
 +++ b/frontend/src/components/auth/PendingOAuthCreateAccountForm.vue
-@@ -16,7 +16,7 @@
-       :placeholder="t('auth.passwordPlaceholder')"
-       :disabled="isSubmitting"
-     />
--    <div v-if="emailVerifyEnabled && turnstileEnabled && turnstileSiteKey" class="space-y-2">
-+    <div v-if="localEmailVerificationRequired && turnstileEnabled && turnstileSiteKey" class="space-y-2">
-       <TurnstileWidget
-         ref="turnstileRef"
-         :site-key="turnstileSiteKey"
-@@ -25,7 +25,7 @@
+@@ -34,7 +34,7 @@
          @error="onTurnstileError"
        />
      </div>
@@ -1550,7 +1573,7 @@ index 112a25cec..8f5d367b2 100644
        <input
          v-model="verifyCode"
          :data-testid="`${testIdPrefix}-create-account-verify-code`"
-@@ -52,10 +52,10 @@
+@@ -61,10 +61,10 @@
          }}
        </button>
      </div>
@@ -1563,16 +1586,7 @@ index 112a25cec..8f5d367b2 100644
        {{ t('auth.verificationCodeHint') }}
      </p>
      <input
-@@ -88,7 +88,7 @@
- </template>
- 
- <script setup lang="ts">
--import { onMounted, onUnmounted, ref, watch } from 'vue'
-+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
- import { useI18n } from 'vue-i18n'
- import TurnstileWidget from '@/components/TurnstileWidget.vue'
- import { getPublicSettings, sendPendingOAuthVerifyCode } from '@/api/auth'
-@@ -106,6 +106,8 @@ const props = defineProps<{
+@@ -118,6 +118,8 @@ const props = defineProps<{
    testIdPrefix: string
    isSubmitting: boolean
    errorMessage?: string
@@ -1581,10 +1595,10 @@ index 112a25cec..8f5d367b2 100644
  }>()
  
  const emit = defineEmits<{
-@@ -130,6 +132,19 @@ const turnstileEnabled = ref(false)
- const turnstileSiteKey = ref('')
- const turnstileToken = ref('')
- const turnstileRef = ref<InstanceType<typeof TurnstileWidget> | null>(null)
+@@ -166,6 +168,19 @@ const captchaEnabled = computed(
+   () =>
+     (turnstileEnabled.value && Boolean(turnstileSiteKey.value)) || actionCaptchaEnabled.value
+ )
 +const normalizedTrustedEmail = computed(() => props.trustedEmail?.trim().toLowerCase() || '')
 +const localEmailVerificationRequired = computed(() => {
 +  if (!emailVerifyEnabled.value) {
@@ -1601,7 +1615,7 @@ index 112a25cec..8f5d367b2 100644
  
  let countdownTimer: ReturnType<typeof setInterval> | null = null
  
-@@ -208,6 +223,10 @@ function onTurnstileError() {
+@@ -262,6 +277,10 @@ async function acquireActionProof(): Promise<boolean> {
  }
  
  async function handleSendCode() {
@@ -1612,9 +1626,9 @@ index 112a25cec..8f5d367b2 100644
    const trimmedEmail = email.value.trim()
    if (!trimmedEmail) {
      return
-@@ -227,6 +246,13 @@ async function handleSendCode() {
-       email: trimmedEmail,
-       turnstile_token: turnstileEnabled.value ? turnstileToken.value : undefined
+@@ -288,6 +307,13 @@ async function handleSendCode() {
+       tencent_captcha_ticket: tencentCaptchaEnabled.value ? turnstileToken.value : undefined,
+       tencent_captcha_randstr: tencentCaptchaEnabled.value ? tencentCaptchaRandstr.value : undefined
      })
 +    // 当邮箱已被注册时，后端不会真的发码，而是把 pending session 转入 choice/bind 状态并
 +    // 返回 { auth_result: 'pending_session', ... }（没有 countdown）。此时必须把用户引导到
@@ -1625,21 +1639,21 @@ index 112a25cec..8f5d367b2 100644
 +    }
      sendCodeSuccess.value = true
      startCountdown(response.countdown)
-     if (turnstileEnabled.value) {
-@@ -248,7 +274,7 @@ function handleSubmit() {
+   } catch (error: unknown) {
+@@ -321,7 +347,7 @@ async function handleSubmit() {
    emit('submit', {
      email: trimmedEmail,
      password: password.value,
 -    verifyCode: emailVerifyEnabled.value ? verifyCode.value.trim() : '',
 +    verifyCode: localEmailVerificationRequired.value ? verifyCode.value.trim() : '',
-     invitationCode: invitationCode.value.trim() || undefined
-   })
- }
+     ...((turnstileEnabled.value || aliyunCaptchaEnabled.value) && turnstileToken.value
+       ? { turnstileToken: turnstileToken.value }
+       : {}),
 diff --git a/frontend/src/components/auth/__tests__/PendingOAuthCreateAccountForm.spec.ts b/frontend/src/components/auth/__tests__/PendingOAuthCreateAccountForm.spec.ts
-index d41c1dd7f..1f627c7a9 100644
+index a1a5841ea..498578413 100644
 --- a/frontend/src/components/auth/__tests__/PendingOAuthCreateAccountForm.spec.ts
 +++ b/frontend/src/components/auth/__tests__/PendingOAuthCreateAccountForm.spec.ts
-@@ -176,6 +176,54 @@ describe('PendingOAuthCreateAccountForm', () => {
+@@ -236,6 +236,54 @@ describe('PendingOAuthCreateAccountForm', () => {
      })
    })
  
@@ -1695,10 +1709,10 @@ index d41c1dd7f..1f627c7a9 100644
      sendPendingOAuthVerifyCode.mockRejectedValue(new Error('send failed'))
  
 diff --git a/frontend/src/i18n/locales/en/admin/settings.ts b/frontend/src/i18n/locales/en/admin/settings.ts
-index e08be9f59..22e995b03 100644
+index b20e2ebee..3d00759dd 100644
 --- a/frontend/src/i18n/locales/en/admin/settings.ts
 +++ b/frontend/src/i18n/locales/en/admin/settings.ts
-@@ -248,6 +248,7 @@ export default {
+@@ -367,6 +367,7 @@ export default {
          usePkce: 'Use PKCE',
          validateIdToken: 'Validate ID Token',
          requireEmailVerified: 'Require Email Verified',
@@ -1707,10 +1721,10 @@ index e08be9f59..22e995b03 100644
          userinfoEmailPathPlaceholder: 'for example data.email',
          userinfoIdPath: 'UserInfo ID Path',
 diff --git a/frontend/src/i18n/locales/zh/admin/settings.ts b/frontend/src/i18n/locales/zh/admin/settings.ts
-index 08c0dbcd5..0ed56b557 100644
+index 3967f25ed..e465a9a8f 100644
 --- a/frontend/src/i18n/locales/zh/admin/settings.ts
 +++ b/frontend/src/i18n/locales/zh/admin/settings.ts
-@@ -246,6 +246,7 @@ export default {
+@@ -364,6 +364,7 @@ export default {
          usePkce: '启用 PKCE',
          validateIdToken: '校验 ID Token',
          requireEmailVerified: '要求邮箱已验证',
@@ -1719,10 +1733,10 @@ index 08c0dbcd5..0ed56b557 100644
          userinfoEmailPathPlaceholder: '例如 data.email',
          userinfoIdPath: 'UserInfo ID 字段路径',
 diff --git a/frontend/src/views/admin/SettingsView.vue b/frontend/src/views/admin/SettingsView.vue
-index 26253c7eb..ae03ea030 100644
+index b153865ff..d5d0419f4 100644
 --- a/frontend/src/views/admin/SettingsView.vue
 +++ b/frontend/src/views/admin/SettingsView.vue
-@@ -2693,7 +2693,7 @@
+@@ -3391,7 +3391,7 @@
                  v-if="form.oidc_connect_enabled"
                  class="space-y-6 border-t border-gray-100 pt-4 dark:border-dark-700"
                >
@@ -1731,7 +1745,7 @@ index 26253c7eb..ae03ea030 100644
                    <div>
                      <label
                        class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
-@@ -3018,6 +3018,25 @@
+@@ -3716,6 +3716,25 @@
                        v-model="form.oidc_connect_require_email_verified"
                      />
                    </div>
@@ -1757,7 +1771,7 @@ index 26253c7eb..ae03ea030 100644
                  </div>
  
                  <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
-@@ -5506,8 +5525,25 @@
+@@ -6672,8 +6691,25 @@
                      </select>
                    </div>
  
@@ -1784,7 +1798,7 @@ index 26253c7eb..ae03ea030 100644
                      <label
                        class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
                      >
-@@ -8108,6 +8144,7 @@ const form = reactive<SettingsForm>({
+@@ -9490,6 +9526,7 @@ const form = reactive<SettingsForm>({
      label: string;
      icon_svg: string;
      url: string;
@@ -1792,7 +1806,7 @@ index 26253c7eb..ae03ea030 100644
      visibility: "user" | "admin";
      sort_order: number;
    }>,
-@@ -8196,6 +8233,7 @@ const form = reactive<SettingsForm>({
+@@ -9595,6 +9632,7 @@ const form = reactive<SettingsForm>({
    oidc_connect_allowed_signing_algs: "RS256,ES256,PS256",
    oidc_connect_clock_skew_seconds: 120,
    oidc_connect_require_email_verified: false,
@@ -1800,7 +1814,7 @@ index 26253c7eb..ae03ea030 100644
    oidc_connect_userinfo_email_path: "",
    oidc_connect_userinfo_id_path: "",
    oidc_connect_userinfo_username_path: "",
-@@ -8848,6 +8886,7 @@ function addMenuItem() {
+@@ -10459,6 +10497,7 @@ function addMenuItem() {
      label: "",
      icon_svg: "",
      url: "",
@@ -1808,9 +1822,9 @@ index 26253c7eb..ae03ea030 100644
      visibility: "user",
      sort_order: form.custom_menu_items.length,
    });
-@@ -9027,11 +9066,26 @@ function removeCodexWhitelistRow(i: number): void {
-   codexWhitelistRows.value.splice(i, 1);
- }
+@@ -10646,11 +10685,26 @@ const codexSyncedVersionLabel = computed(() => {
+   });
+ });
  
 +function normalizeCustomMenuItems(
 +  items: SystemSettings["custom_menu_items"] | undefined,
@@ -1835,7 +1849,7 @@ index 26253c7eb..ae03ea030 100644
      settings.payment_load_balance_strategy =
        settings.payment_load_balance_strategy || "round-robin";
      // Only assign non-null values from backend (null means unconfigured, keep defaults)
-@@ -9516,6 +9570,8 @@ async function saveSettings() {
+@@ -11184,6 +11238,8 @@ async function saveSettings() {
        oidc_connect_clock_skew_seconds: form.oidc_connect_clock_skew_seconds,
        oidc_connect_require_email_verified:
          form.oidc_connect_require_email_verified,
@@ -1845,7 +1859,7 @@ index 26253c7eb..ae03ea030 100644
        oidc_connect_userinfo_id_path: form.oidc_connect_userinfo_id_path,
        oidc_connect_userinfo_username_path:
 diff --git a/frontend/src/views/auth/OidcCallbackView.vue b/frontend/src/views/auth/OidcCallbackView.vue
-index e17f05e91..3d546a038 100644
+index d24ae620d..3f93e7cf8 100644
 --- a/frontend/src/views/auth/OidcCallbackView.vue
 +++ b/frontend/src/views/auth/OidcCallbackView.vue
 @@ -158,6 +158,8 @@
