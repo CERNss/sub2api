@@ -1,0 +1,70 @@
+{
+  "change_id": "add-grok-codex-client-template",
+  "status": "active",
+  "proposal_path": "openspec/changes/add-grok-codex-client-template/proposal.md",
+  "captured_at": "2026-08-13T14:09:17+00:00",
+  "captured_at_commit": "1a41cad269f68bc2d42b8b77b3559640e3fa2ab4",
+  "base": "e803e3851",
+  "base_commit": "e803e3851c0a7e222cfadeafad7b8636ab959d11",
+  "new_files": [],
+  "upstream_patch_files": [
+    {
+      "path": "frontend/src/components/keys/UseKeyModal.vue",
+      "reason": "Grok platform Codex tab consults `clientTemplates.grok_codex.files` before the built-in generator (also shared, see below)."
+    },
+    {
+      "path": "frontend/src/components/keys/__tests__/UseKeyModal.spec.ts",
+      "reason": "template-priority regression test (also shared, see below)."
+    },
+    {
+      "path": "frontend/src/types/index.ts",
+      "reason": "`ClientTemplatesConfig` gains `grok_codex` (also shared, see below)."
+    },
+    {
+      "path": "frontend/src/utils/ccswitchImport.ts",
+      "reason": "`GROK_CC_SWITCH_MODEL` bumped to `grok-4.6`."
+    },
+    {
+      "path": "frontend/src/utils/__tests__/ccswitchImport.spec.ts",
+      "reason": "pinned-model assertion updated."
+    }
+  ],
+  "shared_touchpoints": [
+    {
+      "path": "frontend/src/components/keys/UseKeyModal.vue",
+      "reason": "also owned by `2026-04-28-support-mounted-frontend-client-templates` — keep both the codex/opencode template hooks and the grok_codex hook.",
+      "shared_with": "2026-04-28-support-mounted-frontend-client-templates"
+    },
+    {
+      "path": "frontend/src/components/keys/__tests__/UseKeyModal.spec.ts",
+      "reason": "also owned by `2026-04-28-support-mounted-frontend-client-templates`.",
+      "shared_with": "2026-04-28-support-mounted-frontend-client-templates"
+    },
+    {
+      "path": "frontend/src/types/index.ts",
+      "reason": "also owned by `2026-04-28-support-mounted-frontend-client-templates` (and `add-external-custom-menu-token-open`) — preserve `PublicSettings`, `CustomMenuItem`, and `grok_codex` extensions together.",
+      "shared_with": "2026-04-28-support-mounted-frontend-client-templates"
+    },
+    {
+      "path": "frontend/src/utils/clientTemplates.ts",
+      "reason": "also owned by `2026-04-28-support-mounted-frontend-client-templates` — normalize whitelist gains `grok_codex`.",
+      "shared_with": "2026-04-28-support-mounted-frontend-client-templates"
+    },
+    {
+      "path": "frontend/src/utils/__tests__/clientTemplates.spec.ts",
+      "reason": "also owned by `2026-04-28-support-mounted-frontend-client-templates`.",
+      "shared_with": "2026-04-28-support-mounted-frontend-client-templates"
+    },
+    {
+      "path": "template/client-templates.json",
+      "reason": "also owned by `2026-04-28-support-mounted-frontend-client-templates` — bundled default gains `grok_codex`, `ccs_import` loses hardcoded model.",
+      "shared_with": "2026-04-28-support-mounted-frontend-client-templates"
+    },
+    {
+      "path": "template/README.md",
+      "reason": "also owned by `2026-04-28-support-mounted-frontend-client-templates`.",
+      "shared_with": "2026-04-28-support-mounted-frontend-client-templates"
+    }
+  ],
+  "non_openspec_overlap": []
+}
