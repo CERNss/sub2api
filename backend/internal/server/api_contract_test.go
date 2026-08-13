@@ -459,6 +459,7 @@ func TestAPIContracts(t *testing.T) {
 						"daily_limit_usd": null,
 						"weekly_limit_usd": null,
 						"monthly_limit_usd": null,
+						"long_context_pricing_enabled": false,
 						"image_price_1k": null,
 						"image_price_2k": null,
 						"image_price_4k": null,
@@ -1598,6 +1599,7 @@ func TestAdminCreateUserAPIKeyWithAdminAPIKeyMockData(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		nil,
 	)
 
 	settingRepo := newStubSettingRepo()
@@ -1752,6 +1754,7 @@ func TestAdminTransferAPIKeyWithAdminAPIKeyMockData(t *testing.T) {
 		service.NewSettingService(newStubSettingRepo(), cfg),
 		nil,
 		&stubUserSubscriptionRepo{},
+		nil,
 		nil,
 		nil,
 		nil,
