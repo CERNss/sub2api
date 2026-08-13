@@ -1,0 +1,71 @@
+{
+  "change_id": "user-token-api-key-automation",
+  "status": "active",
+  "proposal_path": "openspec/changes/user-token-api-key-automation/proposal.md",
+  "captured_at": "2026-08-13T10:20:55+00:00",
+  "captured_at_commit": "5fa5646146b02da14489dc40a2afad31000976f1",
+  "base": "e803e3851",
+  "base_commit": "e803e3851c0a7e222cfadeafad7b8636ab959d11",
+  "new_files": [
+    {
+      "path": "backend/internal/service/api_key_service_group_test.go",
+      "reason": "user key group rotation service tests."
+    },
+    {
+      "path": "backend/internal/server/routes/auth_token_alias_routes_test.go",
+      "reason": "locks the three token login aliases at route-registration level and asserts they reuse the canonical endpoints' handlers."
+    }
+  ],
+  "upstream_patch_files": [
+    {
+      "path": "backend/internal/server/routes/auth.go",
+      "reason": "registers `POST /api/v1/auth/token`, `/auth/token/2fa`, `/auth/token/refresh` as login/token aliases."
+    },
+    {
+      "path": "backend/internal/server/routes/user.go",
+      "reason": "registers `PUT /api/v1/keys/:id/group`."
+    },
+    {
+      "path": "backend/internal/handler/api_key_handler.go",
+      "reason": "`UpdateGroup` handler + `group_id` request DTO."
+    },
+    {
+      "path": "backend/internal/service/api_key_service.go",
+      "reason": "`UpdateGroup` validates key owner, non-negative group_id, user-available groups, and keeps every other key field unchanged."
+    },
+    {
+      "path": "backend/internal/server/api_contract_test.go",
+      "reason": "contract rows for key group rotation (`PUT /keys/:id/group`) and `GET /groups/available`. ⚠ token aliases are NOT covered here — the harness's `authService` is nil, so the `Login` path cannot run; the aliases are locked by `routes/auth_token_alias_routes_test.go` instead."
+    },
+    {
+      "path": "frontend/src/api/auth.ts",
+      "reason": "`exchangeToken`, `exchangeToken2FA`, `refreshTokenViaTokenEndpoint` helpers."
+    },
+    {
+      "path": "frontend/src/api/keys.ts",
+      "reason": "`updateGroup` helper."
+    },
+    {
+      "path": "README.md",
+      "reason": "user token automation flow, endpoints, key creation and group rotation docs (also shared, see below)."
+    }
+  ],
+  "shared_touchpoints": [
+    {
+      "path": "backend/internal/service/api_key_service.go",
+      "reason": "also owned by `add-admin-user-api-key-creation` — keep both the shared admin creation/transfer core and the user-side `UpdateGroup`.",
+      "shared_with": "add-admin-user-api-key-creation"
+    },
+    {
+      "path": "backend/internal/server/api_contract_test.go",
+      "reason": "also owned by `add-admin-user-api-key-creation` — keep both changes' contract rows.",
+      "shared_with": "add-admin-user-api-key-creation"
+    },
+    {
+      "path": "README.md",
+      "reason": "also owned by `add-admin-user-api-key-creation` (and `add-external-custom-menu-token-open`) — each change appends its own feature blurb; keep all of them.",
+      "shared_with": "add-admin-user-api-key-creation"
+    }
+  ],
+  "non_openspec_overlap": []
+}
