@@ -2,8 +2,8 @@
   "change_id": "add-external-custom-menu-token-open",
   "status": "active",
   "proposal_path": "openspec/changes/add-external-custom-menu-token-open/proposal.md",
-  "captured_at": "2026-08-13T10:20:55+00:00",
-  "captured_at_commit": "5fa5646146b02da14489dc40a2afad31000976f1",
+  "captured_at": "2026-08-13T14:09:17+00:00",
+  "captured_at_commit": "1a41cad269f68bc2d42b8b77b3559640e3fa2ab4",
   "base": "e803e3851",
   "base_commit": "e803e3851c0a7e222cfadeafad7b8636ab959d11",
   "new_files": [

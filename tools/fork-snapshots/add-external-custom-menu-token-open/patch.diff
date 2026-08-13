@@ -855,7 +855,7 @@ index 8439c23fc..dc4dedc5d 100644
 +  })
 +})
 diff --git a/frontend/src/types/index.ts b/frontend/src/types/index.ts
-index 19ef541bc..3e0eae877 100644
+index 19ef541bc..cf100a957 100644
 --- a/frontend/src/types/index.ts
 +++ b/frontend/src/types/index.ts
 @@ -188,6 +188,7 @@ export interface CustomMenuItem {
@@ -874,7 +874,7 @@ index 19ef541bc..3e0eae877 100644
    payment_enabled: boolean
    risk_control_enabled: boolean
    table_default_page_size: number
-@@ -523,6 +525,31 @@ export interface PaginationConfig {
+@@ -523,6 +525,32 @@ export interface PaginationConfig {
    page_size: number
  }
  
@@ -898,6 +898,7 @@ index 19ef541bc..3e0eae877 100644
 +
 +export interface ClientTemplatesConfig {
 +  codex?: ClientTemplateSectionConfig
++  grok_codex?: ClientTemplateSectionConfig
 +  opencode?: ClientTemplateSectionConfig
 +  ccs_import?: CcsImportTemplateConfig
 +  [key: string]: ClientTemplateSectionConfig | CcsImportTemplateConfig | undefined
