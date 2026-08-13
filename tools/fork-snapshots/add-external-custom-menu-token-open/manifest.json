@@ -2,8 +2,8 @@
   "change_id": "add-external-custom-menu-token-open",
   "status": "active",
   "proposal_path": "openspec/changes/add-external-custom-menu-token-open/proposal.md",
-  "captured_at": "2026-08-13T05:01:43+00:00",
-  "captured_at_commit": "904f82b21ef4f606c4c879131cfef07ec986bb9b",
+  "captured_at": "2026-08-13T05:20:09+00:00",
+  "captured_at_commit": "034e3643fa346fa69b761c6adbb0a60e8890e017",
   "base": "e803e3851",
   "base_commit": "e803e3851c0a7e222cfadeafad7b8636ab959d11",
   "new_files": [
@@ -52,6 +52,14 @@
     {
       "path": "frontend/src/views/admin/__tests__/SettingsView.spec.ts",
       "reason": "UI test coverage."
+    },
+    {
+      "path": "README.md",
+      "reason": "fork-additions blurb for external custom menu launch (also shared, see below)."
+    },
+    {
+      "path": "README_CN.md",
+      "reason": "Chinese counterpart of the fork-additions blurb (also shared, see below); listed here so `fork_overlay.py verify` diff-checks its content."
     }
   ],
   "shared_touchpoints": [
