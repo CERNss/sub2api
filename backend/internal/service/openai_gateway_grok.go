@@ -728,12 +728,10 @@ func normalizeGrokReasoningEffortValue(raw, model string) (string, bool) {
 		return value, true
 	case "minimal":
 		return "low", true
-	case "xhigh", "extrahigh":
+	case "xhigh", "extrahigh", "max", "ultra":
 		if GrokSupportsXHighReasoningEffort(model) {
 			return "xhigh", true
 		}
-		return "high", true
-	case "max", "ultra":
 		return "high", true
 	default:
 		return "", false
