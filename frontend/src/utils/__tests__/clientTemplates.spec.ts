@@ -76,6 +76,22 @@ describe('clientTemplates', () => {
     })
   })
 
+  it('accepts payloads that only define the grok_codex section', () => {
+    expect(
+      normalizeClientTemplatesConfig({
+        client_templates: {
+          grok_codex: {
+            files: [{ path: '${configDir}/config.toml', content: 'model = "grok-4.6"' }]
+          }
+        }
+      })
+    ).toEqual({
+      grok_codex: {
+        files: [{ path: '${configDir}/config.toml', content: 'model = "grok-4.6"' }]
+      }
+    })
+  })
+
   it('loads static client templates from the template runtime path', async () => {
     const fetchImpl = vi.fn().mockResolvedValue({
       ok: true,
