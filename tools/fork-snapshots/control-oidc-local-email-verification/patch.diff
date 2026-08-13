@@ -1402,7 +1402,7 @@ index 2d5311bb2..cf55eff00 100644
  	// GitHub / Google 邮箱快捷登录设置
  	SettingKeyGitHubOAuthEnabled             = "github_oauth_enabled"
 diff --git a/backend/internal/service/setting_features.go b/backend/internal/service/setting_features.go
-index 7cd647e9f..da7aeec70 100644
+index 648fa1dc2..cffdd8d7d 100644
 --- a/backend/internal/service/setting_features.go
 +++ b/backend/internal/service/setting_features.go
 @@ -43,6 +43,25 @@ func (s *SettingService) IsRegistrationEmailDomainQuotaEnabled(ctx context.Conte
