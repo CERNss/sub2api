@@ -2,8 +2,8 @@
   "change_id": "add-admin-user-api-key-creation",
   "status": "active",
   "proposal_path": "openspec/changes/add-admin-user-api-key-creation/proposal.md",
-  "captured_at": "2026-08-13T05:20:09+00:00",
-  "captured_at_commit": "034e3643fa346fa69b761c6adbb0a60e8890e017",
+  "captured_at": "2026-08-13T10:20:54+00:00",
+  "captured_at_commit": "5fa5646146b02da14489dc40a2afad31000976f1",
   "base": "e803e3851",
   "base_commit": "e803e3851c0a7e222cfadeafad7b8636ab959d11",
   "new_files": [],
@@ -92,13 +92,23 @@
   "shared_touchpoints": [
     {
       "path": "README.md",
-      "reason": "also owned by `add-external-custom-menu-token-open` — both changes append a feature blurb section, do not delete the other change's paragraph during rebase.",
+      "reason": "also owned by `add-external-custom-menu-token-open` — both changes append a feature blurb section, do not delete the other change's paragraph during rebase. (`user-token-api-key-automation` appends a third blurb; keep all of them.)",
       "shared_with": "add-external-custom-menu-token-open"
     },
     {
       "path": "README_CN.md",
       "reason": "also owned by `add-external-custom-menu-token-open` — same reason as above.",
       "shared_with": "add-external-custom-menu-token-open"
+    },
+    {
+      "path": "backend/internal/service/api_key_service.go",
+      "reason": "also owned by `user-token-api-key-automation` — keep both the shared admin creation/transfer core and the user-side `UpdateGroup`.",
+      "shared_with": "user-token-api-key-automation"
+    },
+    {
+      "path": "backend/internal/server/api_contract_test.go",
+      "reason": "also owned by `user-token-api-key-automation` — keep both changes' contract rows.",
+      "shared_with": "user-token-api-key-automation"
     }
   ],
   "non_openspec_overlap": []
