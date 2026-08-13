@@ -263,6 +263,58 @@ describe('UseKeyModal', () => {
     expect(codeBlocks.join('\n')).toContain('experimental_bearer_token = "sk-grok-codex-test"')
   })
 
+  it('prefers the grok_codex client template over the built-in Grok Codex config', async () => {
+    const wrapper = mount(UseKeyModal, {
+      props: {
+        show: true,
+        apiKey: 'sk-grok-tpl-test',
+        baseUrl: 'https://example.com/v1',
+        platform: 'grok',
+        clientTemplates: {
+          grok_codex: {
+            files: [
+              {
+                path: '${configDir}/config.toml',
+                content: 'model = "grok-4.6"\nmodel_reasoning_effort = "xhigh"\nbase_url = "${apiBase}"'
+              },
+              {
+                path: 'Terminal',
+                content: 'export SUB2API_KEY="${apiKey}"'
+              }
+            ]
+          }
+        }
+      },
+      global: {
+        stubs: {
+          BaseDialog: {
+            template: '<div><slot /><slot name="footer" /></div>'
+          },
+          Icon: {
+            template: '<span />'
+          }
+        }
+      }
+    })
+
+    const codexTab = wrapper.findAll('button').find((button) =>
+      button.text().includes('keys.useKeyModal.cliTabs.codexCli')
+    )
+    expect(codexTab).toBeDefined()
+    await codexTab!.trigger('click')
+    await nextTick()
+
+    const allCode = wrapper.findAll('pre code').map((code) => code.text()).join('\n')
+    expect(allCode).toContain('model = "grok-4.6"')
+    expect(allCode).toContain('model_reasoning_effort = "xhigh"')
+    expect(allCode).toContain('base_url = "https://example.com/v1"')
+    expect(allCode).toContain('export SUB2API_KEY="sk-grok-tpl-test"')
+    expect(wrapper.text()).toContain('~/.codex/config.toml')
+    // Built-in fallback must not leak through when the template is present.
+    expect(allCode).not.toContain('model = "grok-4.5"')
+    expect(allCode).not.toContain('SUB2API_API_KEY')
+  })
+
   it('keeps legacy OpenAI Codex config as the default', () => {
     const wrapper = mount(UseKeyModal, {
       props: {

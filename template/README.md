@@ -32,10 +32,15 @@ Common placeholders:
 
 Notes:
 
-- `codex.files` is used for the normal Codex tab.
+- `codex.files` is used for the normal Codex tab (OpenAI groups).
 - `codex.websocket_files` is used for the `Codex CLI WS` tab.
+- `grok_codex.files` is used for the Codex tab of Grok groups; without it the
+  frontend falls back to the built-in Grok Codex config.
 - `opencode.files` fully replaces the built-in OpenCode config output when present.
 - `ccs_import.params.usageScript` is auto-base64 encoded by the frontend before opening the deeplink.
+- Avoid hardcoding `model` in `ccs_import.params`: the value overrides the
+  per-platform default the frontend computes, so a fixed model leaks into every
+  platform's import.
 
 Suggested usage:
 
