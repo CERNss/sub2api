@@ -16,6 +16,7 @@
   - [4. refine-pending-oauth-account-resolution](#4-refine-pending-oauth-account-resolution)
   - [5. user-token-api-key-automation](#5-user-token-api-key-automation)
   - [8. preserve-grok-xhigh-reasoning-effort](#8-preserve-grok-xhigh-reasoning-effort)
+  - [9. add-grok-codex-client-template](#9-add-grok-codex-client-template)
 - [Archived changes](#archived-changes)
   - [6. support-mounted-frontend-client-templates](#6-support-mounted-frontend-client-templates)
 - [未纳入 OpenSpec 的客制化](#未纳入-openspec-的客制化)
@@ -35,6 +36,7 @@
 | 6 | `support-mounted-frontend-client-templates` | 📦 archived | 前端 `client-templates.json` 挂载渲染 Codex/OpenCode/CCS | 9 | 7 |
 | 7 | `add-openai-compatible-prompt-audit`      | ⬆️ upstreamed | 提示词输入审计（Qwen3Guard 三态门禁 + 审计台） | 0 | 0 |
 | 8 | `preserve-grok-xhigh-reasoning-effort`    | 🟢 active   | grok-4.6 保留 xhigh 推理档，不再拍平成 high      | 0 | 2 |
+| 9 | `add-grok-codex-client-template`          | 🟢 active   | Grok 组 Codex tab 支持 grok_codex 模板；CCS 默认 grok-4.6 | 0 | 5 |
 
 **状态图例**
 
@@ -282,6 +284,40 @@ _无 OpenSpec change 共享。_ 但 `openai_gateway_grok.go` 另叠加「[未纳
 
 #### 关联 commits
 - `907eb862c` fix(grok): pass xhigh reasoning effort through for grok-4.6
+
+---
+
+### 9. `add-grok-codex-client-template`
+
+- **Capability:** `grok-codex-client-template`
+- **意图:** Grok 组的 Codex tab 此前无条件走内置 grok-4.5 硬编码配置，挂载的 `client-templates.json` 影响不到它。新增 `client_templates.grok_codex` 段：有模板则渲染模板（与 OpenAI 的 `codex` 段同一渲染管线和占位符），无模板回退内置；CCS deeplink 导入的 Grok 默认 model 升到 grok-4.6。
+- **依赖:** 归档 #6（模板加载与渲染管线全部来自它）；部署侧模板文件可提前加 `grok_codex` 段，旧前端忽略未知段无副作用。
+- **Spec 路径:** `openspec/changes/add-grok-codex-client-template/`
+
+#### 新增文件
+_无。本 change 全部为对上游/既有 fork 文件的补丁。_
+
+#### 上游补丁（rebase 后必须确认仍存在）
+| 路径 | 改动要点 |
+|------|---------|
+| `frontend/src/components/keys/UseKeyModal.vue` | grok 平台 codex tab 先渲染 `clientTemplates.grok_codex.files`（shell 感知 configDir），无模板回退 `generateGrokCodexFiles` |
+| `frontend/src/components/keys/__tests__/UseKeyModal.spec.ts` | 模板优先于内置的回归测试 |
+| `frontend/src/types/index.ts` | `ClientTemplatesConfig` 增加 `grok_codex` 字段 |
+| `frontend/src/utils/ccswitchImport.ts` | `GROK_CC_SWITCH_MODEL` grok-4.5 → grok-4.6 |
+| `frontend/src/utils/__tests__/ccswitchImport.spec.ts` | 断言同步 |
+
+#### ⚠ 跨 change 共享文件
+> 以下文件与归档 #6（`2026-04-28-support-mounted-frontend-client-templates`）共享；`types/index.ts` 同时属于 #2。rebase 时须同时保留各方的修改。
+- `frontend/src/components/keys/UseKeyModal.vue` → 也属于 #6
+- `frontend/src/components/keys/__tests__/UseKeyModal.spec.ts` → 也属于 #6
+- `frontend/src/types/index.ts` → 也属于 #2、#6
+- `frontend/src/utils/clientTemplates.ts` → #6 的新增文件，本 change 给 normalize 白名单加 `grok_codex`
+- `frontend/src/utils/__tests__/clientTemplates.spec.ts` → #6 的新增文件，本 change 加 grok_codex-only 用例
+- `template/client-templates.json` → #6 的新增文件，本 change 加 `grok_codex` 段并移除 `ccs_import` 写死的 model
+- `template/README.md` → #6 的新增文件，本 change 补 grok_codex 与 ccs_import model 说明
+
+#### 关联 commits
+- `1a41cad26` feat(frontend): template-driven grok codex tab and grok-4.6 ccs import
 
 ---
 
