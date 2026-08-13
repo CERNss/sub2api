@@ -547,6 +547,7 @@ export interface CcsImportTemplateConfig {
 
 export interface ClientTemplatesConfig {
   codex?: ClientTemplateSectionConfig
+  grok_codex?: ClientTemplateSectionConfig
   opencode?: ClientTemplateSectionConfig
   ccs_import?: CcsImportTemplateConfig
   [key: string]: ClientTemplateSectionConfig | CcsImportTemplateConfig | undefined
