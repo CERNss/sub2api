@@ -2,10 +2,10 @@
   "change_id": "2026-04-28-support-mounted-frontend-client-templates",
   "status": "archived",
   "proposal_path": "openspec/changes/archive/2026-04-28-support-mounted-frontend-client-templates/proposal.md",
-  "captured_at": "2026-07-13T10:25:17+00:00",
-  "captured_at_commit": "5f3447102a8a17e612ffc2f791257c7385861846",
-  "base": "a2bc13374",
-  "base_commit": "a2bc1337474b68b62391116835e5698ebb5526bd",
+  "captured_at": "2026-08-13T04:24:15+00:00",
+  "captured_at_commit": "a56880d6bed803c4b1be9f4212d4817d80e07972",
+  "base": "10a4c6e3a",
+  "base_commit": "10a4c6e3ad319587e817109c071259269855ec30",
   "new_files": [
     {
       "path": "frontend/public/client-templates.json",
