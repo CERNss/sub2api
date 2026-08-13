@@ -318,6 +318,12 @@ _待提交。_
 > - `frontend/src/utils/billingMode.ts`、`frontend/src/components/admin/usage/UsageTable.vue` —
 >   历史图片计费模式推导补丁已进入上游，且上游多加了「显式 video/token 模式优先」守卫，
 >   覆盖面更广；2026-08-10 rebase 到 `10a4c6e3a` 时整段改用上游实现。
+> - `add-openai-compatible-prompt-audit`（`backend/internal/securityaudit/` 全模块、
+>   `frontend/src/features/prompt-audit/`、路由/侧栏/i18n 接入）— 上游已整体收编
+>   （`10a4c6e3a` 与 `v0.1.176` 的 securityaudit 目录 tree hash 一致，`develop`
+>   相对上游零差异）；2026-08-13 rebase 到 `e803e3851` 时确认。fork 仅保留
+>   `openspec/changes/add-openai-compatible-prompt-audit/` 文档目录，代码层面
+>   无需再作为 fork 补丁守护。
 
 ---
 

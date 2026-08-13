@@ -1,8 +1,8 @@
 diff --git a/README.md b/README.md
-index 6bb406864..3edd5f4c7 100644
+index f4ad2fa6b..7b40686bf 100644
 --- a/README.md
 +++ b/README.md
-@@ -25,6 +25,137 @@ Please read the following carefully before using this project:
+@@ -27,6 +27,137 @@ Please read the following carefully before using this project:
  - **📖 Disclaimer**: This project is provided for technical learning and research purposes only. The authors assume no liability for account bans, service interruptions, data loss, or any other direct or indirect damages resulting from the use of this project.
  - **🚫 No Commercial Authorization**: The developers of this project have never authorized any individual or organization to conduct any form of commercial operation based on this project. Any commercial activity conducted in the name of or based on this project is unrelated to this project and its developers, and all resulting disputes, losses, and legal liabilities shall be borne solely by the party conducting such activity.
  
@@ -141,11 +141,11 @@ index 6bb406864..3edd5f4c7 100644
  
  > [Want to appear here?](mailto:support@sub2api.org)
 diff --git a/backend/internal/handler/api_key_handler.go b/backend/internal/handler/api_key_handler.go
-index e0d73b390..d3b2dc2fd 100644
+index 6361b97dd..d43cd8a2f 100644
 --- a/backend/internal/handler/api_key_handler.go
 +++ b/backend/internal/handler/api_key_handler.go
-@@ -62,6 +62,11 @@ type UpdateAPIKeyRequest struct {
- 	ResetRateLimitUsage *bool    `json:"reset_rate_limit_usage"` // 重置限速用量
+@@ -101,6 +101,11 @@ func validateAPIKeyUpdateRequest(req UpdateAPIKeyRequest) error {
+ 	return nil
  }
  
 +// UpdateAPIKeyGroupRequest represents a narrow group rotation request.
@@ -156,7 +156,7 @@ index e0d73b390..d3b2dc2fd 100644
  // List handles listing user's API keys with pagination
  // GET /api/v1/api-keys
  func (h *APIKeyHandler) List(c *gin.Context) {
-@@ -246,6 +251,36 @@ func (h *APIKeyHandler) Update(c *gin.Context) {
+@@ -293,6 +298,36 @@ func (h *APIKeyHandler) Update(c *gin.Context) {
  	response.Success(c, dto.APIKeyFromService(key))
  }
  
@@ -194,7 +194,7 @@ index e0d73b390..d3b2dc2fd 100644
  // DELETE /api/v1/api-keys/:id
  func (h *APIKeyHandler) Delete(c *gin.Context) {
 diff --git a/backend/internal/server/api_contract_test.go b/backend/internal/server/api_contract_test.go
-index 372cc46bb..3d20a2017 100644
+index 79dfb919a..e13ce55b5 100644
 --- a/backend/internal/server/api_contract_test.go
 +++ b/backend/internal/server/api_contract_test.go
 @@ -5,7 +5,9 @@ package server_test
@@ -207,7 +207,7 @@ index 372cc46bb..3d20a2017 100644
  	"io"
  	"math"
  	"net/http"
-@@ -388,6 +390,115 @@ func TestAPIContracts(t *testing.T) {
+@@ -400,6 +402,122 @@ func TestAPIContracts(t *testing.T) {
  				]
  			}`,
  		},
@@ -283,16 +283,23 @@ index 372cc46bb..3d20a2017 100644
 +						"video_rate_independent": false,
 +						"video_rate_multiplier": 0,
 +						"web_search_price_per_call": null,
++						"search_price_per_1k": null,
++						"audio_tts_price_per_million_chars": null,
++						"audio_stt_price_per_hour": null,
++						"audio_realtime_price_per_min": null,
 +						"peak_rate_enabled": false,
 +						"peak_rate_multiplier": 0,
 +						"peak_start": "",
 +						"peak_end": "",
 +						"claude_code_only": false,
 +						"allow_messages_dispatch": false,
++						"allow_live": false,
 +						"fallback_group_id": null,
 +						"fallback_group_id_on_invalid_request": null,
 +						"require_oauth_only": false,
 +						"require_privacy_set": false,
++						"max_reasoning_effort": "",
++						"reasoning_effort_mappings": null,
 +						"rpm_limit": 0,
 +						"created_at": "2025-01-02T03:04:05Z",
 +						"updated_at": "2025-01-02T03:04:05Z"
@@ -323,7 +330,7 @@ index 372cc46bb..3d20a2017 100644
  		{
  			name: "GET /api/v1/subscriptions",
  			setup: func(t *testing.T, deps *contractDeps) {
-@@ -761,6 +872,7 @@ func TestAPIContracts(t *testing.T) {
+@@ -798,6 +916,7 @@ func TestAPIContracts(t *testing.T) {
  						"oidc_connect_allowed_signing_algs": "RS256,ES256,PS256",
  						"oidc_connect_clock_skew_seconds": 120,
  						"oidc_connect_require_email_verified": false,
@@ -331,7 +338,7 @@ index 372cc46bb..3d20a2017 100644
  						"oidc_connect_userinfo_email_path": "",
  						"oidc_connect_userinfo_id_path": "",
  						"oidc_connect_userinfo_username_path": "",
-@@ -1068,6 +1180,7 @@ func TestAPIContracts(t *testing.T) {
+@@ -1145,6 +1264,7 @@ func TestAPIContracts(t *testing.T) {
  					"oidc_connect_allowed_signing_algs": "RS256,ES256,PS256",
  					"oidc_connect_clock_skew_seconds": 120,
  					"oidc_connect_require_email_verified": false,
@@ -339,7 +346,7 @@ index 372cc46bb..3d20a2017 100644
  					"oidc_connect_userinfo_email_path": "",
  					"oidc_connect_userinfo_id_path": "",
  					"oidc_connect_userinfo_username_path": "",
-@@ -1306,6 +1419,302 @@ func TestAPIContracts(t *testing.T) {
+@@ -1403,6 +1523,308 @@ func TestAPIContracts(t *testing.T) {
  	}
  }
  
@@ -411,13 +418,16 @@ index 372cc46bb..3d20a2017 100644
 +		userSubRepo,
 +		nil,
 +		nil,
++		nil,
++		nil,
++		nil,
 +	)
 +
 +	settingRepo := newStubSettingRepo()
 +	require.NoError(t, settingRepo.Set(context.Background(), service.SettingKeyAdminAPIKey, adminKey))
 +	settingService := service.NewSettingService(settingRepo, cfg)
 +	userService := service.NewUserService(userRepo, nil, nil, nil)
-+	adminAuth := middleware.NewAdminAuthMiddleware(nil, userService, settingService)
++	adminAuth := middleware.NewAdminAuthMiddleware(nil, userService, settingService, nil)
 +
 +	router := gin.New()
 +	adminGroup := router.Group("/api/v1/admin")
@@ -567,13 +577,16 @@ index 372cc46bb..3d20a2017 100644
 +		&stubUserSubscriptionRepo{},
 +		nil,
 +		nil,
++		nil,
++		nil,
++		nil,
 +	)
 +
 +	settingRepo := newStubSettingRepo()
 +	require.NoError(t, settingRepo.Set(context.Background(), service.SettingKeyAdminAPIKey, adminKey))
 +	settingService := service.NewSettingService(settingRepo, cfg)
 +	userService := service.NewUserService(userRepo, nil, nil, nil)
-+	adminAuth := middleware.NewAdminAuthMiddleware(nil, userService, settingService)
++	adminAuth := middleware.NewAdminAuthMiddleware(nil, userService, settingService, nil)
 +
 +	router := gin.New()
 +	adminGroup := router.Group("/api/v1/admin")
@@ -642,16 +655,16 @@ index 372cc46bb..3d20a2017 100644
  type contractDeps struct {
  	now         time.Time
  	router      http.Handler
-@@ -1371,7 +1780,7 @@ func newContractDeps(t *testing.T) *contractDeps {
+@@ -1468,7 +1890,7 @@ func newContractDeps(t *testing.T) *contractDeps {
  	settingRepo := newStubSettingRepo()
  	settingService := service.NewSettingService(settingRepo, cfg)
  
--	adminService := service.NewAdminService(userRepo, groupRepo, &accountRepo, proxyRepo, apiKeyRepo, redeemRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
-+	adminService := service.NewAdminService(userRepo, groupRepo, &accountRepo, proxyRepo, apiKeyRepo, redeemRepo, nil, nil, apiKeyService, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+-	adminService := service.NewAdminService(userRepo, groupRepo, &accountRepo, proxyRepo, apiKeyRepo, redeemRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
++	adminService := service.NewAdminService(userRepo, groupRepo, &accountRepo, proxyRepo, apiKeyRepo, redeemRepo, nil, nil, apiKeyService, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
  	authHandler := handler.NewAuthHandler(cfg, nil, userService, settingService, nil, redeemService, nil, nil)
  	apiKeyHandler := handler.NewAPIKeyHandler(apiKeyService)
  	usageHandler := handler.NewUsageHandler(usageService, apiKeyService, nil, nil)
-@@ -1407,6 +1816,7 @@ func newContractDeps(t *testing.T) *contractDeps {
+@@ -1504,6 +1926,7 @@ func newContractDeps(t *testing.T) *contractDeps {
  	v1Keys.Use(jwtAuth)
  	v1Keys.GET("/keys", apiKeyHandler.List)
  	v1Keys.POST("/keys", apiKeyHandler.Create)
@@ -659,7 +672,7 @@ index 372cc46bb..3d20a2017 100644
  	v1Keys.GET("/groups/available", apiKeyHandler.GetAvailableGroups)
  
  	v1Usage := v1.Group("")
-@@ -1552,7 +1962,17 @@ func (r *stubUserRepo) RemoveGroupFromUserAllowedGroups(ctx context.Context, use
+@@ -1668,7 +2091,17 @@ func (r *stubUserRepo) RemoveGroupFromUserAllowedGroups(ctx context.Context, use
  }
  
  func (r *stubUserRepo) AddGroupToAllowedGroups(ctx context.Context, userID int64, groupID int64) error {
@@ -678,7 +691,7 @@ index 372cc46bb..3d20a2017 100644
  }
  
  func (r *stubUserRepo) ListUserAuthIdentities(ctx context.Context, userID int64) ([]service.UserAuthIdentityRecord, error) {
-@@ -1635,22 +2055,35 @@ func (stubApiKeyCache) SubscribeAuthCacheInvalidation(ctx context.Context, handl
+@@ -1751,22 +2184,35 @@ func (stubApiKeyCache) SubscribeAuthCacheInvalidation(ctx context.Context, handl
  
  type stubGroupRepo struct {
  	active []service.Group
@@ -718,22 +731,32 @@ index 372cc46bb..3d20a2017 100644
  }
  
  func (stubGroupRepo) Update(ctx context.Context, group *service.Group) error {
-@@ -2235,6 +2668,10 @@ func (r *stubApiKeyRepo) Update(ctx context.Context, key *service.APIKey) error
+@@ -2380,6 +2826,20 @@ func (r *stubApiKeyRepo) Update(ctx context.Context, key *service.APIKey, _ serv
  	return nil
  }
  
 +func (r *stubApiKeyRepo) TransferUpdate(ctx context.Context, key *service.APIKey) error {
-+	return r.Update(ctx, key)
++	// 转移是显式全列写路径：owner/group/quota/status 一并落库。
++	return r.Update(ctx, key, service.APIKeyUpdateFields{
++		Name:       true,
++		Status:     true,
++		Quota:      true,
++		GroupID:    true,
++		ExpiresAt:  true,
++		QuotaUsed:  true,
++		RateLimits: true,
++		IPRules:    true,
++	})
 +}
 +
  func (r *stubApiKeyRepo) Delete(ctx context.Context, id int64) error {
  	key, ok := r.byID[id]
  	if !ok {
 diff --git a/backend/internal/server/routes/auth.go b/backend/internal/server/routes/auth.go
-index 2c44a2b3a..1b8a83d69 100644
+index 18f39ed31..c61243f34 100644
 --- a/backend/internal/server/routes/auth.go
 +++ b/backend/internal/server/routes/auth.go
-@@ -34,9 +34,16 @@ func RegisterAuthRoutes(
+@@ -38,9 +38,17 @@ func RegisterAuthRoutes(
  		auth.POST("/login", rateLimiter.LimitWithOptions("auth-login", 20, time.Minute, middleware.RateLimitOptions{
  			FailureMode: middleware.RateLimitFailClose,
  		}), h.Auth.Login)
@@ -744,13 +767,14 @@ index 2c44a2b3a..1b8a83d69 100644
  		auth.POST("/login/2fa", rateLimiter.LimitWithOptions("auth-login-2fa", 20, time.Minute, middleware.RateLimitOptions{
  			FailureMode: middleware.RateLimitFailClose,
  		}), h.Auth.Login2FA)
++		// 面向外部系统的 2FA token 别名，与 /token 登录别名成对。
 +		auth.POST("/token/2fa", rateLimiter.LimitWithOptions("auth-token-2fa", 20, time.Minute, middleware.RateLimitOptions{
 +			FailureMode: middleware.RateLimitFailClose,
 +		}), h.Auth.Login2FA)
- 		auth.POST("/send-verify-code", rateLimiter.LimitWithOptions("auth-send-verify-code", 5, time.Minute, middleware.RateLimitOptions{
+ 		auth.POST("/passkey/login/begin", rateLimiter.LimitWithOptions("passkey-login-begin", 20, time.Minute, middleware.RateLimitOptions{
  			FailureMode: middleware.RateLimitFailClose,
- 		}), h.Auth.SendVerifyCode)
-@@ -44,6 +51,9 @@ func RegisterAuthRoutes(
+ 		}), h.Passkey.BeginLogin)
+@@ -54,6 +62,9 @@ func RegisterAuthRoutes(
  		auth.POST("/refresh", rateLimiter.LimitWithOptions("refresh-token", 30, time.Minute, middleware.RateLimitOptions{
  			FailureMode: middleware.RateLimitFailClose,
  		}), h.Auth.RefreshToken)
@@ -760,11 +784,61 @@ index 2c44a2b3a..1b8a83d69 100644
  		// 登出接口（公开，允许未认证用户调用以撤销Refresh Token）
  		auth.POST("/logout", h.Auth.Logout)
  		// 优惠码验证接口添加速率限制：每分钟最多 10 次（Redis 故障时 fail-close）
+diff --git a/backend/internal/server/routes/auth_token_alias_routes_test.go b/backend/internal/server/routes/auth_token_alias_routes_test.go
+new file mode 100644
+index 000000000..6114fac91
+--- /dev/null
++++ b/backend/internal/server/routes/auth_token_alias_routes_test.go
+@@ -0,0 +1,44 @@
++package routes
++
++import (
++	"testing"
++
++	"github.com/stretchr/testify/require"
++)
++
++// TestAuthTokenAliasRoutesRegistered 锁定 fork overlay 的 token 登录别名。
++//
++// `/auth/token`、`/auth/token/2fa`、`/auth/token/refresh` 是面向外部自动化系统的别名，
++// 语义上表达"登录换取 Bearer token"，必须与各自的规范端点复用同一个 handler。
++// 上游同步时 routes/auth.go 常被整体覆盖，这三条别名会静默消失且编译不报错，
++// 因此在路由注册层面锁死，而不是依赖调用方发现 404。
++func TestAuthTokenAliasRoutesRegistered(t *testing.T) {
++	router := newAuthRoutesTestRouter(nil)
++
++	registered := make(map[string]string, len(router.Routes()))
++	for _, route := range router.Routes() {
++		registered[route.Method+" "+route.Path] = route.Handler
++	}
++
++	cases := []struct {
++		alias     string
++		canonical string
++	}{
++		{alias: "POST /api/v1/auth/token", canonical: "POST /api/v1/auth/login"},
++		{alias: "POST /api/v1/auth/token/2fa", canonical: "POST /api/v1/auth/login/2fa"},
++		{alias: "POST /api/v1/auth/token/refresh", canonical: "POST /api/v1/auth/refresh"},
++	}
++
++	for _, tc := range cases {
++		t.Run(tc.alias, func(t *testing.T) {
++			aliasHandler, ok := registered[tc.alias]
++			require.Truef(t, ok, "别名路由 %s 未注册：上游 rebase 可能覆盖了 routes/auth.go", tc.alias)
++
++			canonicalHandler, ok := registered[tc.canonical]
++			require.Truef(t, ok, "规范路由 %s 未注册", tc.canonical)
++
++			require.Equalf(t, canonicalHandler, aliasHandler,
++				"%s 必须复用 %s 的 handler，否则两条路径行为会漂移", tc.alias, tc.canonical)
++		})
++	}
++}
 diff --git a/backend/internal/server/routes/user.go b/backend/internal/server/routes/user.go
-index 9f89687ad..9fb6f7e5e 100644
+index 65ecaa037..121da49cb 100644
 --- a/backend/internal/server/routes/user.go
 +++ b/backend/internal/server/routes/user.go
-@@ -61,6 +61,7 @@ func RegisterUserRoutes(
+@@ -78,6 +78,7 @@ func RegisterUserRoutes(
  			keys.GET("", h.APIKey.List)
  			keys.GET("/:id", h.APIKey.GetByID)
  			keys.POST("", h.APIKey.Create)
@@ -773,26 +847,27 @@ index 9f89687ad..9fb6f7e5e 100644
  			keys.DELETE("/:id", h.APIKey.Delete)
  		}
 diff --git a/backend/internal/service/api_key_service.go b/backend/internal/service/api_key_service.go
-index b13ca6b3d..ff8cb5a69 100644
+index 8ce62a688..f9da7d1b3 100644
 --- a/backend/internal/service/api_key_service.go
 +++ b/backend/internal/service/api_key_service.go
-@@ -27,6 +27,7 @@ var (
- 	ErrAPIKeyExists       = infraerrors.Conflict("API_KEY_EXISTS", "api key already exists")
- 	ErrAPIKeyTooShort     = infraerrors.BadRequest("API_KEY_TOO_SHORT", "api key must be at least 16 characters")
- 	ErrAPIKeyInvalidChars = infraerrors.BadRequest("API_KEY_INVALID_CHARS", "api key can only contain letters, numbers, underscores, and hyphens")
-+	ErrInvalidGroupID     = infraerrors.BadRequest("INVALID_GROUP_ID", "group_id must be greater than or equal to 0")
- 	ErrAPIKeyRateLimited  = infraerrors.TooManyRequests("API_KEY_RATE_LIMITED", "too many failed attempts, please try again later")
- 	ErrInvalidIPPattern   = infraerrors.BadRequest("INVALID_IP_PATTERN", "invalid IP or CIDR pattern")
- 	// ErrAPIKeyExpired        = infraerrors.Forbidden("API_KEY_EXPIRED", "api key has expired")
-@@ -57,6 +58,7 @@ type APIKeyRepository interface {
- 	// GetByKeyForAuth 认证专用查询，返回最小字段集
+@@ -29,6 +29,7 @@ var (
+ 	ErrAPIKeyExists         = infraerrors.Conflict("API_KEY_EXISTS", "api key already exists")
+ 	ErrAPIKeyTooShort       = infraerrors.BadRequest("API_KEY_TOO_SHORT", "api key must be at least 16 characters")
+ 	ErrAPIKeyInvalidChars   = infraerrors.BadRequest("API_KEY_INVALID_CHARS", "api key can only contain letters, numbers, underscores, and hyphens")
++	ErrInvalidGroupID       = infraerrors.BadRequest("INVALID_GROUP_ID", "group_id must be greater than or equal to 0")
+ 	ErrAPIKeyRateLimited    = infraerrors.TooManyRequests("API_KEY_RATE_LIMITED", "too many failed attempts, please try again later")
+ 	ErrAPIKeyAuthOverloaded = infraerrors.ServiceUnavailable("API_KEY_AUTH_OVERLOADED", "api key authentication is temporarily overloaded")
+ 	ErrInvalidIPPattern     = infraerrors.BadRequest("INVALID_IP_PATTERN", "invalid IP or CIDR pattern")
+@@ -92,6 +93,8 @@ type APIKeyRepository interface {
  	GetByKeyForAuth(ctx context.Context, key string) (*APIKey, error)
- 	Update(ctx context.Context, key *APIKey) error
+ 	// Update 只写 fields 中显式声明的列，其余列保持库中当前值。
+ 	Update(ctx context.Context, key *APIKey, fields APIKeyUpdateFields) error
++	// TransferUpdate 是 admin 转移专用的显式写路径，可原子改写 owner/group/quota/status。
 +	TransferUpdate(ctx context.Context, key *APIKey) error
  	Delete(ctx context.Context, id int64) error
- 	// DeleteWithAudit 在同一事务内先写 deleted_api_key_audits 审计、再软删除该 key。
- 	DeleteWithAudit(ctx context.Context, id int64) error
-@@ -347,6 +349,15 @@ func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIK
+ 	// DeleteWithAudit keeps the legacy interface name for rolling-upgrade compatibility.
+ 	// Implementations must tombstone the key and soft-delete it atomically without
+@@ -468,6 +471,15 @@ func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIK
  		return nil, fmt.Errorf("get user: %w", err)
  	}
  
@@ -808,7 +883,7 @@ index b13ca6b3d..ff8cb5a69 100644
  	// 验证 IP 白名单格式
  	if len(req.IPWhitelist) > 0 {
  		if invalid := ip.ValidateIPPatterns(req.IPWhitelist); len(invalid) > 0 {
-@@ -757,6 +768,61 @@ func (s *APIKeyService) Update(ctx context.Context, id int64, userID int64, req
+@@ -913,6 +925,61 @@ func (s *APIKeyService) Update(ctx context.Context, id int64, userID int64, req
  	return apiKey, nil
  }
  
@@ -857,7 +932,7 @@ index b13ca6b3d..ff8cb5a69 100644
 +		apiKey.Group = group
 +	}
 +
-+	if err := s.apiKeyRepo.Update(ctx, apiKey); err != nil {
++	if err := s.apiKeyRepo.Update(ctx, apiKey, APIKeyUpdateFields{GroupID: true}); err != nil {
 +		return nil, fmt.Errorf("update api key: %w", err)
 +	}
 +
@@ -964,10 +1039,10 @@ index 000000000..276a95299
 +	require.Nil(t, apiKeyRepo.updated)
 +}
 diff --git a/frontend/src/api/auth.ts b/frontend/src/api/auth.ts
-index fd2592306..f80cb387f 100644
+index 6f880e348..44425e07c 100644
 --- a/frontend/src/api/auth.ts
 +++ b/frontend/src/api/auth.ts
-@@ -106,6 +106,14 @@ export async function login(credentials: LoginRequest): Promise<LoginResponse> {
+@@ -146,6 +146,14 @@ export async function login(credentials: LoginRequest): Promise<LoginResponse> {
    return data
  }
  
@@ -982,7 +1057,7 @@ index fd2592306..f80cb387f 100644
  /**
   * Complete login with 2FA code
   * @param request - Temp token and TOTP code
-@@ -127,6 +135,14 @@ export async function login2FA(request: TotpLogin2FARequest): Promise<AuthRespon
+@@ -167,6 +175,14 @@ export async function login2FA(request: TotpLogin2FARequest): Promise<AuthRespon
    return data
  }
  
@@ -997,8 +1072,8 @@ index fd2592306..f80cb387f 100644
  /**
   * User registration
   * @param userData - Registration data (username, email, password)
-@@ -310,6 +326,18 @@ export async function refreshToken(): Promise<RefreshTokenResponse> {
-   return data
+@@ -329,6 +345,18 @@ export async function refreshToken(): Promise<RefreshTokenResponse> {
+   return refreshAuthTokens()
  }
  
 +/**
@@ -1016,7 +1091,7 @@ index fd2592306..f80cb387f 100644
  /**
   * Revoke all sessions for the current user
   * @returns Response with message
-@@ -659,7 +687,9 @@ export async function exchangePendingOAuthCompletion(
+@@ -680,7 +708,9 @@ export async function exchangePendingOAuthCompletion(
  
  export const authAPI = {
    login,
@@ -1026,7 +1101,7 @@ index fd2592306..f80cb387f 100644
    isTotp2FARequired,
    register,
    getCurrentUser,
-@@ -680,6 +710,7 @@ export const authAPI = {
+@@ -701,6 +731,7 @@ export const authAPI = {
    forgotPassword,
    resetPassword,
    refreshToken,

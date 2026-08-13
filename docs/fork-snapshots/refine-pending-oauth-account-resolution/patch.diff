@@ -1,5 +1,5 @@
 diff --git a/frontend/src/views/auth/LinuxDoCallbackView.vue b/frontend/src/views/auth/LinuxDoCallbackView.vue
-index fef5b90d..66e7b055 100644
+index e789a519d..02e3da0e0 100644
 --- a/frontend/src/views/auth/LinuxDoCallbackView.vue
 +++ b/frontend/src/views/auth/LinuxDoCallbackView.vue
 @@ -333,7 +333,10 @@ type LinuxDoPendingActionResponse = PendingOAuthExchangeResponse & {
@@ -40,7 +40,7 @@ index fef5b90d..66e7b055 100644
    }
    if (raw === 'email_required' || raw === 'create_account_required' || raw === 'create_account') {
 diff --git a/frontend/src/views/auth/OidcCallbackView.vue b/frontend/src/views/auth/OidcCallbackView.vue
-index e17f05e9..3d546a03 100644
+index d24ae620d..3f93e7cf8 100644
 --- a/frontend/src/views/auth/OidcCallbackView.vue
 +++ b/frontend/src/views/auth/OidcCallbackView.vue
 @@ -158,6 +158,8 @@
@@ -107,7 +107,7 @@ index e17f05e9..3d546a03 100644
    const email = extractPendingAccountEmail(completion)
    if (action === 'choose_account_action') {
 diff --git a/frontend/src/views/auth/WechatCallbackView.vue b/frontend/src/views/auth/WechatCallbackView.vue
-index afa5c5ab..421425fb 100644
+index e67b5dde4..1574afeef 100644
 --- a/frontend/src/views/auth/WechatCallbackView.vue
 +++ b/frontend/src/views/auth/WechatCallbackView.vue
 @@ -417,9 +417,12 @@ type PendingWeChatCompletion = PendingOAuthExchangeResponse & {
@@ -150,7 +150,7 @@ index afa5c5ab..421425fb 100644
    }
    if (raw === 'email_required' || raw === 'create_account_required' || raw === 'create_account') {
 diff --git a/frontend/src/views/auth/__tests__/LinuxDoCallbackView.spec.ts b/frontend/src/views/auth/__tests__/LinuxDoCallbackView.spec.ts
-index 29e3a332..01548e04 100644
+index 29e3a3328..01548e041 100644
 --- a/frontend/src/views/auth/__tests__/LinuxDoCallbackView.spec.ts
 +++ b/frontend/src/views/auth/__tests__/LinuxDoCallbackView.spec.ts
 @@ -481,6 +481,38 @@ describe('LinuxDoCallbackView', () => {
@@ -193,7 +193,7 @@ index 29e3a332..01548e04 100644
      getPublicSettings.mockResolvedValue({
        invitation_code_enabled: true,
 diff --git a/frontend/src/views/auth/__tests__/OidcCallbackView.spec.ts b/frontend/src/views/auth/__tests__/OidcCallbackView.spec.ts
-index 77af4d3d..6d6cd64f 100644
+index 77af4d3da..6d6cd64f3 100644
 --- a/frontend/src/views/auth/__tests__/OidcCallbackView.spec.ts
 +++ b/frontend/src/views/auth/__tests__/OidcCallbackView.spec.ts
 @@ -430,6 +430,40 @@ describe('OidcCallbackView', () => {
@@ -238,7 +238,7 @@ index 77af4d3d..6d6cd64f 100644
      getPublicSettings.mockResolvedValue({
        oidc_oauth_provider_name: 'ExampleID',
 diff --git a/frontend/src/views/auth/__tests__/WechatCallbackView.spec.ts b/frontend/src/views/auth/__tests__/WechatCallbackView.spec.ts
-index 77897514..4168887c 100644
+index 80d95236c..009475d95 100644
 --- a/frontend/src/views/auth/__tests__/WechatCallbackView.spec.ts
 +++ b/frontend/src/views/auth/__tests__/WechatCallbackView.spec.ts
 @@ -562,6 +562,38 @@ describe('WechatCallbackView', () => {
