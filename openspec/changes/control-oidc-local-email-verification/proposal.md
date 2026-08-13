@@ -30,7 +30,7 @@ The pending OIDC signup flow currently performs a second local email-code verifi
 ## Fork Touchpoints
 
 ### New Files
-- _None._
+- `backend/internal/handler/auth_oauth_pending_email_verify_consistency_test.go`: locks the invariant that every pending-OAuth stage (create/send-code/bind) honors the same local email verification gate, including the site-wide `email_verify_enabled` off case.
 
 ### Upstream Patch Files
 - `backend/internal/handler/auth_oidc_oauth.go`: OIDC callback returns `local_email_verification_required`; binds `email_verified` to the adopted `compat_email` source via `oidcVerifiedFlagForEmail` so a verified flag from a different upstream email cannot suppress local verification.

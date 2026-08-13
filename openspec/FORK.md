@@ -28,15 +28,17 @@
 |---|----|------|-------|---------|-------------|
 | 1 | `add-admin-user-api-key-creation`         | 🟢 active   | Admin 通过 Admin API Key 为指定用户创建/转移 API key | 0 | 20 |
 | 2 | `add-external-custom-menu-token-open`     | 🟢 active   | 自定义菜单支持以 `external` 方式新开页并透传 JWT | 2 | 11 |
-| 3 | `control-oidc-local-email-verification`   | 🟢 active   | OIDC 专用开关跳过二次本地邮箱验证                | 0 | 23 |
+| 3 | `control-oidc-local-email-verification`   | 🟢 active   | OIDC 专用开关跳过二次本地邮箱验证                | 1 | 23 |
 | 4 | `refine-pending-oauth-account-resolution` | 🟢 active   | OAuth 回调跳过 chooser、邮箱预填规则             | 0 | 6 |
 | 5 | `user-token-api-key-automation`           | 🟢 active   | 用户登录换 JWT 后创建 API key 并安全轮换 key 分组 | 1 | 8 |
 | 6 | `support-mounted-frontend-client-templates` | 📦 archived | 前端 `client-templates.json` 挂载渲染 Codex/OpenCode/CCS | 9 | ~6 |
+| 7 | `add-openai-compatible-prompt-audit`      | ⬆️ upstreamed | 提示词输入审计（Qwen3Guard 三态门禁 + 审计台） | 0 | 0 |
 
 **状态图例**
 
 - 🟢 `active` — `openspec/changes/<id>/`，尚未 archive
 - 📦 `archived` — `openspec/changes/archive/<id>/`，已归档但仍在 `develop` 上
+- ⬆️ `upstreamed` — 代码已被上游整体收编，`develop` 相对上游零差异，仅剩 openspec 文档目录；rebase 无需守护（详见[未纳入 OpenSpec 的客制化](#未纳入-openspec-的客制化)末尾的收编清单）
 
 ---
 
@@ -139,7 +141,9 @@ _无。本 change 全部为对上游文件的补丁。_
 - **Spec 路径:** `openspec/changes/control-oidc-local-email-verification/`
 
 #### 新增文件
-_无。_
+| 路径 | 用途 |
+|------|------|
+| `backend/internal/handler/auth_oauth_pending_email_verify_consistency_test.go` | 锁定 pending OAuth 各阶段（create/send-code/bind）共用同一本地邮箱验证门控（含全局 `email_verify_enabled` 关闭时跳过）|
 
 #### 上游补丁
 | 路径 | 改动要点 |
