@@ -1,0 +1,139 @@
+diff --git a/backend/internal/service/openai_gateway_grok.go b/backend/internal/service/openai_gateway_grok.go
+index adb5f8fbc..ea8cc59d9 100644
+--- a/backend/internal/service/openai_gateway_grok.go
++++ b/backend/internal/service/openai_gateway_grok.go
+@@ -113,7 +113,7 @@ func (s *OpenAIGatewayService) forwardGrokResponses(
+ 		resp, err = s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
+ 		SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
+ 		if err != nil {
+-			return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
++			return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false, safeUpstreamURL(upstreamReq.URL.String()))
+ 		}
+ 
+ 		// xAI can reject encrypted reasoning copied from a response produced under
+@@ -558,7 +558,7 @@ func normalizeGrokResponsesReasoningEffort(body []byte, upstreamModel string) ([
+ 		if !value.Exists() {
+ 			continue
+ 		}
+-		normalized, keep := normalizeGrokReasoningEffortValue(value.String())
++		normalized, keep := normalizeGrokReasoningEffortValue(value.String(), upstreamModel)
+ 		if !supportsEffort || !keep {
+ 			out, err = sjson.DeleteBytes(out, field)
+ 		} else {
+@@ -569,7 +569,7 @@ func normalizeGrokResponsesReasoningEffort(body []byte, upstreamModel string) ([
+ 		}
+ 	}
+ 	if camel := gjson.GetBytes(out, "reasoningEffort"); camel.Exists() {
+-		normalized, keep := normalizeGrokReasoningEffortValue(camel.String())
++		normalized, keep := normalizeGrokReasoningEffortValue(camel.String(), upstreamModel)
+ 		out, err = sjson.DeleteBytes(out, "reasoningEffort")
+ 		if err != nil {
+ 			return nil, fmt.Errorf("remove Grok reasoningEffort: %w", err)
+@@ -595,7 +595,7 @@ func normalizeGrokChatReasoningEffort(body []byte, upstreamModel string) ([]byte
+ 	if raw == "" {
+ 		raw = strings.TrimSpace(gjson.GetBytes(body, "reasoningEffort").String())
+ 	}
+-	normalized, keep := normalizeGrokReasoningEffortValue(raw)
++	normalized, keep := normalizeGrokReasoningEffortValue(raw, upstreamModel)
+ 	keep = keep && grokSupportsReasoningEffort(upstreamModel)
+ 	out := body
+ 	var err error
+@@ -615,7 +615,7 @@ func normalizeGrokChatReasoningEffort(body []byte, upstreamModel string) ([]byte
+ 	return out, err
+ }
+ 
+-func normalizeGrokReasoningEffortValue(raw string) (string, bool) {
++func normalizeGrokReasoningEffortValue(raw, upstreamModel string) (string, bool) {
+ 	value := strings.NewReplacer("-", "", "_", "", " ", "").Replace(strings.ToLower(strings.TrimSpace(raw)))
+ 	switch value {
+ 	case "none", "low", "medium", "high":
+@@ -623,12 +623,27 @@ func normalizeGrokReasoningEffortValue(raw string) (string, bool) {
+ 	case "minimal":
+ 		return "low", true
+ 	case "xhigh", "extrahigh", "max", "ultra":
++		if grokSupportsXHighReasoningEffort(upstreamModel) {
++			return "xhigh", true
++		}
+ 		return "high", true
+ 	default:
+ 		return "", false
+ 	}
+ }
+ 
++// xAI introduced the xhigh reasoning tier with grok-4.6; earlier models top
++// out at high, so aliases keep flattening to high for them.
++func grokSupportsXHighReasoningEffort(model string) bool {
++	model = strings.ToLower(xai.StripGrokProviderPrefix(strings.TrimSpace(model)))
++	switch model {
++	case "grok-4.6", "grok-4.6-latest":
++		return true
++	default:
++		return false
++	}
++}
++
+ func grokSupportsReasoningEffort(model string) bool {
+ 	model = strings.ToLower(xai.StripGrokProviderPrefix(strings.TrimSpace(model)))
+ 	switch model {
+@@ -1071,7 +1086,7 @@ func (s *OpenAIGatewayService) describeGrokComposerImage(
+ 
+ 	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
+ 	if err != nil {
+-		return "", OpenAIUsage{}, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
++		return "", OpenAIUsage{}, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false, safeUpstreamURL(upstreamReq.URL.String()))
+ 	}
+ 	defer func() { _ = resp.Body.Close() }()
+ 
+diff --git a/backend/internal/service/openai_gateway_grok_test.go b/backend/internal/service/openai_gateway_grok_test.go
+index 243736b1c..63d12f576 100644
+--- a/backend/internal/service/openai_gateway_grok_test.go
++++ b/backend/internal/service/openai_gateway_grok_test.go
+@@ -176,6 +176,28 @@ func TestPatchGrokResponsesBodyNormalizesReasoningEffortAliases(t *testing.T) {
+ 	}
+ }
+ 
++func TestPatchGrokResponsesBodyKeepsXHighForGrok46(t *testing.T) {
++	t.Parallel()
++
++	tests := []struct {
++		name string
++		body string
++		path string
++	}{
++		{name: "xhigh nested", body: `{"input":"hi","reasoning":{"effort":"xhigh"}}`, path: "reasoning.effort"},
++		{name: "xhigh snake", body: `{"input":"hi","reasoning_effort":"xhigh"}`, path: "reasoning_effort"},
++		{name: "max camel", body: `{"input":"hi","reasoningEffort":"max"}`, path: "reasoning_effort"},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			patched, err := patchGrokResponsesBody([]byte(tt.body), "grok-4.6")
++			require.NoError(t, err)
++			require.Equal(t, "xhigh", gjson.GetBytes(patched, tt.path).String(), string(patched))
++			require.False(t, gjson.GetBytes(patched, "reasoningEffort").Exists())
++		})
++	}
++}
++
+ func TestPatchGrokResponsesBodyAddsDefaultFunctionParameters(t *testing.T) {
+ 	patched, err := patchGrokResponsesBody(
+ 		[]byte(`{"input":"hi","tools":[{"type":"function","name":"lookup"},{"type":"function","name":"wait","parameters":null}]}`),
+@@ -199,6 +221,19 @@ func TestNormalizeGrokChatReasoningEffort(t *testing.T) {
+ 	require.False(t, gjson.GetBytes(patched, "reasoning_effort").Exists())
+ }
+ 
++func TestNormalizeGrokChatReasoningEffortKeepsXHighForGrok46(t *testing.T) {
++	for _, model := range []string{"grok-4.6", "grok-4.6-latest"} {
++		patched, err := normalizeGrokChatReasoningEffort([]byte(`{"reasoning_effort":"xhigh"}`), model)
++		require.NoError(t, err)
++		require.Equal(t, "xhigh", gjson.GetBytes(patched, "reasoning_effort").String(), model)
++	}
++
++	// Models older than grok-4.6 keep the historical flattening.
++	patched, err := normalizeGrokChatReasoningEffort([]byte(`{"reasoning_effort":"xhigh"}`), "grok-4.5")
++	require.NoError(t, err)
++	require.Equal(t, "high", gjson.GetBytes(patched, "reasoning_effort").String())
++}
++
+ func TestPatchGrokResponsesBodyDropsNestedUnsupportedFields(t *testing.T) {
+ 	t.Parallel()
+ 
