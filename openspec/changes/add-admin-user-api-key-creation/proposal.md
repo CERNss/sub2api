@@ -64,8 +64,10 @@ External sidecars also need to repair or migrate keys that were originally creat
 - `README_CN.md`: Chinese counterpart of the fork-additions blurb (also shared, see below); listed here so `fork_overlay.py verify` diff-checks its content — this patch was silently lost once because shared-only entries are not content-checked.
 
 ### Shared Touchpoints
-- `README.md`: also owned by `add-external-custom-menu-token-open` — both changes append a feature blurb section, do not delete the other change's paragraph during rebase.
+- `README.md`: also owned by `add-external-custom-menu-token-open` — both changes append a feature blurb section, do not delete the other change's paragraph during rebase. (`user-token-api-key-automation` appends a third blurb; keep all of them.)
 - `README_CN.md`: also owned by `add-external-custom-menu-token-open` — same reason as above.
+- `backend/internal/service/api_key_service.go`: also owned by `user-token-api-key-automation` — keep both the shared admin creation/transfer core and the user-side `UpdateGroup`.
+- `backend/internal/server/api_contract_test.go`: also owned by `user-token-api-key-automation` — keep both changes' contract rows.
 
 ### Non-OpenSpec Overlap
 - _None._ This change does not touch infra/CI/docker fork areas.

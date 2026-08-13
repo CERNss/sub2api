@@ -229,7 +229,7 @@ _无。_
 - **意图:** 让外部用户侧 sidecar / 自助开通系统以普通用户身份登录换取 JWT，并在该用户现有权限范围内创建 API key、查询可用分组、仅轮换 key 的绑定分组。
 - **触发场景:** 用户自助授权外部工具、非 admin 的自动化开通、需要拿用户 token 调用 REST API 但最终仍生成普通模型网关 API key 的集成。
 - **权限边界:** 能力范围与当前登录用户一致；保留 Turnstile、TOTP 2FA、backend-mode、用户状态校验、用户可用分组校验。`PUT /api/v1/keys/:id/group` 只改 `group_id`，不改 key 值、quota、expiration、IP ACL、status、rate limit。
-- **Spec 路径:** _暂无；当前作为 fork overlay 记录，后续如补 OpenSpec change 使用 `user-token-api-key-automation`。_
+- **Spec 路径:** `openspec/changes/user-token-api-key-automation/`（2026-08-13 补建；此前仅有本条 FORK.md 记录，`fork_overlay.py` 快照/校验完全覆盖不到）
 
 #### 新增文件
 | 路径 | 用途 |
@@ -256,7 +256,8 @@ _无。_
 - `README.md` → 也属于 #1、#2
 
 #### 关联 commits
-_待提交。_
+- `233474014` feat(auth): add user token api key automation
+- `427fa09c4` test(routes),docs(fork): lock token login aliases and correct coverage claim
 
 ---
 
