@@ -15,6 +15,7 @@
   - [3. control-oidc-local-email-verification](#3-control-oidc-local-email-verification)
   - [4. refine-pending-oauth-account-resolution](#4-refine-pending-oauth-account-resolution)
   - [5. user-token-api-key-automation](#5-user-token-api-key-automation)
+  - [8. preserve-grok-xhigh-reasoning-effort](#8-preserve-grok-xhigh-reasoning-effort)
 - [Archived changes](#archived-changes)
   - [6. support-mounted-frontend-client-templates](#6-support-mounted-frontend-client-templates)
 - [未纳入 OpenSpec 的客制化](#未纳入-openspec-的客制化)
@@ -33,6 +34,7 @@
 | 5 | `user-token-api-key-automation`           | 🟢 active   | 用户登录换 JWT 后创建 API key 并安全轮换 key 分组 | 2 | 8 |
 | 6 | `support-mounted-frontend-client-templates` | 📦 archived | 前端 `client-templates.json` 挂载渲染 Codex/OpenCode/CCS | 9 | 7 |
 | 7 | `add-openai-compatible-prompt-audit`      | ⬆️ upstreamed | 提示词输入审计（Qwen3Guard 三态门禁 + 审计台） | 0 | 0 |
+| 8 | `preserve-grok-xhigh-reasoning-effort`    | 🟢 active   | grok-4.6 保留 xhigh 推理档，不再拍平成 high      | 0 | 2 |
 
 **状态图例**
 
@@ -255,6 +257,30 @@ _无。_
 
 #### 关联 commits
 _待提交。_
+
+---
+
+### 8. `preserve-grok-xhigh-reasoning-effort`
+
+- **Capability:** `grok-xhigh-reasoning-effort-passthrough`
+- **意图:** grok-4.6 起 xAI 提供 `xhigh` 推理档；上游网关仍把 `xhigh`/`extrahigh`/`max`/`ultra` 一律拍平成 `high`（写于 4.6 发布前），导致 xhigh 请求被静默降级。本补丁按模型放行：4.6 家族透传 `xhigh`，旧模型维持拍平。
+- **退场条件:** 上游修复 Wei-Shaw/sub2api#5575 后，本 change 转 ⬆️ upstreamed。
+- **Spec 路径:** `openspec/changes/preserve-grok-xhigh-reasoning-effort/`
+
+#### 新增文件
+_无。本 change 全部为对上游文件的补丁。_
+
+#### 上游补丁（rebase 后必须确认仍存在）
+| 路径 | 改动要点 |
+|------|---------|
+| `backend/internal/service/openai_gateway_grok.go` | `normalizeGrokReasoningEffortValue` 增加 `upstreamModel` 参数（3 个调用点同步传入）；高档别名在 `grokSupportsXHighReasoningEffort` 白名单（`grok-4.6`/`grok-4.6-latest`）内返回 `xhigh`，否则维持 `high` |
+| `backend/internal/service/openai_gateway_grok_test.go` | fork 自有测试 `TestPatchGrokResponsesBodyKeepsXHighForGrok46`、`TestNormalizeGrokChatReasoningEffortKeepsXHighForGrok46`；上游表驱动用例（锁 4.5/4.3 拍平行为）不动 |
+
+#### ⚠ 跨 change 共享文件
+_无 OpenSpec change 共享。_ 但 `openai_gateway_grok.go` 另叠加「[未纳入 OpenSpec](#未纳入-openspec-的客制化)」的 OpenAI ops 观测补丁（transport-error 调用点的 `safeUpstreamURL` 参数），rebase 时两个补丁都要保留。
+
+#### 关联 commits
+- `907eb862c` fix(grok): pass xhigh reasoning effort through for grok-4.6
 
 ---
 
