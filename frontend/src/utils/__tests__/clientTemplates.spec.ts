@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   buildCcsImportDeeplink,
+  buildClientTemplateContext,
+  buildShellTemplateContext,
   loadStaticClientTemplatesConfig,
   normalizeClientTemplatesConfig,
   resolveClientTemplatesConfig,
@@ -22,6 +24,56 @@ describe('clientTemplates', () => {
         apiKey: 'sk-test'
       })
     ).toBe('base=https://example.com; key=sk-test; missing=${missing}')
+  })
+
+  it('renders one env template into a pasteable command for every shell', () => {
+    const envTemplate = '${envSetPrefix}SUB2API_KEY=${envQuote}${apiKey}${envQuote}'
+    const pathTemplate = '${configDir}${pathSep}config.toml'
+    const render = (shell: string) => {
+      const context = {
+        ...buildShellTemplateContext(shell),
+        apiKey: 'sk-test',
+        configDir: shell === 'unix' ? '~/.codex' : '%userprofile%\\.codex'
+      }
+      return {
+        label: context.shellLabel,
+        env: renderTemplateString(envTemplate, context),
+        path: renderTemplateString(pathTemplate, context)
+      }
+    }
+
+    expect(render('unix')).toEqual({
+      label: 'Terminal',
+      env: 'export SUB2API_KEY="sk-test"',
+      path: '~/.codex/config.toml'
+    })
+    expect(render('cmd')).toEqual({
+      label: 'Command Prompt',
+      env: 'set SUB2API_KEY=sk-test',
+      path: '%userprofile%\\.codex\\config.toml'
+    })
+    expect(render('powershell')).toEqual({
+      label: 'PowerShell',
+      env: '$env:SUB2API_KEY="sk-test"',
+      path: '%userprofile%\\.codex\\config.toml'
+    })
+    // The Codex-style tab strip only exposes a single "Windows" tab.
+    expect(render('windows')).toEqual(render('powershell'))
+    // Unknown/absent shell must stay on the POSIX defaults.
+    expect(buildShellTemplateContext('')).toEqual(buildShellTemplateContext('unix'))
+  })
+
+  it('exposes shell placeholders through the template context builder', () => {
+    expect(buildClientTemplateContext({
+      rawBaseUrl: 'https://example.com/v1',
+      apiKey: 'sk-test',
+      shell: 'windows'
+    })).toMatchObject({
+      shellLabel: 'PowerShell',
+      envSetPrefix: '$env:',
+      envQuote: '"',
+      pathSep: '\\'
+    })
   })
 
   it('builds ccs deeplink from template params and encodes usage script', () => {
