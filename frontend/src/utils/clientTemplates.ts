@@ -33,6 +33,8 @@ interface BuildTemplateContextOptions {
   platform?: string
   clientType?: string
   providerName?: string
+  /** Active shell tab id: 'unix' | 'cmd' | 'powershell' | 'windows'. */
+  shell?: string
 }
 
 const STATIC_CLIENT_TEMPLATES_PATHS = ['/template/client-templates.json', '/client-templates.json']
@@ -173,6 +175,39 @@ export function resolveBaseUrls(rawBaseUrl: string): ResolvedBaseUrls {
   }
 }
 
+/**
+ * Shell-aware placeholders.
+ *
+ * A template's `files` list is rendered once, for whichever shell tab is active,
+ * so a hardcoded `export FOO="bar"` inside a template leaks a POSIX-only command
+ * into the Windows tabs. Two alternatives were rejected: duplicating every file
+ * per shell (template authors would have to repeat the whole list, and the
+ * renderer would need a path-matching filter rule), and a single all-in-one
+ * `${envSetCommand}` placeholder (the `${...}` syntax takes no arguments, so it
+ * could not carry the variable name). Instead we expose small primitives that
+ * compose into a pasteable command for any variable name:
+ *
+ *   `${envSetPrefix}FOO=${envQuote}bar${envQuote}`
+ *     unix                -> export FOO="bar"
+ *     windows/powershell  -> $env:FOO="bar"
+ *     cmd                 -> set FOO=bar
+ *
+ * `envSetPrefix` carries the trailing space where the shell needs one; `envQuote`
+ * is empty on cmd, where quotes would become part of the value.
+ */
+export function buildShellTemplateContext(shell: string): TemplateContext {
+  switch (shell) {
+    case 'cmd':
+      return { shellLabel: 'Command Prompt', envSetPrefix: 'set ', envQuote: '', pathSep: '\\' }
+    case 'powershell':
+    case 'windows':
+      // Codex-style tabs only offer a single "Windows" tab; PowerShell is its default shell.
+      return { shellLabel: 'PowerShell', envSetPrefix: '$env:', envQuote: '"', pathSep: '\\' }
+    default:
+      return { shellLabel: 'Terminal', envSetPrefix: 'export ', envQuote: '"', pathSep: '/' }
+  }
+}
+
 export function buildClientTemplateContext({
   rawBaseUrl,
   apiKey,
@@ -181,12 +216,14 @@ export function buildClientTemplateContext({
   app = '',
   platform = '',
   clientType = '',
-  providerName = ''
+  providerName = '',
+  shell = ''
 }: BuildTemplateContextOptions): TemplateContext {
   const urls = resolveBaseUrls(rawBaseUrl)
 
   return {
     ...urls,
+    ...buildShellTemplateContext(shell),
     apiKey,
     configDir,
     endpoint: endpoint ?? urls.apiBase,
