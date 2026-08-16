@@ -314,9 +314,17 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 						)
 						return
 					}
-					if c.Writer.Size() != writerSizeBeforeForward {
+					// 只写出保活注释这类非语义字节时仍可换号：CC 直转流补上
+					// keepalive 后 Writer.Size() 必然变化，若在这里无条件闸死，
+					// 静默拒答等场景会丢掉原本可用的 failover（与 Responses 侧
+					// openAIForwardMayFailover 的口径保持一致）。
+					if !openAIForwardMayFailover(c, writerSizeBeforeForward, failoverErr) {
 						h.handleFailoverExhausted(c, failoverErr, true)
 						return
+					}
+					// 已经提交过响应（保活注释）时，后续错误必须按流式格式回写。
+					if failoverErr.SafeToFailoverAfterWrite && c.Writer.Written() {
+						streamStarted = true
 					}
 					if failoverErr.ShouldReportAccountScheduleFailure() {
 						h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, account.GetMappedModel(reqModel), false, nil)

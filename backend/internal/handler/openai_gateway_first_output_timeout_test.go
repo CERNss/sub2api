@@ -27,6 +27,21 @@ func TestOpenAIForwardMayFailoverOnlyAfterNonSemanticWrite(t *testing.T) {
 	require.False(t, openAIForwardMayFailover(c, before, &service.UpstreamFailoverError{}))
 }
 
+// CC 直转流补上 keepalive 后 Writer.Size() 必然变化，ChatCompletions 的 failover
+// 闸门必须和 Responses 侧共用 openAIForwardMayFailover：直接比 Writer.Size() 会把
+// SafeToFailoverAfterWrite（只写出 SSE 注释）的静默拒答换号无条件闸死。
+// 端到端两账号用例需要完整的账号调度器与仓储，成本远超收益；这里锁定调用口径，
+// 闸门自身的行为由上面的 TestOpenAIForwardMayFailoverOnlyAfterNonSemanticWrite 覆盖。
+func TestOpenAIChatCompletionsFailoverGateUsesSharedWriteGuard(t *testing.T) {
+	source := stripGoComments(goFunctionSource(t, "openai_chat_completions.go", "ChatCompletions"))
+
+	require.Contains(t, source, "openAIForwardMayFailover(c, writerSizeBeforeForward, failoverErr)")
+	require.NotContains(t, source, "c.Writer.Size() != writerSizeBeforeForward",
+		"不得退回按字节数无条件闸死 failover 的旧闸门")
+	require.Contains(t, source, "failoverErr.SafeToFailoverAfterWrite && c.Writer.Written()",
+		"放行后必须按已提交响应改走流式错误格式")
+}
+
 func TestOpenAIFirstOutputFailoverStopsAfterOneAccountSwitch(t *testing.T) {
 	failoverErr := &service.UpstreamFailoverError{SafeToFailoverAfterWrite: true}
 	count := 0
