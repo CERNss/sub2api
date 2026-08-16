@@ -17,6 +17,7 @@
   - [5. user-token-api-key-automation](#5-user-token-api-key-automation)
   - [8. preserve-grok-xhigh-reasoning-effort](#8-preserve-grok-xhigh-reasoning-effort)
   - [9. add-grok-codex-client-template](#9-add-grok-codex-client-template)
+  - [10. keepalive-raw-chat-completions-stream](#10-keepalive-raw-chat-completions-stream)
 - [Archived changes](#archived-changes)
   - [6. support-mounted-frontend-client-templates](#6-support-mounted-frontend-client-templates)
 - [未纳入 OpenSpec 的客制化](#未纳入-openspec-的客制化)
@@ -37,6 +38,7 @@
 | 7 | `add-openai-compatible-prompt-audit`      | ⬆️ upstreamed | 提示词输入审计（Qwen3Guard 三态门禁 + 审计台） | 0 | 0 |
 | 8 | `preserve-grok-xhigh-reasoning-effort`    | 🟢 active   | grok-4.6 保留 xhigh 推理档，不再拍平成 high      | 0 | 2 |
 | 9 | `add-grok-codex-client-template`          | 🟢 active   | Grok 组 Codex tab 支持 grok_codex 模板；CCS 默认 grok-4.6 | 0 | 5 |
+| 10 | `keepalive-raw-chat-completions-stream`  | 🟢 active   | CC 直转流补下游保活 + 上游空闲上限，长思考不再被前置代理判 504 | 0 | 4 |
 
 **状态图例**
 
@@ -290,7 +292,7 @@ _无 OpenSpec change 共享。_ 但 `openai_gateway_grok.go` 另叠加「[未纳
 ### 9. `add-grok-codex-client-template`
 
 - **Capability:** `grok-codex-client-template`
-- **意图:** Grok 组的 Codex tab 此前无条件走内置 grok-4.5 硬编码配置，挂载的 `client-templates.json` 影响不到它。新增 `client_templates.grok_codex` 段：有模板则渲染模板（与 OpenAI 的 `codex` 段同一渲染管线和占位符），无模板回退内置；CCS deeplink 导入的 Grok 默认 model 升到 grok-4.6。
+- **意图:** Grok 组的 Codex tab 此前无条件走内置 grok-4.5 硬编码配置，挂载的 `client-templates.json` 影响不到它。新增 `client_templates.grok_codex` 段：有模板则渲染模板（与 OpenAI 的 `codex` 段同一渲染管线和占位符），无模板回退内置；CCS deeplink 导入的 Grok 默认 model 升到 grok-4.6。2026-08-16 评审 #6 补充：渲染管线新增 shell 感知占位符 `${shellLabel}` / `${envSetPrefix}` / `${envQuote}` / `${pathSep}`（按当前 shell tab 解析），修复模板在 Windows/PowerShell/CMD tab 一律输出 POSIX `export` 与 `/` 路径的问题。注意：**旧前端 + 新模板文件**会把这些占位符渲染成字面量，模板与前端需同批升级（新前端 + 旧模板无损）。
 - **依赖:** 归档 #6（模板加载与渲染管线全部来自它）；部署侧模板文件可提前加 `grok_codex` 段，旧前端忽略未知段无副作用。
 - **Spec 路径:** `openspec/changes/add-grok-codex-client-template/`
 
@@ -300,7 +302,7 @@ _无。本 change 全部为对上游/既有 fork 文件的补丁。_
 #### 上游补丁（rebase 后必须确认仍存在）
 | 路径 | 改动要点 |
 |------|---------|
-| `frontend/src/components/keys/UseKeyModal.vue` | grok 平台 codex tab 先渲染 `clientTemplates.grok_codex.files`（shell 感知 configDir），无模板回退 `generateGrokCodexFiles` |
+| `frontend/src/components/keys/UseKeyModal.vue` | grok 平台 codex tab 先渲染 `clientTemplates.grok_codex.files`（shell 感知 configDir），无模板回退 `generateGrokCodexFiles`；`renderConfiguredFiles` 在占位符替换处传入 `shell: activeTab.value`（shell 感知占位符的唯一接线点，覆盖 codex/grok_codex/opencode 全部模板段） |
 | `frontend/src/components/keys/__tests__/UseKeyModal.spec.ts` | 模板优先于内置的回归测试 |
 | `frontend/src/types/index.ts` | `ClientTemplatesConfig` 增加 `grok_codex` 字段 |
 | `frontend/src/utils/ccswitchImport.ts` | `GROK_CC_SWITCH_MODEL` grok-4.5 → grok-4.6 |
@@ -311,13 +313,41 @@ _无。本 change 全部为对上游/既有 fork 文件的补丁。_
 - `frontend/src/components/keys/UseKeyModal.vue` → 也属于 #6
 - `frontend/src/components/keys/__tests__/UseKeyModal.spec.ts` → 也属于 #6
 - `frontend/src/types/index.ts` → 也属于 #2、#6
-- `frontend/src/utils/clientTemplates.ts` → #6 的新增文件，本 change 给 normalize 白名单加 `grok_codex`
-- `frontend/src/utils/__tests__/clientTemplates.spec.ts` → #6 的新增文件，本 change 加 grok_codex-only 用例
-- `template/client-templates.json` → #6 的新增文件，本 change 加 `grok_codex` 段并移除 `ccs_import` 写死的 model
-- `template/README.md` → #6 的新增文件，本 change 补 grok_codex 与 ccs_import model 说明
+- `frontend/src/utils/clientTemplates.ts` → #6 的新增文件，本 change 给 normalize 白名单加 `grok_codex`，并新增 `buildShellTemplateContext(shell)`（`BuildTemplateContextOptions` 多可选 `shell` 参数、结果 spread 进上下文——上游若改该函数签名需保留这两处）
+- `frontend/src/utils/__tests__/clientTemplates.spec.ts` → #6 的新增文件，本 change 加 grok_codex-only 用例与四种 shell 的占位符解析用例（含 UI 暂不可达的 cmd 分支）
+- `template/client-templates.json` → #6 的新增文件，本 change 加 `grok_codex` 段并移除 `ccs_import` 写死的 model；env 文件改用 `${envSetPrefix}`/`${envQuote}`/`${shellLabel}` 组合、路径改用 `${pathSep}`
+- `template/README.md` → #6 的新增文件，本 change 补 grok_codex 与 ccs_import model 说明、shell-aware placeholders 一节
+- `template/client-templates.bundle.example.json` → #6 的新增文件，本 change 仅同步 `${pathSep}` 写法
+- `template/client-templates.codex.example.json` → #6 的新增文件，本 change 仅同步 `${pathSep}` 写法
 
 #### 关联 commits
 - `1a41cad26` feat(frontend): template-driven grok codex tab and grok-4.6 ccs import
+
+---
+
+### 10. `keepalive-raw-chat-completions-stream`
+
+- **Capability:** `raw-chat-completions-stream-keepalive`
+- **意图:** CC 直转 `streamRawChatCompletions` 是纯逐行透传，上游长思考期间一个字节都不写下游，网关前的反向代理（nginx `proxy_read_timeout` 默认 60s）判空闲掐断，客户端看到 **504**（sub2api 自身从不产生 504）。带 `reasoning_effort` 的 Grok 请求**必定**落这条路径——`grokChatResponsesBridgeEligibility` 对非 null 的 `reasoning_effort` 判 `unsupported_reasoning_effort` 后回落 raw；effort 越高静默越久。`/v1/responses` 主路径与 Grok OAuth bridge 早已有保活，raw 是本故障链上的缺口；同类缺口在 Responses→CC / Messages→CC 两条回退路径仍存在（不在本 change 范围，见 design.md 遗留项）。
+- **退场条件:** 上游自行给 `streamRawChatCompletions` 补上 keepalive 后，本 change 转 ⬆️ upstreamed。
+- **Spec 路径:** `openspec/changes/keepalive-raw-chat-completions-stream/`
+
+#### 新增文件
+_无。本 change 全部为对上游文件的补丁。_
+
+#### 上游补丁（rebase 后必须确认仍存在）
+| 路径 | 改动要点 |
+|------|---------|
+| `backend/internal/service/openai_gateway_chat_completions_raw.go` | 逐行同步循环重构为「读协程 + `select`」（与姊妹函数 `handleChatStreamingResponse` 同构）；新增 `keepaliveInterval`（`gateway.stream_keepalive_interval`，空闲写 `:\n\n`）与 `streamInterval`（Grok 走 `resolveGrokStreamIdleTimeout`，其余走 `gateway.stream_data_interval_timeout`）；`keepaliveWritten` 驱动静默拒答 failover 的 `SafeToFailoverAfterWrite`；`midFrame` 让保活只发生在 SSE 帧边界；`newStreamHeaderWriter` 的用法换成本地两段式提交（`commitStableSSEHeaders` 只提交稳定 SSE 头，`writeStreamHeaders` 才透传上游响应头）；两个定时器都关闭时保留原同步快路径 |
+| `backend/internal/service/openai_gateway_chat_completions_raw_test.go` | fork 自有测试 `TestForwardAsRawChatCompletions_KeepaliveKeepsSilentThinkingStreamAlive`、`..._SilentRefusalAfterKeepaliveStaysFailoverable`、`..._StreamIdleTimeoutKeepsPartialUsage`、`..._KeepaliveCommitsOnlyStableSSEHeaders`、`..._KeepaliveDoesNotSplitInProgressFrame` 与 `grokRawChatCompletionsTestAccount` 辅助函数；上游既有用例零修改（其上游体是 `strings.Reader`，一次性返回，仍走同步快路径） |
+| `backend/internal/handler/openai_chat_completions.go` | `ChatCompletions` 的 failover 闸门由 `c.Writer.Size() != writerSizeBeforeForward` 改为同包既有的 `openAIForwardMayFailover(...)`（保活写出的非语义字节不再闸死换号），放行后按 Responses 侧先例补 `SafeToFailoverAfterWrite && c.Writer.Written()` → `streamStarted = true`；计费入参与 `RecordUsage` 提交抽成 `submitUsageRecord` 闭包，非 failover 的普通错误分支在 `result` 带非零 token 时也落账（空闲超时的部分 usage 不再丢弃；failover 分支刻意不计费以免跨 attempt 重复） |
+| `backend/internal/handler/openai_gateway_first_output_timeout_test.go` | fork 自有测试 `TestOpenAIChatCompletionsFailoverGateUsesSharedWriteGuard`（源码级契约，锁定闸门口径不回退到按字节数判定） |
+
+#### ⚠ 跨 change 共享文件
+_无。_ 这四个文件在本 change 之前与上游 `main` 零差异，也不叠加任何未纳入 OpenSpec 的补丁。
+
+#### 关联 commits
+- _待提交。_
 
 ---
 
