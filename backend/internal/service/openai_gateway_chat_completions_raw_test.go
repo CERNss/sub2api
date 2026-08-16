@@ -15,6 +15,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
+	"github.com/Wei-Shaw/sub2api/internal/util/responseheaders"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -493,6 +494,243 @@ func TestForwardAsRawChatCompletions_SilentRefusalTriggersFailover(t *testing.T)
 	require.True(t, IsOpenAISilentRefusalErrorBody(failoverErr.ResponseBody))
 	require.False(t, c.Writer.Written(), "silent refusal must not commit a 200 response before failover")
 	require.Empty(t, rec.Body.String())
+}
+
+// 长思考期间上游一个字节都不发，CC 直转此前完全不写下游，网关前的反向代理
+// （nginx proxy_read_timeout 默认 60s）会把连接判死并回 504。带 reasoning_effort
+// 的 Grok 请求必定落在本路径（bridge 判 unsupported_reasoning_effort 后回落），
+// 所以这条保活是该场景唯一的护栏。
+func TestForwardAsRawChatCompletions_KeepaliveKeepsSilentThinkingStreamAlive(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	body := []byte(`{"model":"grok-4.6","messages":[{"role":"user","content":"hi"}],"stream":true,"reasoning_effort":"xhigh"}`)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	pr, pw := io.Pipe()
+	go func() {
+		// 模拟长思考静默。间隔 1s、数据 2.5s 后到达：给首个 tick 留 1.5s 投递
+		// 余量，避免高负载 CI 上 ticker 迟到导致保活未写而假失败。
+		time.Sleep(2500 * time.Millisecond)
+		_, _ = io.WriteString(pw, `data: {"id":"chatcmpl_keepalive","object":"chat.completion.chunk","model":"grok-4.6","choices":[{"index":0,"delta":{"content":"answer"},"finish_reason":null}]}`+"\n\n")
+		_, _ = io.WriteString(pw, `data: {"id":"chatcmpl_keepalive","object":"chat.completion.chunk","model":"grok-4.6","choices":[],"usage":{"prompt_tokens":3,"completion_tokens":5,"total_tokens":8}}`+"\n\n")
+		_, _ = io.WriteString(pw, "data: [DONE]\n\n")
+		_ = pw.Close()
+	}()
+
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_keepalive"}},
+		Body:       pr,
+	}}
+
+	cfg := rawChatCompletionsTestConfig()
+	// 配置校验只允许 0 或 5-30 秒；这里直接置字段以缩短用例耗时。
+	cfg.Gateway.StreamKeepaliveInterval = 1
+	svc := &OpenAIGatewayService{cfg: cfg, httpUpstream: upstream}
+
+	result, err := svc.forwardAsRawChatCompletions(context.Background(), c, rawChatCompletionsTestAccount(), body, "")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	out := rec.Body.String()
+	require.Contains(t, out, ":\n\n", "上游静默期间必须写出 SSE 注释保活")
+	require.Contains(t, out, `"content":"answer"`)
+	require.Contains(t, out, "data: [DONE]")
+	require.Equal(t, 3, result.Usage.InputTokens)
+	require.Equal(t, 5, result.Usage.OutputTokens)
+}
+
+// 保活写出的只是 SSE 注释这类非语义字节：响应虽已提交为 200，静默拒答仍必须
+// 能切换账号，否则加了保活反而把 failover 堵死。
+func TestForwardAsRawChatCompletions_SilentRefusalAfterKeepaliveStaysFailoverable(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	body := largeRawChatCompletionsBody()
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	pr, pw := io.Pipe()
+	go func() {
+		time.Sleep(2500 * time.Millisecond) // 同上：给保活 tick 留足投递余量
+		_, _ = io.WriteString(pw, `data: {"id":"chatcmpl_silent_ka","object":"chat.completion.chunk","model":"gpt-5.5","choices":[{"index":0,"delta":{"role":"assistant"}}]}`+"\n\n")
+		_, _ = io.WriteString(pw, `data: {"id":"chatcmpl_silent_ka","object":"chat.completion.chunk","model":"gpt-5.5","choices":[{"index":0,"delta":{"content":""},"finish_reason":"stop"}]}`+"\n\n")
+		_, _ = io.WriteString(pw, "data: [DONE]\n\n")
+		_ = pw.Close()
+	}()
+
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_silent_ka"}},
+		Body:       pr,
+	}}
+
+	cfg := rawChatCompletionsTestConfig()
+	cfg.Gateway.StreamKeepaliveInterval = 1
+	svc := &OpenAIGatewayService{cfg: cfg, httpUpstream: upstream}
+
+	result, err := svc.forwardAsRawChatCompletions(context.Background(), c, rawChatCompletionsTestAccount(), body, "")
+	require.Nil(t, result)
+	var failoverErr *UpstreamFailoverError
+	require.True(t, errors.As(err, &failoverErr))
+	require.True(t, IsOpenAISilentRefusalErrorBody(failoverErr.ResponseBody))
+	require.True(t, failoverErr.SafeToFailoverAfterWrite, "仅写出保活注释时必须仍可切换账号")
+	require.Contains(t, rec.Body.String(), ":\n\n")
+	require.NotContains(t, rec.Body.String(), "chatcmpl_silent_ka", "静默拒答不得把缓冲的语义帧放给客户端")
+}
+
+// 保活会让下游连接一直活着，挂死的上游必须由空闲上限收口；同时已经观测到的
+// usage 不能随错误一起丢掉——handler 的非 failover 错误分支要拿这份部分结果落账。
+func TestForwardAsRawChatCompletions_StreamIdleTimeoutKeepsPartialUsage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	for _, tc := range []struct {
+		name    string
+		account func() *Account
+	}{
+		{name: "non_grok", account: rawChatCompletionsTestAccount},
+		// Grok 走 resolveGrokStreamIdleTimeout：配置为正值时优先取配置，
+		// 因此同一个 cfgSec=1 对两类账号都生效。
+		{name: "grok", account: grokRawChatCompletionsTestAccount},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			body := []byte(`{"model":"grok-4.6","messages":[{"role":"user","content":"hi"}],"stream":true}`)
+			rec := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(rec)
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
+			c.Request.Header.Set("Content-Type", "application/json")
+
+			pr, pw := io.Pipe()
+			// 上游发完一个带 usage 的 chunk 后永久挂起：不再写、也不关闭 pipe。
+			t.Cleanup(func() { _ = pw.Close() })
+			go func() {
+				_, _ = io.WriteString(pw, `data: {"id":"chatcmpl_idle","object":"chat.completion.chunk","model":"grok-4.6","choices":[{"index":0,"delta":{"content":"partial"},"finish_reason":null}],"usage":{"prompt_tokens":3,"completion_tokens":5,"total_tokens":8}}`+"\n\n")
+			}()
+
+			upstream := &httpUpstreamRecorder{resp: &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+				Body:       pr,
+			}}
+
+			cfg := rawChatCompletionsTestConfig()
+			// 配置校验只允许 0 或 30-300 秒；这里直接置字段以缩短用例耗时。
+			cfg.Gateway.StreamDataIntervalTimeout = 1
+			svc := &OpenAIGatewayService{cfg: cfg, httpUpstream: upstream}
+
+			result, err := svc.forwardAsRawChatCompletions(context.Background(), c, tc.account(), body, "")
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "stream data interval timeout")
+			require.NotNil(t, result, "空闲超时必须带回部分结果，否则已观测的 usage 无法计费")
+			require.Equal(t, 3, result.Usage.InputTokens)
+			require.Equal(t, 5, result.Usage.OutputTokens)
+		})
+	}
+}
+
+// 保活先于任何语义输出发生时只能提交稳定 SSE 头：上游 x-request-id 这类
+// attempt 专属的头一旦定格，后续换号的成功账号就再也换不掉了。
+func TestForwardAsRawChatCompletions_KeepaliveCommitsOnlyStableSSEHeaders(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	for _, tc := range []struct {
+		name              string
+		silenceBeforeData time.Duration
+		wantUpstreamRID   string
+	}{
+		// 保活先行：上游响应头必须留白，等待可能的换号。
+		{name: "keepalive_first", silenceBeforeData: 2500 * time.Millisecond, wantUpstreamRID: ""},
+		// 对照组：语义帧先行时上游响应头照旧透传，证明过滤器确实接上了。
+		{name: "data_first", silenceBeforeData: 0, wantUpstreamRID: "rid_attempt_one"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			body := []byte(`{"model":"gpt-5.5","messages":[{"role":"user","content":"hi"}],"stream":true}`)
+			rec := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(rec)
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
+			c.Request.Header.Set("Content-Type", "application/json")
+
+			pr, pw := io.Pipe()
+			go func() {
+				time.Sleep(tc.silenceBeforeData)
+				_, _ = io.WriteString(pw, `data: {"id":"chatcmpl_hdr","object":"chat.completion.chunk","model":"gpt-5.5","choices":[{"index":0,"delta":{"content":"ok"},"finish_reason":null}]}`+"\n\n")
+				_, _ = io.WriteString(pw, "data: [DONE]\n\n")
+				_ = pw.Close()
+			}()
+
+			upstreamHeader := http.Header{"Content-Type": []string{"text/event-stream"}}
+			upstreamHeader.Set("X-Request-Id", "rid_attempt_one")
+			upstream := &httpUpstreamRecorder{resp: &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     upstreamHeader,
+				Body:       pr,
+			}}
+
+			cfg := rawChatCompletionsTestConfig()
+			cfg.Gateway.StreamKeepaliveInterval = 1
+			svc := &OpenAIGatewayService{
+				cfg:                  cfg,
+				httpUpstream:         upstream,
+				responseHeaderFilter: responseheaders.CompileHeaderFilter(config.ResponseHeaderConfig{}),
+			}
+
+			result, err := svc.forwardAsRawChatCompletions(context.Background(), c, rawChatCompletionsTestAccount(), body, "")
+			require.NoError(t, err)
+			require.NotNil(t, result)
+
+			committed := rec.Result().Header
+			require.Equal(t, "text/event-stream", committed.Get("Content-Type"))
+			require.Equal(t, "no-cache", committed.Get("Cache-Control"))
+			require.Equal(t, "no", committed.Get("X-Accel-Buffering"))
+			require.Equal(t, tc.wantUpstreamRID, committed.Get("X-Request-Id"))
+		})
+	}
+}
+
+// SSE 帧以空行结束：上游多行帧发到一半停顿时插入保活注释，注释自带的空行会把
+// 这个帧提前终结，客户端拿到半截帧。保活只允许发生在帧边界。
+func TestForwardAsRawChatCompletions_KeepaliveDoesNotSplitInProgressFrame(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	body := []byte(`{"model":"gpt-5.5","messages":[{"role":"user","content":"hi"}],"stream":true}`)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	pr, pw := io.Pipe()
+	go func() {
+		// 帧中途停顿：保活必须让路。
+		_, _ = io.WriteString(pw, "event: foo\ndata: a\n")
+		time.Sleep(2500 * time.Millisecond)
+		_, _ = io.WriteString(pw, "data: b\n\n")
+		// 帧边界停顿：保活照常发。
+		time.Sleep(2500 * time.Millisecond)
+		_, _ = io.WriteString(pw, "data: [DONE]\n\n")
+		_ = pw.Close()
+	}()
+
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+		Body:       pr,
+	}}
+
+	cfg := rawChatCompletionsTestConfig()
+	cfg.Gateway.StreamKeepaliveInterval = 1
+	svc := &OpenAIGatewayService{cfg: cfg, httpUpstream: upstream}
+
+	result, err := svc.forwardAsRawChatCompletions(context.Background(), c, rawChatCompletionsTestAccount(), body, "")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	out := rec.Body.String()
+	require.Contains(t, out, "event: foo\ndata: a\ndata: b\n\n", "帧中途不得被保活注释劈开")
+	require.Contains(t, out, ":\n\n", "帧边界上的停顿仍必须发保活")
+	require.Contains(t, out, "data: [DONE]")
 }
 
 func TestForwardAsRawChatCompletions_SilentRefusalToolCallsExempt(t *testing.T) {
@@ -1189,6 +1427,15 @@ func rawChatCompletionsTestAccount() *Account {
 			"base_url": "http://upstream.example",
 		},
 	}
+}
+
+// grokRawChatCompletionsTestAccount 只改平台：CC 直转的 Grok 分支据此改用
+// resolveGrokStreamIdleTimeout 解析上游读空闲上限。
+func grokRawChatCompletionsTestAccount() *Account {
+	account := rawChatCompletionsTestAccount()
+	account.Name = "raw-grok-apikey"
+	account.Platform = PlatformGrok
+	return account
 }
 
 func largeRawChatCompletionsBody() []byte {
