@@ -708,7 +708,11 @@ function renderConfiguredFiles(
     endpoint,
     app,
     platform: props.platform ?? '',
-    clientType: activeClientTab.value
+    clientType: activeClientTab.value,
+    // Feeds the shell-aware placeholders (${envSetPrefix} / ${envQuote} /
+    // ${shellLabel} / ${pathSep}) so one template file renders a pasteable
+    // command on every shell tab instead of a POSIX-only `export`.
+    shell: activeTab.value
   }))
 }
 

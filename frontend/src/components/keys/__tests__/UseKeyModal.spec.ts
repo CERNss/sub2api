@@ -393,6 +393,70 @@ describe('UseKeyModal', () => {
     expect(allCode).not.toContain('SUB2API_API_KEY')
   })
 
+  it('renders shell-aware grok_codex template placeholders per shell tab', async () => {
+    // Mirrors template/client-templates.json: one env file that must stay
+    // pasteable on every shell tab instead of always emitting `export`.
+    const wrapper = mount(UseKeyModal, {
+      props: {
+        show: true,
+        apiKey: 'sk-grok-shell-test',
+        baseUrl: 'https://example.com/v1',
+        platform: 'grok',
+        clientTemplates: {
+          grok_codex: {
+            files: [
+              {
+                path: '${shellLabel}',
+                content: '${envSetPrefix}SUB2API_KEY=${envQuote}${apiKey}${envQuote}'
+              },
+              {
+                path: '${configDir}${pathSep}config.toml',
+                content: 'base_url = "${apiBase}"'
+              }
+            ]
+          }
+        }
+      },
+      global: {
+        stubs: {
+          BaseDialog: {
+            template: '<div><slot /><slot name="footer" /></div>'
+          },
+          Icon: {
+            template: '<span />'
+          }
+        }
+      }
+    })
+
+    const readCode = () => wrapper.findAll('pre code').map((code) => code.text()).join('\n')
+    const readPaths = () => wrapper.findAll('span.font-mono').map((label) => label.text())
+
+    const codexTab = wrapper.findAll('button').find((button) =>
+      button.text().includes('keys.useKeyModal.cliTabs.codexCli')
+    )
+    expect(codexTab).toBeDefined()
+    await codexTab!.trigger('click')
+    await nextTick()
+
+    expect(readCode()).toContain('export SUB2API_KEY="sk-grok-shell-test"')
+    expect(readPaths()).toContain('Terminal')
+    expect(readPaths()).toContain('~/.codex/config.toml')
+
+    const windowsTab = wrapper.findAll('button').find(
+      (button) => button.text().trim() === 'Windows'
+    )
+    expect(windowsTab).toBeDefined()
+    await windowsTab!.trigger('click')
+    await nextTick()
+
+    // Windows tab defaults to PowerShell: no POSIX `export` may survive here.
+    expect(readCode()).toContain('$env:SUB2API_KEY="sk-grok-shell-test"')
+    expect(readCode()).not.toContain('export SUB2API_KEY')
+    expect(readPaths()).toContain('PowerShell')
+    expect(readPaths()).toContain('%userprofile%\\.codex\\config.toml')
+  })
+
   it('keeps legacy OpenAI Codex config as the default', () => {
     const wrapper = mount(UseKeyModal, {
       props: {
