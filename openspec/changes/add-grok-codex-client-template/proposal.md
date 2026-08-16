@@ -10,6 +10,7 @@ The Use-Key modal's Codex tab for OpenAI groups is template-driven (`client_temp
 - `normalizeClientTemplatesConfig` recognizes `grok_codex` as a known section, so a template file defining only `grok_codex` is accepted.
 - `GROK_CC_SWITCH_MODEL` (CCS deeplink import for Grok groups) bumped `grok-4.5` → `grok-4.6`.
 - Bundled `template/client-templates.json` gains a mount-ready `grok_codex` section (grok-4.6 + `xhigh`, `${apiBase}` / `${apiKey}` placeholders) and drops the hardcoded `"model": "gpt-5.5"` from `ccs_import.params` (it leaked into every platform's import); `template/README.md` documents both.
+- Shell-aware placeholders (review #6 follow-up, 2026-08-16): `buildShellTemplateContext(shell)` adds `${shellLabel}` / `${envSetPrefix}` / `${envQuote}` / `${pathSep}` resolved against the active shell tab, wired at the single `renderConfiguredFiles` substitution site; the bundled grok_codex env file composes them so Windows/PowerShell/CMD tabs render paste-able commands instead of a POSIX `export`. Old frontends render unknown placeholders literally — ship template and frontend updates together (new frontend + old template is unaffected).
 
 ## Capabilities
 
@@ -38,13 +39,15 @@ The Use-Key modal's Codex tab for OpenAI groups is template-driven (`client_temp
 - `frontend/src/utils/__tests__/ccswitchImport.spec.ts`: pinned-model assertion updated.
 
 ### Shared Touchpoints
-- `frontend/src/components/keys/UseKeyModal.vue`: also owned by `2026-04-28-support-mounted-frontend-client-templates` — keep both the codex/opencode template hooks and the grok_codex hook.
-- `frontend/src/components/keys/__tests__/UseKeyModal.spec.ts`: also owned by `2026-04-28-support-mounted-frontend-client-templates`.
+- `frontend/src/components/keys/UseKeyModal.vue`: also owned by `2026-04-28-support-mounted-frontend-client-templates` — keep both the codex/opencode template hooks and the grok_codex hook; `renderConfiguredFiles` passes `shell: activeTab.value` into placeholder substitution (sole wiring point for shell-aware placeholders).
+- `frontend/src/components/keys/__tests__/UseKeyModal.spec.ts`: also owned by `2026-04-28-support-mounted-frontend-client-templates`; includes the Windows-tab shell-aware rendering regression.
 - `frontend/src/types/index.ts`: also owned by `2026-04-28-support-mounted-frontend-client-templates` (and `add-external-custom-menu-token-open`) — preserve `PublicSettings`, `CustomMenuItem`, and `grok_codex` extensions together.
-- `frontend/src/utils/clientTemplates.ts`: also owned by `2026-04-28-support-mounted-frontend-client-templates` — normalize whitelist gains `grok_codex`.
-- `frontend/src/utils/__tests__/clientTemplates.spec.ts`: also owned by `2026-04-28-support-mounted-frontend-client-templates`.
-- `template/client-templates.json`: also owned by `2026-04-28-support-mounted-frontend-client-templates` — bundled default gains `grok_codex`, `ccs_import` loses hardcoded model.
-- `template/README.md`: also owned by `2026-04-28-support-mounted-frontend-client-templates`.
+- `frontend/src/utils/clientTemplates.ts`: also owned by `2026-04-28-support-mounted-frontend-client-templates` — normalize whitelist gains `grok_codex`; adds `buildShellTemplateContext(shell)` (`${shellLabel}` / `${envSetPrefix}` / `${envQuote}` / `${pathSep}`), and `BuildTemplateContextOptions` gains an optional `shell` spread into the context.
+- `frontend/src/utils/__tests__/clientTemplates.spec.ts`: also owned by `2026-04-28-support-mounted-frontend-client-templates`; covers all four shell mappings (including the UI-unreachable `cmd`) and unknown-shell fallback.
+- `template/client-templates.json`: also owned by `2026-04-28-support-mounted-frontend-client-templates` — bundled default gains `grok_codex`, `ccs_import` loses hardcoded model; the grok_codex env file uses `${envSetPrefix}`/`${envQuote}`/`${shellLabel}` and paths use `${pathSep}` so every shell tab renders a paste-able command.
+- `template/README.md`: also owned by `2026-04-28-support-mounted-frontend-client-templates`; documents the shell-aware placeholders.
+- `template/client-templates.bundle.example.json`: also owned by `2026-04-28-support-mounted-frontend-client-templates` — `${pathSep}` sync only.
+- `template/client-templates.codex.example.json`: also owned by `2026-04-28-support-mounted-frontend-client-templates` — `${pathSep}` sync only.
 
 ### Non-OpenSpec Overlap
 - _None._
