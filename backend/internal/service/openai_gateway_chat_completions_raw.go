@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
@@ -276,15 +277,74 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 		observer = beginUpstreamResponseModelObservation(c)
 	}
 	requestID := resp.Header.Get("x-request-id")
-	writeStreamHeaders := s.newStreamHeaderWriter(c, resp.Header)
+	// 响应头两段式提交（不能直接复用 newStreamHeaderWriter）：保活先于任何语义
+	// 输出发生，若此时把上游过滤后的响应头（x-request-id / x-ratelimit-* 等）一并
+	// 提交，这些 attempt 专属的头会被失败账号定格，后续换号的成功账号再也换不掉。
+	// 因此保活只提交稳定 SSE 头，上游响应头留到真正写语义帧时才透传。
+	// 代价：保活先行的流，其上游响应头不会出现在下游响应里（本来就无法确定
+	// 最终由哪个账号应答）。幂等判定除本地标记外还看 c.Writer.Written()，
+	// 这样跨 failover attempt 新建的闭包也不会重复提交（WriteFilteredHeaders
+	// 用的是 Add，重复调用会写出重复头）。
+	headersCommitted := false
+	commitStableSSEHeaders := func() {
+		if headersCommitted || c.Writer.Written() {
+			return
+		}
+		headersCommitted = true
+		c.Writer.Header().Set("Content-Type", "text/event-stream")
+		c.Writer.Header().Set("Cache-Control", "no-cache")
+		c.Writer.Header().Set("Connection", "keep-alive")
+		c.Writer.Header().Set("X-Accel-Buffering", "no")
+		c.Writer.WriteHeader(http.StatusOK)
+	}
+	writeStreamHeaders := func() {
+		if headersCommitted || c.Writer.Written() {
+			return
+		}
+		if s.responseHeaderFilter != nil {
+			responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
+		}
+		commitStableSSEHeaders()
+	}
 	scanner := s.newUpstreamSSEScanner(resp.Body)
 
 	var usage OpenAIUsage
 	var firstTokenMs *int
 	clientDisconnected := false
 	clientOutputStarted := false
+	keepaliveWritten := false
+	// midFrame 跟踪「实际写给下游的最后一行是否非空」：SSE 帧以空行结束，若在
+	// 多行帧（event: / 多条 data:）中途插入保活的 `:\n\n`，其中的空行会提前把这
+	// 个帧终结掉，客户端会收到半截帧。缓冲模式（pendingLines 攒着没写下游）不算
+	// midFrame。挂在半截帧上的流由 streamInterval 空闲上限兜底。
+	midFrame := false
 	pendingLines := make([]string, 0, 8)
 	refusalDetector := newOpenAIChatSilentRefusalDetector(requestBodyLen)
+
+	// 下游 keepalive：CC 直转是纯逐行透传，上游长思考期间不产生任何字节，
+	// 网关前的反向代理（nginx proxy_read_timeout 默认 60s、Cloudflare 100s）
+	// 会把空闲连接判死并回 504。Grok 带 reasoning_effort 的请求必定落到本路径
+	// （bridge 对 reasoning_effort 判不合格），effort 越高静默越久，因此这里必须
+	// 与 handleChatStreamingResponse 一样按间隔写 SSE 注释保活。
+	keepaliveInterval := time.Duration(0)
+	if s.cfg != nil && s.cfg.Gateway.StreamKeepaliveInterval > 0 {
+		keepaliveInterval = time.Duration(s.cfg.Gateway.StreamKeepaliveInterval) * time.Second
+	}
+	// 上游读空闲上限：keepalive 会让下游连接一直活着，若不设上限，挂死的上游
+	// 将无限期占住账号并让客户端空等（此前是靠前置代理掐断兜底）。Grok 复用
+	// 全局 Grok 空闲口径，其余上游沿用 gateway.stream_data_interval_timeout
+	// （置 0 可关闭，保留第三方慢上游的逃生阀）。
+	streamInterval := time.Duration(0)
+	if s.cfg != nil && s.cfg.Gateway.StreamDataIntervalTimeout > 0 {
+		streamInterval = time.Duration(s.cfg.Gateway.StreamDataIntervalTimeout) * time.Second
+	}
+	if account != nil && account.Platform == PlatformGrok {
+		cfgSec := 0
+		if s.cfg != nil {
+			cfgSec = s.cfg.Gateway.StreamDataIntervalTimeout
+		}
+		streamInterval = resolveGrokStreamIdleTimeout(cfgSec)
+	}
 
 	writeLine := func(line string) {
 		if clientDisconnected {
@@ -305,6 +365,7 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 					)
 					return
 				}
+				midFrame = pending != ""
 			}
 			pendingLines = pendingLines[:0]
 			clientOutputStarted = true
@@ -315,11 +376,12 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 				zap.Error(werr),
 				zap.String("request_id", requestID),
 			)
+			return
 		}
+		midFrame = line != ""
 	}
 
-	for scanner.Scan() {
-		line := scanner.Text()
+	processLine := func(line string) {
 		refusalDetector.ObserveSSELine(line)
 		if payload, ok := extractOpenAISSEDataLine(line); ok {
 			trimmedPayload := strings.TrimSpace(payload)
@@ -343,58 +405,181 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 			if !clientDisconnected && clientOutputStarted {
 				c.Writer.Flush()
 			}
-			continue
+			return
 		}
 		if !clientDisconnected && clientOutputStarted {
 			c.Writer.Flush()
 		}
 	}
 
-	if err := scanner.Err(); err != nil {
-		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
-			logger.L().Warn("openai chat_completions raw: stream read error",
-				zap.Error(err),
-				zap.String("request_id", requestID),
-			)
-		}
-	} else if !clientDisconnected && !clientOutputStarted {
-		if refusalDetector.IsSilentRefusal() {
-			return nil, newOpenAISilentRefusalFailoverError(c, account, requestID)
-		}
-		if len(pendingLines) > 0 {
-			writeStreamHeaders()
-			for _, pending := range pendingLines {
-				if _, werr := c.Writer.WriteString(pending + "\n"); werr != nil {
-					clientDisconnected = true
-					logger.L().Debug("openai chat_completions raw: client disconnected during final flush",
-						zap.Error(werr),
-						zap.String("request_id", requestID),
-					)
-					break
-				}
-			}
-			if !clientDisconnected {
-				c.Writer.Flush()
-				clientOutputStarted = true
-			}
+	buildResult := func() *OpenAIForwardResult {
+		return &OpenAIForwardResult{
+			RequestID:                     requestID,
+			Usage:                         usage,
+			Model:                         originalModel,
+			BillingModel:                  billingModel,
+			UpstreamModel:                 upstreamModel,
+			UpstreamResponseModel:         observedUpstreamResponseModel(c),
+			UpstreamResponseModelConflict: observedUpstreamResponseModelConflict(c),
+			UpstreamResponseServiceTier:   observedUpstreamResponseServiceTier(c),
+			ReasoningEffort:               reasoningEffort,
+			ServiceTier:                   resolvedOpenAIUpstreamServiceTier(c, serviceTier),
+			Stream:                        true,
+			Duration:                      time.Since(startTime),
+			FirstTokenMs:                  firstTokenMs,
 		}
 	}
 
-	return &OpenAIForwardResult{
-		RequestID:                     requestID,
-		Usage:                         usage,
-		Model:                         originalModel,
-		BillingModel:                  billingModel,
-		UpstreamModel:                 upstreamModel,
-		UpstreamResponseModel:         observedUpstreamResponseModel(c),
-		UpstreamResponseModelConflict: observedUpstreamResponseModelConflict(c),
-		UpstreamResponseServiceTier:   observedUpstreamResponseServiceTier(c),
-		ReasoningEffort:               reasoningEffort,
-		ServiceTier:                   resolvedOpenAIUpstreamServiceTier(c, serviceTier),
-		Stream:                        true,
-		Duration:                      time.Since(startTime),
-		FirstTokenMs:                  firstTokenMs,
-	}, nil
+	finalize := func(scanErr error) (*OpenAIForwardResult, error) {
+		if scanErr != nil {
+			if !errors.Is(scanErr, context.Canceled) && !errors.Is(scanErr, context.DeadlineExceeded) {
+				logger.L().Warn("openai chat_completions raw: stream read error",
+					zap.Error(scanErr),
+					zap.String("request_id", requestID),
+				)
+			}
+		} else if !clientDisconnected && !clientOutputStarted {
+			if refusalDetector.IsSilentRefusal() {
+				failoverErr := newOpenAISilentRefusalFailoverError(c, account, requestID)
+				// keepalive 只写出 SSE 注释这类非语义字节，响应虽已提交为 200，
+				// 但客户端尚未看到任何模型输出，切换账号仍是安全的。
+				failoverErr.SafeToFailoverAfterWrite = keepaliveWritten
+				return nil, failoverErr
+			}
+			if len(pendingLines) > 0 {
+				writeStreamHeaders()
+				for _, pending := range pendingLines {
+					if _, werr := c.Writer.WriteString(pending + "\n"); werr != nil {
+						clientDisconnected = true
+						logger.L().Debug("openai chat_completions raw: client disconnected during final flush",
+							zap.Error(werr),
+							zap.String("request_id", requestID),
+						)
+						break
+					}
+					midFrame = pending != ""
+				}
+				if !clientDisconnected {
+					c.Writer.Flush()
+					clientOutputStarted = true
+				}
+			}
+		}
+		return buildResult(), nil
+	}
+
+	// keepalive 与空闲上限都关闭时保持原同步快路径，行为零变化。
+	if streamInterval <= 0 && keepaliveInterval <= 0 {
+		for scanner.Scan() {
+			processLine(scanner.Text())
+		}
+		return finalize(scanner.Err())
+	}
+
+	// 需要按时钟推进（保活/空闲判定）时改为读协程 + select，避免被
+	// scanner.Scan() 的阻塞读吞掉定时器。与 handleChatStreamingResponse 同构。
+	type scanEvent struct {
+		line string
+		err  error
+	}
+	events := make(chan scanEvent, 16)
+	done := make(chan struct{})
+	var lastReadAt int64
+	atomic.StoreInt64(&lastReadAt, time.Now().UnixNano())
+	sendEvent := func(ev scanEvent) bool {
+		select {
+		case events <- ev:
+			return true
+		case <-done:
+			return false
+		}
+	}
+	go func() {
+		defer close(events)
+		for scanner.Scan() {
+			atomic.StoreInt64(&lastReadAt, time.Now().UnixNano())
+			if !sendEvent(scanEvent{line: scanner.Text()}) {
+				return
+			}
+		}
+		if err := scanner.Err(); err != nil {
+			_ = sendEvent(scanEvent{err: err})
+		}
+	}()
+	defer close(done)
+
+	var intervalCh <-chan time.Time
+	if streamInterval > 0 {
+		intervalTicker := time.NewTicker(streamInterval)
+		defer intervalTicker.Stop()
+		intervalCh = intervalTicker.C
+	}
+	var keepaliveCh <-chan time.Time
+	if keepaliveInterval > 0 {
+		keepaliveTicker := time.NewTicker(keepaliveInterval)
+		defer keepaliveTicker.Stop()
+		keepaliveCh = keepaliveTicker.C
+	}
+	lastDataAt := time.Now()
+
+	for {
+		select {
+		case ev, ok := <-events:
+			if !ok {
+				return finalize(nil)
+			}
+			if ev.err != nil {
+				return finalize(ev.err)
+			}
+			lastDataAt = time.Now()
+			processLine(ev.line)
+
+		case <-intervalCh:
+			lastRead := time.Unix(0, atomic.LoadInt64(&lastReadAt))
+			if time.Since(lastRead) < streamInterval {
+				continue
+			}
+			// 客户端已断开时只是计费 drain 超时，与真正的上游空闲区分开
+			// （与 handleChatStreamingResponse 的同名分支保持一致）。
+			if clientDisconnected {
+				return buildResult(), fmt.Errorf("stream usage incomplete after timeout")
+			}
+			logger.L().Warn("openai chat_completions raw: stream data interval timeout",
+				zap.String("request_id", requestID),
+				zap.String("model", originalModel),
+				zap.Duration("interval", streamInterval),
+			)
+			return buildResult(), fmt.Errorf("stream data interval timeout")
+
+		case <-keepaliveCh:
+			if clientDisconnected {
+				continue
+			}
+			// 上游帧只发了一半就停顿时不能插注释：注释自带的空行会把这个帧
+			// 提前终结（与 handleStreamingResponseWithReasoning 的 eventInProgress
+			// 分支同构）。半截帧挂死由 streamInterval 兜底。
+			if midFrame {
+				continue
+			}
+			if time.Since(lastDataAt) < keepaliveInterval {
+				continue
+			}
+			// 只提交稳定 SSE 响应头并写一行注释：不透传 attempt 专属的上游响应头、
+			// 不释放 pendingLines、也不置 clientOutputStarted，静默拒答的缓冲与
+			// 判定语义保持原样。
+			commitStableSSEHeaders()
+			if _, werr := fmt.Fprint(c.Writer, ":\n\n"); werr != nil {
+				logger.L().Debug("openai chat_completions raw: client disconnected during keepalive",
+					zap.Error(werr),
+					zap.String("request_id", requestID),
+				)
+				clientDisconnected = true
+				continue
+			}
+			c.Writer.Flush()
+			keepaliveWritten = true
+		}
+	}
 }
 
 // ensureOpenAIChatStreamUsage 确保 raw Chat Completions 流式请求会让上游返回 usage。
