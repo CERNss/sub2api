@@ -12,6 +12,12 @@ When the resolved client templates define `grok_codex.files`, the Use-Key modal'
 - **WHEN** no `grok_codex` section is resolvable
 - **THEN** the tab SHALL render the built-in Grok Codex config unchanged
 
+#### Scenario: Shell-aware placeholders follow the active tab
+- **WHEN** a template uses the shell-aware placeholders (`${shellLabel}`, `${envSetPrefix}`, `${envQuote}`, `${pathSep}`) and the user switches to a Windows shell tab
+- **THEN** the rendered env command SHALL use that shell's assignment form (e.g. `$env:` for PowerShell instead of POSIX `export`)
+- **AND** rendered paths SHALL use that shell's separator
+- **AND** the unix tab SHALL keep rendering the POSIX form
+
 ### Requirement: Template payloads defining only grok_codex SHALL be accepted
 `normalizeClientTemplatesConfig` SHALL treat `grok_codex` as a known section so a template file containing only that section normalizes instead of being discarded.
 
