@@ -30,6 +30,33 @@ Common placeholders:
 - `clientType`
 - `providerName`
 
+Shell-aware placeholders:
+
+A template's `files` list is rendered once, for whichever shell tab the user has
+selected, so a hardcoded `export FOO="bar"` would hand Windows users a command
+they cannot paste. These placeholders resolve against the active shell tab
+(`macOS / Linux`, `Windows` / `PowerShell`, `Windows CMD`):
+
+| Placeholder | macOS / Linux | PowerShell / Windows | Windows CMD |
+| --- | --- | --- | --- |
+| `shellLabel` | `Terminal` | `PowerShell` | `Command Prompt` |
+| `envSetPrefix` | `export ` (trailing space) | `$env:` | `set ` (trailing space) |
+| `envQuote` | `"` | `"` | (empty) |
+| `pathSep` | `/` | `\` | `\` |
+
+Write an environment-variable block once and it stays pasteable everywhere:
+
+```json
+{ "path": "${shellLabel}", "content": "${envSetPrefix}SUB2API_KEY=${envQuote}${apiKey}${envQuote}" }
+```
+
+- macOS / Linux → `export SUB2API_KEY="sk-..."`
+- PowerShell / Windows → `$env:SUB2API_KEY="sk-..."`
+- Windows CMD → `set SUB2API_KEY=sk-...`
+
+Use `${configDir}${pathSep}config.toml` (not a literal `/`) for config file paths
+so the Windows tab shows `%userprofile%\.codex\config.toml`.
+
 Notes:
 
 - `codex.files` is used for the normal Codex tab (OpenAI groups).

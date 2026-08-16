@@ -3,23 +3,23 @@
     "codex": {
       "files": [
         {
-          "path": "${configDir}/config.toml",
+          "path": "${configDir}${pathSep}config.toml",
           "hint": "Custom Codex config template",
           "content": "model_provider = \"OpenAI\"\nmodel = \"gpt-5.5\"\nreview_model = \"gpt-5.4\"\nmodel_reasoning_effort = \"high\"\nplan_mode_reasoning_effort = \"high\"\ndisable_response_storage = true\nnetwork_access = \"enabled\"\nweb_search = \"live\"\nwindows_wsl_setup_acknowledged = true\n\n[model_providers.OpenAI]\nname = \"OpenAI\"\nbase_url = \"${baseUrl}\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
         },
         {
-          "path": "${configDir}/auth.json",
+          "path": "${configDir}${pathSep}auth.json",
           "content": "{\n  \"OPENAI_API_KEY\": \"${apiKey}\"\n}"
         }
       ],
       "websocket_files": [
         {
-          "path": "${configDir}/config.toml",
+          "path": "${configDir}${pathSep}config.toml",
           "hint": "Custom Codex WS config template",
           "content": "model_provider = \"OpenAI\"\nmodel = \"gpt-5.5\"\nreview_model = \"gpt-5.4\"\nmodel_reasoning_effort = \"high\"\nplan_mode_reasoning_effort = \"high\"\ndisable_response_storage = true\nnetwork_access = \"enabled\"\nweb_search = \"live\"\nwindows_wsl_setup_acknowledged = true\n\n[model_providers.OpenAI]\nname = \"OpenAI\"\nbase_url = \"${baseUrl}\"\nwire_api = \"responses\"\nsupports_websockets = true\nrequires_openai_auth = true\n\n[features]\nresponses_websockets_v2 = true"
         },
         {
-          "path": "${configDir}/auth.json",
+          "path": "${configDir}${pathSep}auth.json",
           "content": "{\n  \"OPENAI_API_KEY\": \"${apiKey}\"\n}"
         }
       ]
@@ -27,11 +27,11 @@
     "grok_codex": {
       "files": [
         {
-          "path": "Terminal",
-          "content": "export SUB2API_KEY=\"${apiKey}\""
+          "path": "${shellLabel}",
+          "content": "${envSetPrefix}SUB2API_KEY=${envQuote}${apiKey}${envQuote}"
         },
         {
-          "path": "${configDir}/config.toml",
+          "path": "${configDir}${pathSep}config.toml",
           "hint": "Codex config for a sub2api Grok group (grok-4.6)",
           "content": "# Codex config for a sub2api Grok group (grok-4.6).\n#\n# Required environment variable:\n#   SUB2API_KEY=sk-...\n#\n# Notes:\n# - Do not use model_reasoning_effort = \"none\"; sub2api rejects it.\n# - xhigh requires sub2api >= 0.0.27 (older gateways flatten it to high).\n\nmodel = \"grok-4.6\"\nmodel_provider = \"sub2api\"\nmodel_reasoning_effort = \"xhigh\"\n\napproval_policy = \"on-request\"\nsandbox_mode = \"workspace-write\"\n\n[model_providers.sub2api]\nname = \"sub2api\"\nbase_url = \"${apiBase}\"\nenv_key = \"SUB2API_KEY\"\nwire_api = \"responses\"\nrequest_max_retries = 0\nstream_max_retries = 0\nstream_idle_timeout_ms = 60000"
         }
