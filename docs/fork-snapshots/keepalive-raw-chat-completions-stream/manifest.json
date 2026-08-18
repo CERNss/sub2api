@@ -2,12 +2,29 @@
   "change_id": "keepalive-raw-chat-completions-stream",
   "status": "active",
   "proposal_path": "openspec/changes/keepalive-raw-chat-completions-stream/proposal.md",
-  "captured_at": "2026-08-18T14:08:51+00:00",
-  "captured_at_commit": "6529fd0b41110fa7ed676680a100af310d10f244",
+  "captured_at": "2026-08-18T17:46:08+00:00",
+  "captured_at_commit": "7d18faa0cdadebab8d69af1e219eca81de8e1277",
   "base": "e0c48a19e",
   "base_commit": "e0c48a19ed794a565e3858662520afe0a1f9f0ba",
   "new_files": [],
-  "upstream_patch_files": [],
+  "upstream_patch_files": [
+    {
+      "path": "backend/internal/service/openai_gateway_chat_completions_raw.go",
+      "reason": "逐行同步循环重构为「读协程 + select」，新增 `keepaliveInterval` / `streamInterval` 解析、`keepaliveWritten` / `midFrame` 标记、`processLine` / `buildResult` / `finalize` 三个闭包；`newStreamHeaderWriter` 的用法换成本地两段式提交（`commitStableSSEHeaders` / `writeStreamHeaders`）；两者均关闭时走原同步快路径。"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_chat_completions_raw_test.go",
+      "reason": "fork 自有测试 `TestForwardAsRawChatCompletions_KeepaliveKeepsSilentThinkingStreamAlive`、`..._SilentRefusalAfterKeepaliveStaysFailoverable`、`..._StreamIdleTimeoutKeepsPartialUsage`、`..._KeepaliveCommitsOnlyStableSSEHeaders`、`..._KeepaliveDoesNotSplitInProgressFrame` 与 `grokRawChatCompletionsTestAccount` 辅助函数（上游既有用例不动——它们的上游体是 `strings.Reader`，一次性返回，仍走同步快路径）。"
+    },
+    {
+      "path": "backend/internal/handler/openai_chat_completions.go",
+      "reason": "`ChatCompletions` 的 failover 闸门由 `c.Writer.Size() != writerSizeBeforeForward` 改为 `openAIForwardMayFailover(c, writerSizeBeforeForward, failoverErr)`，放行后按 Responses 侧先例补 `SafeToFailoverAfterWrite && c.Writer.Written()` → `streamStarted = true`。（原「计费闭包 + 非零 token 门槛」半边已于 v0.1.178 被上游 #5730 收编为 `submitChatUsage`，不再是本 change 的补丁面，见 FORK.md #10。）"
+    },
+    {
+      "path": "backend/internal/handler/openai_gateway_first_output_timeout_test.go",
+      "reason": "fork 自有测试 `TestOpenAIChatCompletionsFailoverGateUsesSharedWriteGuard`（源码级契约，锁定闸门口径不回退）。"
+    }
+  ],
   "shared_touchpoints": [],
   "non_openspec_overlap": []
 }

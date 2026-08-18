@@ -42,7 +42,7 @@ SUBSECTIONS = (
     "Non-OpenSpec Overlap",
 )
 
-BULLET_RE = re.compile(r"^-\s+`([^`]+)`\s*:\s*(.+?)\s*$")
+BULLET_RE = re.compile(r"^-\s+`([^`]+)`\s*[:：]\s*(.+?)\s*$")
 NONE_RE = re.compile(r"^-\s+_None\._\s*$", re.IGNORECASE)
 SHARED_OWNER_RE = re.compile(r"also owned by[^`]*`([^`]+)`")
 SUBHEADING_RE = re.compile(r"^###\s+(.+?)\s*$")
