@@ -1,0 +1,654 @@
+diff --git a/backend/internal/handler/openai_chat_completions.go b/backend/internal/handler/openai_chat_completions.go
+index 79709cabb..b3bd479eb 100644
+--- a/backend/internal/handler/openai_chat_completions.go
++++ b/backend/internal/handler/openai_chat_completions.go
+@@ -314,10 +314,18 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
+ 						)
+ 						return
+ 					}
+-					if c.Writer.Size() != writerSizeBeforeForward {
++					// 只写出保活注释这类非语义字节时仍可换号：CC 直转流补上
++					// keepalive 后 Writer.Size() 必然变化，若在这里无条件闸死，
++					// 静默拒答等场景会丢掉原本可用的 failover（与 Responses 侧
++					// openAIForwardMayFailover 的口径保持一致）。
++					if !openAIForwardMayFailover(c, writerSizeBeforeForward, failoverErr) {
+ 						h.handleFailoverExhausted(c, failoverErr, true)
+ 						return
+ 					}
++					// 已经提交过响应（保活注释）时，后续错误必须按流式格式回写。
++					if failoverErr.SafeToFailoverAfterWrite && c.Writer.Written() {
++						streamStarted = true
++					}
+ 					if failoverErr.ShouldReportAccountScheduleFailure() {
+ 						h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, account.GetMappedModel(reqModel), false, nil)
+ 					}
+diff --git a/backend/internal/handler/openai_gateway_first_output_timeout_test.go b/backend/internal/handler/openai_gateway_first_output_timeout_test.go
+index bd7cc7af0..26eb5958c 100644
+--- a/backend/internal/handler/openai_gateway_first_output_timeout_test.go
++++ b/backend/internal/handler/openai_gateway_first_output_timeout_test.go
+@@ -27,6 +27,21 @@ func TestOpenAIForwardMayFailoverOnlyAfterNonSemanticWrite(t *testing.T) {
+ 	require.False(t, openAIForwardMayFailover(c, before, &service.UpstreamFailoverError{}))
+ }
+ 
++// CC 直转流补上 keepalive 后 Writer.Size() 必然变化，ChatCompletions 的 failover
++// 闸门必须和 Responses 侧共用 openAIForwardMayFailover：直接比 Writer.Size() 会把
++// SafeToFailoverAfterWrite（只写出 SSE 注释）的静默拒答换号无条件闸死。
++// 端到端两账号用例需要完整的账号调度器与仓储，成本远超收益；这里锁定调用口径，
++// 闸门自身的行为由上面的 TestOpenAIForwardMayFailoverOnlyAfterNonSemanticWrite 覆盖。
++func TestOpenAIChatCompletionsFailoverGateUsesSharedWriteGuard(t *testing.T) {
++	source := stripGoComments(goFunctionSource(t, "openai_chat_completions.go", "ChatCompletions"))
++
++	require.Contains(t, source, "openAIForwardMayFailover(c, writerSizeBeforeForward, failoverErr)")
++	require.NotContains(t, source, "c.Writer.Size() != writerSizeBeforeForward",
++		"不得退回按字节数无条件闸死 failover 的旧闸门")
++	require.Contains(t, source, "failoverErr.SafeToFailoverAfterWrite && c.Writer.Written()",
++		"放行后必须按已提交响应改走流式错误格式")
++}
++
+ func TestOpenAIFirstOutputFailoverStopsAfterOneAccountSwitch(t *testing.T) {
+ 	failoverErr := &service.UpstreamFailoverError{SafeToFailoverAfterWrite: true}
+ 	count := 0
+diff --git a/backend/internal/service/openai_gateway_chat_completions_raw.go b/backend/internal/service/openai_gateway_chat_completions_raw.go
+index 34c281b28..0ecf37047 100644
+--- a/backend/internal/service/openai_gateway_chat_completions_raw.go
++++ b/backend/internal/service/openai_gateway_chat_completions_raw.go
+@@ -6,6 +6,7 @@ import (
+ 	"fmt"
+ 	"net/http"
+ 	"strings"
++	"sync/atomic"
+ 	"time"
+ 
+ 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+@@ -262,16 +263,75 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
+ 		observer = beginUpstreamResponseModelObservation(c)
+ 	}
+ 	requestID := resp.Header.Get("x-request-id")
+-	writeStreamHeaders := s.newStreamHeaderWriter(c, resp.Header)
++	// 响应头两段式提交（不能直接复用 newStreamHeaderWriter）：保活先于任何语义
++	// 输出发生，若此时把上游过滤后的响应头（x-request-id / x-ratelimit-* 等）一并
++	// 提交，这些 attempt 专属的头会被失败账号定格，后续换号的成功账号再也换不掉。
++	// 因此保活只提交稳定 SSE 头，上游响应头留到真正写语义帧时才透传。
++	// 代价：保活先行的流，其上游响应头不会出现在下游响应里（本来就无法确定
++	// 最终由哪个账号应答）。幂等判定除本地标记外还看 c.Writer.Written()，
++	// 这样跨 failover attempt 新建的闭包也不会重复提交（WriteFilteredHeaders
++	// 用的是 Add，重复调用会写出重复头）。
++	headersCommitted := false
++	commitStableSSEHeaders := func() {
++		if headersCommitted || c.Writer.Written() {
++			return
++		}
++		headersCommitted = true
++		c.Writer.Header().Set("Content-Type", "text/event-stream")
++		c.Writer.Header().Set("Cache-Control", "no-cache")
++		c.Writer.Header().Set("Connection", "keep-alive")
++		c.Writer.Header().Set("X-Accel-Buffering", "no")
++		c.Writer.WriteHeader(http.StatusOK)
++	}
++	writeStreamHeaders := func() {
++		if headersCommitted || c.Writer.Written() {
++			return
++		}
++		if s.responseHeaderFilter != nil {
++			responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
++		}
++		commitStableSSEHeaders()
++	}
+ 	scanner := s.newUpstreamSSEScanner(resp.Body)
+ 
+ 	var usage OpenAIUsage
+ 	var firstTokenMs *int
+ 	clientDisconnected := false
+ 	clientOutputStarted := false
++	keepaliveWritten := false
++	// midFrame 跟踪「实际写给下游的最后一行是否非空」：SSE 帧以空行结束，若在
++	// 多行帧（event: / 多条 data:）中途插入保活的 `:\n\n`，其中的空行会提前把这
++	// 个帧终结掉，客户端会收到半截帧。缓冲模式（pendingLines 攒着没写下游）不算
++	// midFrame。挂在半截帧上的流由 streamInterval 空闲上限兜底。
++	midFrame := false
+ 	pendingLines := make([]string, 0, 8)
+ 	refusalDetector := newOpenAIChatSilentRefusalDetector(requestBodyLen)
+ 
++	// 下游 keepalive：CC 直转是纯逐行透传，上游长思考期间不产生任何字节，
++	// 网关前的反向代理（nginx proxy_read_timeout 默认 60s、Cloudflare 100s）
++	// 会把空闲连接判死并回 504。Grok 带 reasoning_effort 的请求必定落到本路径
++	// （bridge 对 reasoning_effort 判不合格），effort 越高静默越久，因此这里必须
++	// 与 handleChatStreamingResponse 一样按间隔写 SSE 注释保活。
++	keepaliveInterval := time.Duration(0)
++	if s.cfg != nil && s.cfg.Gateway.StreamKeepaliveInterval > 0 {
++		keepaliveInterval = time.Duration(s.cfg.Gateway.StreamKeepaliveInterval) * time.Second
++	}
++	// 上游读空闲上限：keepalive 会让下游连接一直活着，若不设上限，挂死的上游
++	// 将无限期占住账号并让客户端空等（此前是靠前置代理掐断兜底）。Grok 复用
++	// 全局 Grok 空闲口径，其余上游沿用 gateway.stream_data_interval_timeout
++	// （置 0 可关闭，保留第三方慢上游的逃生阀）。
++	streamInterval := time.Duration(0)
++	if s.cfg != nil && s.cfg.Gateway.StreamDataIntervalTimeout > 0 {
++		streamInterval = time.Duration(s.cfg.Gateway.StreamDataIntervalTimeout) * time.Second
++	}
++	if account != nil && account.Platform == PlatformGrok {
++		cfgSec := 0
++		if s.cfg != nil {
++			cfgSec = s.cfg.Gateway.StreamDataIntervalTimeout
++		}
++		streamInterval = resolveGrokStreamIdleTimeout(cfgSec)
++	}
++
+ 	writeLine := func(line string) {
+ 		if clientDisconnected {
+ 			return
+@@ -291,6 +351,7 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
+ 					)
+ 					return
+ 				}
++				midFrame = pending != ""
+ 			}
+ 			pendingLines = pendingLines[:0]
+ 			clientOutputStarted = true
+@@ -301,11 +362,12 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
+ 				zap.Error(werr),
+ 				zap.String("request_id", requestID),
+ 			)
++			return
+ 		}
++		midFrame = line != ""
+ 	}
+ 
+-	for scanner.Scan() {
+-		line := scanner.Text()
++	processLine := func(line string) {
+ 		refusalDetector.ObserveSSELine(line)
+ 		if payload, ok := extractOpenAISSEDataLine(line); ok {
+ 			trimmedPayload := strings.TrimSpace(payload)
+@@ -327,57 +389,180 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
+ 			if !clientDisconnected && clientOutputStarted {
+ 				c.Writer.Flush()
+ 			}
+-			continue
++			return
+ 		}
+ 		if !clientDisconnected && clientOutputStarted {
+ 			c.Writer.Flush()
+ 		}
+ 	}
+ 
+-	if err := scanner.Err(); err != nil {
+-		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+-			logger.L().Warn("openai chat_completions raw: stream read error",
+-				zap.Error(err),
+-				zap.String("request_id", requestID),
+-			)
+-		}
+-	} else if !clientDisconnected && !clientOutputStarted {
+-		if refusalDetector.IsSilentRefusal() {
+-			return nil, newOpenAISilentRefusalFailoverError(c, account, requestID)
++	buildResult := func() *OpenAIForwardResult {
++		return &OpenAIForwardResult{
++			RequestID:                     requestID,
++			Usage:                         usage,
++			Model:                         originalModel,
++			BillingModel:                  billingModel,
++			UpstreamModel:                 upstreamModel,
++			UpstreamResponseModel:         observedUpstreamResponseModel(c),
++			UpstreamResponseModelConflict: observedUpstreamResponseModelConflict(c),
++			ReasoningEffort:               reasoningEffort,
++			ServiceTier:                   serviceTier,
++			Stream:                        true,
++			Duration:                      time.Since(startTime),
++			FirstTokenMs:                  firstTokenMs,
+ 		}
+-		if len(pendingLines) > 0 {
+-			writeStreamHeaders()
+-			for _, pending := range pendingLines {
+-				if _, werr := c.Writer.WriteString(pending + "\n"); werr != nil {
+-					clientDisconnected = true
+-					logger.L().Debug("openai chat_completions raw: client disconnected during final flush",
+-						zap.Error(werr),
+-						zap.String("request_id", requestID),
+-					)
+-					break
+-				}
++	}
++
++	finalize := func(scanErr error) (*OpenAIForwardResult, error) {
++		if scanErr != nil {
++			if !errors.Is(scanErr, context.Canceled) && !errors.Is(scanErr, context.DeadlineExceeded) {
++				logger.L().Warn("openai chat_completions raw: stream read error",
++					zap.Error(scanErr),
++					zap.String("request_id", requestID),
++				)
+ 			}
+-			if !clientDisconnected {
+-				c.Writer.Flush()
+-				clientOutputStarted = true
++		} else if !clientDisconnected && !clientOutputStarted {
++			if refusalDetector.IsSilentRefusal() {
++				failoverErr := newOpenAISilentRefusalFailoverError(c, account, requestID)
++				// keepalive 只写出 SSE 注释这类非语义字节，响应虽已提交为 200，
++				// 但客户端尚未看到任何模型输出，切换账号仍是安全的。
++				failoverErr.SafeToFailoverAfterWrite = keepaliveWritten
++				return nil, failoverErr
++			}
++			if len(pendingLines) > 0 {
++				writeStreamHeaders()
++				for _, pending := range pendingLines {
++					if _, werr := c.Writer.WriteString(pending + "\n"); werr != nil {
++						clientDisconnected = true
++						logger.L().Debug("openai chat_completions raw: client disconnected during final flush",
++							zap.Error(werr),
++							zap.String("request_id", requestID),
++						)
++						break
++					}
++					midFrame = pending != ""
++				}
++				if !clientDisconnected {
++					c.Writer.Flush()
++					clientOutputStarted = true
++				}
+ 			}
+ 		}
++		return buildResult(), nil
+ 	}
+ 
+-	return &OpenAIForwardResult{
+-		RequestID:                     requestID,
+-		Usage:                         usage,
+-		Model:                         originalModel,
+-		BillingModel:                  billingModel,
+-		UpstreamModel:                 upstreamModel,
+-		UpstreamResponseModel:         observedUpstreamResponseModel(c),
+-		UpstreamResponseModelConflict: observedUpstreamResponseModelConflict(c),
+-		ReasoningEffort:               reasoningEffort,
+-		ServiceTier:                   serviceTier,
+-		Stream:                        true,
+-		Duration:                      time.Since(startTime),
+-		FirstTokenMs:                  firstTokenMs,
+-	}, nil
++	// keepalive 与空闲上限都关闭时保持原同步快路径，行为零变化。
++	if streamInterval <= 0 && keepaliveInterval <= 0 {
++		for scanner.Scan() {
++			processLine(scanner.Text())
++		}
++		return finalize(scanner.Err())
++	}
++
++	// 需要按时钟推进（保活/空闲判定）时改为读协程 + select，避免被
++	// scanner.Scan() 的阻塞读吞掉定时器。与 handleChatStreamingResponse 同构。
++	type scanEvent struct {
++		line string
++		err  error
++	}
++	events := make(chan scanEvent, 16)
++	done := make(chan struct{})
++	var lastReadAt int64
++	atomic.StoreInt64(&lastReadAt, time.Now().UnixNano())
++	sendEvent := func(ev scanEvent) bool {
++		select {
++		case events <- ev:
++			return true
++		case <-done:
++			return false
++		}
++	}
++	go func() {
++		defer close(events)
++		for scanner.Scan() {
++			atomic.StoreInt64(&lastReadAt, time.Now().UnixNano())
++			if !sendEvent(scanEvent{line: scanner.Text()}) {
++				return
++			}
++		}
++		if err := scanner.Err(); err != nil {
++			_ = sendEvent(scanEvent{err: err})
++		}
++	}()
++	defer close(done)
++
++	var intervalCh <-chan time.Time
++	if streamInterval > 0 {
++		intervalTicker := time.NewTicker(streamInterval)
++		defer intervalTicker.Stop()
++		intervalCh = intervalTicker.C
++	}
++	var keepaliveCh <-chan time.Time
++	if keepaliveInterval > 0 {
++		keepaliveTicker := time.NewTicker(keepaliveInterval)
++		defer keepaliveTicker.Stop()
++		keepaliveCh = keepaliveTicker.C
++	}
++	lastDataAt := time.Now()
++
++	for {
++		select {
++		case ev, ok := <-events:
++			if !ok {
++				return finalize(nil)
++			}
++			if ev.err != nil {
++				return finalize(ev.err)
++			}
++			lastDataAt = time.Now()
++			processLine(ev.line)
++
++		case <-intervalCh:
++			lastRead := time.Unix(0, atomic.LoadInt64(&lastReadAt))
++			if time.Since(lastRead) < streamInterval {
++				continue
++			}
++			// 客户端已断开时只是计费 drain 超时，与真正的上游空闲区分开
++			// （与 handleChatStreamingResponse 的同名分支保持一致）。
++			if clientDisconnected {
++				return buildResult(), fmt.Errorf("stream usage incomplete after timeout")
++			}
++			logger.L().Warn("openai chat_completions raw: stream data interval timeout",
++				zap.String("request_id", requestID),
++				zap.String("model", originalModel),
++				zap.Duration("interval", streamInterval),
++			)
++			return buildResult(), fmt.Errorf("stream data interval timeout")
++
++		case <-keepaliveCh:
++			if clientDisconnected {
++				continue
++			}
++			// 上游帧只发了一半就停顿时不能插注释：注释自带的空行会把这个帧
++			// 提前终结（与 handleStreamingResponseWithReasoning 的 eventInProgress
++			// 分支同构）。半截帧挂死由 streamInterval 兜底。
++			if midFrame {
++				continue
++			}
++			if time.Since(lastDataAt) < keepaliveInterval {
++				continue
++			}
++			// 只提交稳定 SSE 响应头并写一行注释：不透传 attempt 专属的上游响应头、
++			// 不释放 pendingLines、也不置 clientOutputStarted，静默拒答的缓冲与
++			// 判定语义保持原样。
++			commitStableSSEHeaders()
++			if _, werr := fmt.Fprint(c.Writer, ":\n\n"); werr != nil {
++				logger.L().Debug("openai chat_completions raw: client disconnected during keepalive",
++					zap.Error(werr),
++					zap.String("request_id", requestID),
++				)
++				clientDisconnected = true
++				continue
++			}
++			c.Writer.Flush()
++			keepaliveWritten = true
++		}
++	}
+ }
+ 
+ // ensureOpenAIChatStreamUsage 确保 raw Chat Completions 流式请求会让上游返回 usage。
+diff --git a/backend/internal/service/openai_gateway_chat_completions_raw_test.go b/backend/internal/service/openai_gateway_chat_completions_raw_test.go
+index a80234913..8cf619517 100644
+--- a/backend/internal/service/openai_gateway_chat_completions_raw_test.go
++++ b/backend/internal/service/openai_gateway_chat_completions_raw_test.go
+@@ -15,6 +15,7 @@ import (
+ 
+ 	"github.com/Wei-Shaw/sub2api/internal/config"
+ 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
++	"github.com/Wei-Shaw/sub2api/internal/util/responseheaders"
+ 	"github.com/gin-gonic/gin"
+ 	"github.com/stretchr/testify/require"
+ 	"github.com/tidwall/gjson"
+@@ -495,6 +496,243 @@ func TestForwardAsRawChatCompletions_SilentRefusalTriggersFailover(t *testing.T)
+ 	require.Empty(t, rec.Body.String())
+ }
+ 
++// 长思考期间上游一个字节都不发，CC 直转此前完全不写下游，网关前的反向代理
++// （nginx proxy_read_timeout 默认 60s）会把连接判死并回 504。带 reasoning_effort
++// 的 Grok 请求必定落在本路径（bridge 判 unsupported_reasoning_effort 后回落），
++// 所以这条保活是该场景唯一的护栏。
++func TestForwardAsRawChatCompletions_KeepaliveKeepsSilentThinkingStreamAlive(t *testing.T) {
++	gin.SetMode(gin.TestMode)
++
++	body := []byte(`{"model":"grok-4.6","messages":[{"role":"user","content":"hi"}],"stream":true,"reasoning_effort":"xhigh"}`)
++	rec := httptest.NewRecorder()
++	c, _ := gin.CreateTestContext(rec)
++	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
++	c.Request.Header.Set("Content-Type", "application/json")
++
++	pr, pw := io.Pipe()
++	go func() {
++		// 模拟长思考静默。间隔 1s、数据 2.5s 后到达：给首个 tick 留 1.5s 投递
++		// 余量，避免高负载 CI 上 ticker 迟到导致保活未写而假失败。
++		time.Sleep(2500 * time.Millisecond)
++		_, _ = io.WriteString(pw, `data: {"id":"chatcmpl_keepalive","object":"chat.completion.chunk","model":"grok-4.6","choices":[{"index":0,"delta":{"content":"answer"},"finish_reason":null}]}`+"\n\n")
++		_, _ = io.WriteString(pw, `data: {"id":"chatcmpl_keepalive","object":"chat.completion.chunk","model":"grok-4.6","choices":[],"usage":{"prompt_tokens":3,"completion_tokens":5,"total_tokens":8}}`+"\n\n")
++		_, _ = io.WriteString(pw, "data: [DONE]\n\n")
++		_ = pw.Close()
++	}()
++
++	upstream := &httpUpstreamRecorder{resp: &http.Response{
++		StatusCode: http.StatusOK,
++		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_keepalive"}},
++		Body:       pr,
++	}}
++
++	cfg := rawChatCompletionsTestConfig()
++	// 配置校验只允许 0 或 5-30 秒；这里直接置字段以缩短用例耗时。
++	cfg.Gateway.StreamKeepaliveInterval = 1
++	svc := &OpenAIGatewayService{cfg: cfg, httpUpstream: upstream}
++
++	result, err := svc.forwardAsRawChatCompletions(context.Background(), c, rawChatCompletionsTestAccount(), body, "")
++	require.NoError(t, err)
++	require.NotNil(t, result)
++	out := rec.Body.String()
++	require.Contains(t, out, ":\n\n", "上游静默期间必须写出 SSE 注释保活")
++	require.Contains(t, out, `"content":"answer"`)
++	require.Contains(t, out, "data: [DONE]")
++	require.Equal(t, 3, result.Usage.InputTokens)
++	require.Equal(t, 5, result.Usage.OutputTokens)
++}
++
++// 保活写出的只是 SSE 注释这类非语义字节：响应虽已提交为 200，静默拒答仍必须
++// 能切换账号，否则加了保活反而把 failover 堵死。
++func TestForwardAsRawChatCompletions_SilentRefusalAfterKeepaliveStaysFailoverable(t *testing.T) {
++	gin.SetMode(gin.TestMode)
++
++	body := largeRawChatCompletionsBody()
++	rec := httptest.NewRecorder()
++	c, _ := gin.CreateTestContext(rec)
++	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
++	c.Request.Header.Set("Content-Type", "application/json")
++
++	pr, pw := io.Pipe()
++	go func() {
++		time.Sleep(2500 * time.Millisecond) // 同上：给保活 tick 留足投递余量
++		_, _ = io.WriteString(pw, `data: {"id":"chatcmpl_silent_ka","object":"chat.completion.chunk","model":"gpt-5.5","choices":[{"index":0,"delta":{"role":"assistant"}}]}`+"\n\n")
++		_, _ = io.WriteString(pw, `data: {"id":"chatcmpl_silent_ka","object":"chat.completion.chunk","model":"gpt-5.5","choices":[{"index":0,"delta":{"content":""},"finish_reason":"stop"}]}`+"\n\n")
++		_, _ = io.WriteString(pw, "data: [DONE]\n\n")
++		_ = pw.Close()
++	}()
++
++	upstream := &httpUpstreamRecorder{resp: &http.Response{
++		StatusCode: http.StatusOK,
++		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_silent_ka"}},
++		Body:       pr,
++	}}
++
++	cfg := rawChatCompletionsTestConfig()
++	cfg.Gateway.StreamKeepaliveInterval = 1
++	svc := &OpenAIGatewayService{cfg: cfg, httpUpstream: upstream}
++
++	result, err := svc.forwardAsRawChatCompletions(context.Background(), c, rawChatCompletionsTestAccount(), body, "")
++	require.Nil(t, result)
++	var failoverErr *UpstreamFailoverError
++	require.True(t, errors.As(err, &failoverErr))
++	require.True(t, IsOpenAISilentRefusalErrorBody(failoverErr.ResponseBody))
++	require.True(t, failoverErr.SafeToFailoverAfterWrite, "仅写出保活注释时必须仍可切换账号")
++	require.Contains(t, rec.Body.String(), ":\n\n")
++	require.NotContains(t, rec.Body.String(), "chatcmpl_silent_ka", "静默拒答不得把缓冲的语义帧放给客户端")
++}
++
++// 保活会让下游连接一直活着，挂死的上游必须由空闲上限收口；同时已经观测到的
++// usage 不能随错误一起丢掉——handler 的非 failover 错误分支要拿这份部分结果落账。
++func TestForwardAsRawChatCompletions_StreamIdleTimeoutKeepsPartialUsage(t *testing.T) {
++	gin.SetMode(gin.TestMode)
++
++	for _, tc := range []struct {
++		name    string
++		account func() *Account
++	}{
++		{name: "non_grok", account: rawChatCompletionsTestAccount},
++		// Grok 走 resolveGrokStreamIdleTimeout：配置为正值时优先取配置，
++		// 因此同一个 cfgSec=1 对两类账号都生效。
++		{name: "grok", account: grokRawChatCompletionsTestAccount},
++	} {
++		t.Run(tc.name, func(t *testing.T) {
++			body := []byte(`{"model":"grok-4.6","messages":[{"role":"user","content":"hi"}],"stream":true}`)
++			rec := httptest.NewRecorder()
++			c, _ := gin.CreateTestContext(rec)
++			c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
++			c.Request.Header.Set("Content-Type", "application/json")
++
++			pr, pw := io.Pipe()
++			// 上游发完一个带 usage 的 chunk 后永久挂起：不再写、也不关闭 pipe。
++			t.Cleanup(func() { _ = pw.Close() })
++			go func() {
++				_, _ = io.WriteString(pw, `data: {"id":"chatcmpl_idle","object":"chat.completion.chunk","model":"grok-4.6","choices":[{"index":0,"delta":{"content":"partial"},"finish_reason":null}],"usage":{"prompt_tokens":3,"completion_tokens":5,"total_tokens":8}}`+"\n\n")
++			}()
++
++			upstream := &httpUpstreamRecorder{resp: &http.Response{
++				StatusCode: http.StatusOK,
++				Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
++				Body:       pr,
++			}}
++
++			cfg := rawChatCompletionsTestConfig()
++			// 配置校验只允许 0 或 30-300 秒；这里直接置字段以缩短用例耗时。
++			cfg.Gateway.StreamDataIntervalTimeout = 1
++			svc := &OpenAIGatewayService{cfg: cfg, httpUpstream: upstream}
++
++			result, err := svc.forwardAsRawChatCompletions(context.Background(), c, tc.account(), body, "")
++			require.Error(t, err)
++			require.Contains(t, err.Error(), "stream data interval timeout")
++			require.NotNil(t, result, "空闲超时必须带回部分结果，否则已观测的 usage 无法计费")
++			require.Equal(t, 3, result.Usage.InputTokens)
++			require.Equal(t, 5, result.Usage.OutputTokens)
++		})
++	}
++}
++
++// 保活先于任何语义输出发生时只能提交稳定 SSE 头：上游 x-request-id 这类
++// attempt 专属的头一旦定格，后续换号的成功账号就再也换不掉了。
++func TestForwardAsRawChatCompletions_KeepaliveCommitsOnlyStableSSEHeaders(t *testing.T) {
++	gin.SetMode(gin.TestMode)
++
++	for _, tc := range []struct {
++		name              string
++		silenceBeforeData time.Duration
++		wantUpstreamRID   string
++	}{
++		// 保活先行：上游响应头必须留白，等待可能的换号。
++		{name: "keepalive_first", silenceBeforeData: 2500 * time.Millisecond, wantUpstreamRID: ""},
++		// 对照组：语义帧先行时上游响应头照旧透传，证明过滤器确实接上了。
++		{name: "data_first", silenceBeforeData: 0, wantUpstreamRID: "rid_attempt_one"},
++	} {
++		t.Run(tc.name, func(t *testing.T) {
++			body := []byte(`{"model":"gpt-5.5","messages":[{"role":"user","content":"hi"}],"stream":true}`)
++			rec := httptest.NewRecorder()
++			c, _ := gin.CreateTestContext(rec)
++			c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
++			c.Request.Header.Set("Content-Type", "application/json")
++
++			pr, pw := io.Pipe()
++			go func() {
++				time.Sleep(tc.silenceBeforeData)
++				_, _ = io.WriteString(pw, `data: {"id":"chatcmpl_hdr","object":"chat.completion.chunk","model":"gpt-5.5","choices":[{"index":0,"delta":{"content":"ok"},"finish_reason":null}]}`+"\n\n")
++				_, _ = io.WriteString(pw, "data: [DONE]\n\n")
++				_ = pw.Close()
++			}()
++
++			upstreamHeader := http.Header{"Content-Type": []string{"text/event-stream"}}
++			upstreamHeader.Set("X-Request-Id", "rid_attempt_one")
++			upstream := &httpUpstreamRecorder{resp: &http.Response{
++				StatusCode: http.StatusOK,
++				Header:     upstreamHeader,
++				Body:       pr,
++			}}
++
++			cfg := rawChatCompletionsTestConfig()
++			cfg.Gateway.StreamKeepaliveInterval = 1
++			svc := &OpenAIGatewayService{
++				cfg:                  cfg,
++				httpUpstream:         upstream,
++				responseHeaderFilter: responseheaders.CompileHeaderFilter(config.ResponseHeaderConfig{}),
++			}
++
++			result, err := svc.forwardAsRawChatCompletions(context.Background(), c, rawChatCompletionsTestAccount(), body, "")
++			require.NoError(t, err)
++			require.NotNil(t, result)
++
++			committed := rec.Result().Header
++			require.Equal(t, "text/event-stream", committed.Get("Content-Type"))
++			require.Equal(t, "no-cache", committed.Get("Cache-Control"))
++			require.Equal(t, "no", committed.Get("X-Accel-Buffering"))
++			require.Equal(t, tc.wantUpstreamRID, committed.Get("X-Request-Id"))
++		})
++	}
++}
++
++// SSE 帧以空行结束：上游多行帧发到一半停顿时插入保活注释，注释自带的空行会把
++// 这个帧提前终结，客户端拿到半截帧。保活只允许发生在帧边界。
++func TestForwardAsRawChatCompletions_KeepaliveDoesNotSplitInProgressFrame(t *testing.T) {
++	gin.SetMode(gin.TestMode)
++
++	body := []byte(`{"model":"gpt-5.5","messages":[{"role":"user","content":"hi"}],"stream":true}`)
++	rec := httptest.NewRecorder()
++	c, _ := gin.CreateTestContext(rec)
++	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
++	c.Request.Header.Set("Content-Type", "application/json")
++
++	pr, pw := io.Pipe()
++	go func() {
++		// 帧中途停顿：保活必须让路。
++		_, _ = io.WriteString(pw, "event: foo\ndata: a\n")
++		time.Sleep(2500 * time.Millisecond)
++		_, _ = io.WriteString(pw, "data: b\n\n")
++		// 帧边界停顿：保活照常发。
++		time.Sleep(2500 * time.Millisecond)
++		_, _ = io.WriteString(pw, "data: [DONE]\n\n")
++		_ = pw.Close()
++	}()
++
++	upstream := &httpUpstreamRecorder{resp: &http.Response{
++		StatusCode: http.StatusOK,
++		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
++		Body:       pr,
++	}}
++
++	cfg := rawChatCompletionsTestConfig()
++	cfg.Gateway.StreamKeepaliveInterval = 1
++	svc := &OpenAIGatewayService{cfg: cfg, httpUpstream: upstream}
++
++	result, err := svc.forwardAsRawChatCompletions(context.Background(), c, rawChatCompletionsTestAccount(), body, "")
++	require.NoError(t, err)
++	require.NotNil(t, result)
++
++	out := rec.Body.String()
++	require.Contains(t, out, "event: foo\ndata: a\ndata: b\n\n", "帧中途不得被保活注释劈开")
++	require.Contains(t, out, ":\n\n", "帧边界上的停顿仍必须发保活")
++	require.Contains(t, out, "data: [DONE]")
++}
++
+ func TestForwardAsRawChatCompletions_SilentRefusalToolCallsExempt(t *testing.T) {
+ 	gin.SetMode(gin.TestMode)
+ 
+@@ -791,6 +1029,15 @@ func rawChatCompletionsTestAccount() *Account {
+ 	}
+ }
+ 
++// grokRawChatCompletionsTestAccount 只改平台：CC 直转的 Grok 分支据此改用
++// resolveGrokStreamIdleTimeout 解析上游读空闲上限。
++func grokRawChatCompletionsTestAccount() *Account {
++	account := rawChatCompletionsTestAccount()
++	account.Name = "raw-grok-apikey"
++	account.Platform = PlatformGrok
++	return account
++}
++
+ func largeRawChatCompletionsBody() []byte {
+ 	return []byte(`{"model":"gpt-5.5","messages":[{"role":"user","content":"` +
+ 		strings.Repeat("x", openAISilentRefusalMinRequestBodyBytes) +
