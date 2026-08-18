@@ -340,14 +340,14 @@ _无。本 change 全部为对上游文件的补丁。_
 |------|---------|
 | `backend/internal/service/openai_gateway_chat_completions_raw.go` | 逐行同步循环重构为「读协程 + `select`」（与姊妹函数 `handleChatStreamingResponse` 同构）；新增 `keepaliveInterval`（`gateway.stream_keepalive_interval`，空闲写 `:\n\n`）与 `streamInterval`（Grok 走 `resolveGrokStreamIdleTimeout`，其余走 `gateway.stream_data_interval_timeout`）；`keepaliveWritten` 驱动静默拒答 failover 的 `SafeToFailoverAfterWrite`；`midFrame` 让保活只发生在 SSE 帧边界；`newStreamHeaderWriter` 的用法换成本地两段式提交（`commitStableSSEHeaders` 只提交稳定 SSE 头，`writeStreamHeaders` 才透传上游响应头）；两个定时器都关闭时保留原同步快路径 |
 | `backend/internal/service/openai_gateway_chat_completions_raw_test.go` | fork 自有测试 `TestForwardAsRawChatCompletions_KeepaliveKeepsSilentThinkingStreamAlive`、`..._SilentRefusalAfterKeepaliveStaysFailoverable`、`..._StreamIdleTimeoutKeepsPartialUsage`、`..._KeepaliveCommitsOnlyStableSSEHeaders`、`..._KeepaliveDoesNotSplitInProgressFrame` 与 `grokRawChatCompletionsTestAccount` 辅助函数；上游既有用例零修改（其上游体是 `strings.Reader`，一次性返回，仍走同步快路径） |
-| `backend/internal/handler/openai_chat_completions.go` | `ChatCompletions` 的 failover 闸门由 `c.Writer.Size() != writerSizeBeforeForward` 改为同包既有的 `openAIForwardMayFailover(...)`（保活写出的非语义字节不再闸死换号），放行后按 Responses 侧先例补 `SafeToFailoverAfterWrite && c.Writer.Written()` → `streamStarted = true`；计费入参与 `RecordUsage` 提交抽成 `submitUsageRecord` 闭包，非 failover 的普通错误分支在 `result` 带非零 token 时也落账（空闲超时的部分 usage 不再丢弃；failover 分支刻意不计费以免跨 attempt 重复） |
+| `backend/internal/handler/openai_chat_completions.go` | `ChatCompletions` 的 failover 闸门由 `c.Writer.Size() != writerSizeBeforeForward` 改为同包既有的 `openAIForwardMayFailover(...)`（保活写出的非语义字节不再闸死换号），放行后按 Responses 侧先例补 `SafeToFailoverAfterWrite && c.Writer.Written()` → `streamStarted = true`。～2026-08-18 v0.1.178 rebase：计费闭包半边已被上游收编（`submitChatUsage`，#5148 对齐，错误分支无条件落账、闭包内 nil 守卫，覆盖面比 fork 原「非零 token 才落账」更广，按约定改用上游实现）；fork 对本文件的剩余差异只剩上述闸门与 `streamStarted` 两处 |
 | `backend/internal/handler/openai_gateway_first_output_timeout_test.go` | fork 自有测试 `TestOpenAIChatCompletionsFailoverGateUsesSharedWriteGuard`（源码级契约，锁定闸门口径不回退到按字节数判定） |
 
 #### ⚠ 跨 change 共享文件
 _无。_ 这四个文件在本 change 之前与上游 `main` 零差异，也不叠加任何未纳入 OpenSpec 的补丁。
 
 #### 关联 commits
-- _待提交。_
+- `d46ffcce1` fix(gateway): keep raw chat completions streams alive during long thinking
 
 ---
 

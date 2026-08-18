@@ -140,8 +140,86 @@ index f4ad2fa6b..7b40686bf 100644
  ## ❤️ Sponsors
  
  > [Want to appear here?](mailto:support@sub2api.org)
+diff --git a/README_CN.md b/README_CN.md
+index 2d2a57a9f..8d7be4df6 100644
+--- a/README_CN.md
++++ b/README_CN.md
+@@ -28,6 +28,73 @@
+ - **📖 免责声明**：本项目仅供技术学习与研究使用，作者不对因使用本项目导致的账户封禁、服务中断、数据丢失或其他任何直接或间接损失承担责任。
+ - **🚫 无商业授权**：本项目从未授权任何个人或组织基于本项目开展任何形式的商业化运营。任何以本项目名义或基于本项目从事的商业行为均与本项目及其开发者无关，由此产生的一切纠纷、损失和法律责任由行为主体自行承担。
+ 
++## 新增功能
++
++### Admin API 为指定用户创建/转移 API Key
++
++外部开通、支付或发卡系统可以通过 Admin API Key 为指定用户创建正常可用于 AI 调用的 API Key：
++
++```bash
++POST /api/v1/admin/users/:id/api-keys
++```
++
++目标用户由路径里的 `:id` 指定。请求体支持与用户端“创建密钥”弹窗一致的控制项，包括绑定分组、自定义密钥、IP 限制、额度限制、滚动速率限制和密钥有效期。完整可用密钥会在响应的 `data.api_key.key` 中返回。
++
++Sidecar 集成也可以把已存在的 API Key 转移给正确的所有者，并可选更新分组绑定、额度或清零已用额度：
++
++```bash
++POST /api/v1/admin/api-keys/:id/transfer
++```
++
++转移响应会确认 `data.api_key.user_id`、`quota` 与 `quota_used`，转移成功后会使 API Key 鉴权缓存失效。
++
++### 用户 Token API Key 自动化
++
++外部用户侧工具可以以普通用户身份登录，换取 JWT token 对，然后调用与网页控制台相同的用户 API Key 接口。能力范围与该用户账号完全一致：分组绑定仅限该用户可用分组，Turnstile、backend-mode 登录限制、账号状态校验和 TOTP 2FA 均保持生效。
++
++```bash
++POST /api/v1/auth/token
++POST /api/v1/auth/token/2fa
++POST /api/v1/auth/token/refresh
++```
++
++登录返回 `requires_2fa` 与 `temp_token` 时，用 `/token/2fa` 完成两步验证；用 `/token/refresh` 刷新 access/refresh token 对。拿到 access token 后以 `Authorization: Bearer <access_token>` 调用用户接口：
++
++```bash
++GET  /api/v1/groups/available
++POST /api/v1/keys
++PUT  /api/v1/keys/:id/group
++```
++
++`PUT /api/v1/keys/:id/group` 只轮换 key 绑定的分组，不改变 key 值、额度、有效期、IP 名单、状态和速率限制；`group_id: 0` 表示解绑分组。生成的 API Key 仍是模型网关调用的凭证；登录 JWT 只用于用户 REST API 自动化与密钥管理。
++
++### 自定义菜单外部打开模式
++
++管理员自定义菜单项现在可以在原有 iframe 模式之外选择外部打开模式。外部菜单会在新标签页打开配置的绝对 URL，并把当前 Sub2API JWT 以 `token` 查询参数透传，方便 sidecar 管理工具建立自己的会话。
++
++### OIDC 本地邮箱验证控制
++
++管理员可以保留默认的安全策略，即待处理 OIDC 创建账号仍要求本地邮箱验证码；也可以在上游 OIDC 已提供可信、已验证、非合成的 `compat_email` 时关闭这一步重复验证。
++
++后端会在待处理 OIDC completion 响应中返回 `local_email_verification_required`。前端仅在当前表单邮箱仍等于可信 OIDC 邮箱时隐藏验证码控件；用户修改邮箱后，本地验证会立即恢复。
++
++### 待处理 OAuth 账号流程优化
++
++OIDC、LinuxDo、微信回调页现在会结合 state 与 bindability hints 解析待处理账号动作。当没有可绑定的既有账号且允许创建账号时，新用户会直接进入创建账号流程，不再展示多余的绑定/创建选择页。
++
++### OAuth 邮箱预填优化
++
++待处理 OAuth 的创建账号和绑定登录表单会优先使用更适合用户识别的邮箱，包括 `pending_email`、`existing_account_email` 和 `compat_email`，再回退到 provider 特定字段。当存在更好邮箱时，会避免展示合成的 provider fallback 邮箱。
++
++### OpenSpec 参考
++
++本 README 摘要基于以下 OpenSpec 变更：
++
++- [Admin API 为指定用户创建 API Key](openspec/changes/add-admin-user-api-key-creation/proposal.md)
++- [自定义菜单外部打开模式](openspec/changes/add-external-custom-menu-token-open/proposal.md)
++- [OIDC 本地邮箱验证控制](openspec/changes/control-oidc-local-email-verification/proposal.md)
++- [待处理 OAuth 账号解析优化](openspec/changes/refine-pending-oauth-account-resolution/proposal.md)
++
+ ## ❤️ 赞助商
+ 
+ > [想出现在这里？](mailto:support@sub2api.org)
 diff --git a/backend/internal/handler/admin/setting_handler_update.go b/backend/internal/handler/admin/setting_handler_update.go
-index 5884dc392..890486f11 100644
+index e2399d089..98fb43e67 100644
 --- a/backend/internal/handler/admin/setting_handler_update.go
 +++ b/backend/internal/handler/admin/setting_handler_update.go
 @@ -118,28 +118,29 @@ type UpdateSettingsRequest struct {
@@ -196,7 +274,7 @@ index 5884dc392..890486f11 100644
  
  	GitHubOAuthEnabled             bool   `json:"github_oauth_enabled"`
  	GitHubOAuthClientID            string `json:"github_oauth_client_id"`
-@@ -1274,8 +1275,21 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
+@@ -1275,8 +1276,21 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
  				response.BadRequest(c, "Custom menu item label is too long (max 50 characters)")
  				return
  			}
@@ -218,7 +296,7 @@ index 5884dc392..890486f11 100644
  				// Markdown page mode: URL = "md:<slug>"
  				slug := strings.TrimPrefix(urlTrimmed, "md:")
  				if slug == "" {
-@@ -1539,110 +1553,111 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
+@@ -1540,110 +1554,111 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
  			}
  			return previousSettings.APIKeyACLTrustForwardedIP
  		}(),
@@ -434,7 +512,7 @@ index 5884dc392..890486f11 100644
  		AllowUserViewErrorRequests: func() bool {
  			if req.AllowUserViewErrorRequests != nil {
  				return *req.AllowUserViewErrorRequests
-@@ -2205,6 +2220,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
+@@ -2212,6 +2227,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
  		OIDCConnectAllowedSigningAlgs:                          updatedSettings.OIDCConnectAllowedSigningAlgs,
  		OIDCConnectClockSkewSeconds:                            updatedSettings.OIDCConnectClockSkewSeconds,
  		OIDCConnectRequireEmailVerified:                        updatedSettings.OIDCConnectRequireEmailVerified,
@@ -443,7 +521,7 @@ index 5884dc392..890486f11 100644
  		OIDCConnectUserInfoIDPath:                              updatedSettings.OIDCConnectUserInfoIDPath,
  		OIDCConnectUserInfoUsernamePath:                        updatedSettings.OIDCConnectUserInfoUsernamePath,
 diff --git a/backend/internal/handler/dto/settings.go b/backend/internal/handler/dto/settings.go
-index 5ab5eaa68..9a5c95305 100644
+index f0284eb55..302e0580d 100644
 --- a/backend/internal/handler/dto/settings.go
 +++ b/backend/internal/handler/dto/settings.go
 @@ -13,6 +13,7 @@ type CustomMenuItem struct {
@@ -507,10 +585,10 @@ index 5ab5eaa68..9a5c95305 100644
  	GitHubOAuthEnabled                bool   `json:"github_oauth_enabled"`
  	GitHubOAuthClientID               string `json:"github_oauth_client_id"`
 diff --git a/backend/internal/service/setting_public.go b/backend/internal/service/setting_public.go
-index f292e8ac5..d79672456 100644
+index 81d74aff0..2b6678489 100644
 --- a/backend/internal/service/setting_public.go
 +++ b/backend/internal/service/setting_public.go
-@@ -802,14 +802,16 @@ func parseCustomMenuItemURLs(raw string) []string {
+@@ -814,14 +814,16 @@ func parseCustomMenuItemURLs(raw string) []string {
  		return nil
  	}
  	var items []struct {
@@ -777,7 +855,7 @@ index 8439c23fc..dc4dedc5d 100644
 +  })
 +})
 diff --git a/frontend/src/types/index.ts b/frontend/src/types/index.ts
-index 19ef541bc..3e0eae877 100644
+index eaa585f15..187dcc9b0 100644
 --- a/frontend/src/types/index.ts
 +++ b/frontend/src/types/index.ts
 @@ -188,6 +188,7 @@ export interface CustomMenuItem {
@@ -796,7 +874,7 @@ index 19ef541bc..3e0eae877 100644
    payment_enabled: boolean
    risk_control_enabled: boolean
    table_default_page_size: number
-@@ -523,6 +525,31 @@ export interface PaginationConfig {
+@@ -525,6 +527,32 @@ export interface PaginationConfig {
    page_size: number
  }
  
@@ -820,6 +898,7 @@ index 19ef541bc..3e0eae877 100644
 +
 +export interface ClientTemplatesConfig {
 +  codex?: ClientTemplateSectionConfig
++  grok_codex?: ClientTemplateSectionConfig
 +  opencode?: ClientTemplateSectionConfig
 +  ccs_import?: CcsImportTemplateConfig
 +  [key: string]: ClientTemplateSectionConfig | CcsImportTemplateConfig | undefined
@@ -827,12 +906,12 @@ index 19ef541bc..3e0eae877 100644
 +
  // ==================== API Key & Group Types ====================
  
- export type GroupPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok' | 'composite'
+ export type GroupPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok' | 'kimi' | 'zhipu' | 'deepseek' | 'composite'
 diff --git a/frontend/src/views/admin/SettingsView.vue b/frontend/src/views/admin/SettingsView.vue
-index b153865ff..d5d0419f4 100644
+index 80af0b194..2376401bf 100644
 --- a/frontend/src/views/admin/SettingsView.vue
 +++ b/frontend/src/views/admin/SettingsView.vue
-@@ -3391,7 +3391,7 @@
+@@ -3439,7 +3439,7 @@
                  v-if="form.oidc_connect_enabled"
                  class="space-y-6 border-t border-gray-100 pt-4 dark:border-dark-700"
                >
@@ -841,7 +920,7 @@ index b153865ff..d5d0419f4 100644
                    <div>
                      <label
                        class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
-@@ -3716,6 +3716,25 @@
+@@ -3764,6 +3764,25 @@
                        v-model="form.oidc_connect_require_email_verified"
                      />
                    </div>
@@ -867,7 +946,7 @@ index b153865ff..d5d0419f4 100644
                  </div>
  
                  <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
-@@ -6672,8 +6691,25 @@
+@@ -6720,8 +6739,25 @@
                      </select>
                    </div>
  
@@ -894,7 +973,7 @@ index b153865ff..d5d0419f4 100644
                      <label
                        class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
                      >
-@@ -9490,6 +9526,7 @@ const form = reactive<SettingsForm>({
+@@ -9551,6 +9587,7 @@ const form = reactive<SettingsForm>({
      label: string;
      icon_svg: string;
      url: string;
@@ -902,7 +981,7 @@ index b153865ff..d5d0419f4 100644
      visibility: "user" | "admin";
      sort_order: number;
    }>,
-@@ -9595,6 +9632,7 @@ const form = reactive<SettingsForm>({
+@@ -9656,6 +9693,7 @@ const form = reactive<SettingsForm>({
    oidc_connect_allowed_signing_algs: "RS256,ES256,PS256",
    oidc_connect_clock_skew_seconds: 120,
    oidc_connect_require_email_verified: false,
@@ -910,7 +989,7 @@ index b153865ff..d5d0419f4 100644
    oidc_connect_userinfo_email_path: "",
    oidc_connect_userinfo_id_path: "",
    oidc_connect_userinfo_username_path: "",
-@@ -10459,6 +10497,7 @@ function addMenuItem() {
+@@ -10521,6 +10559,7 @@ function addMenuItem() {
      label: "",
      icon_svg: "",
      url: "",
@@ -918,7 +997,7 @@ index b153865ff..d5d0419f4 100644
      visibility: "user",
      sort_order: form.custom_menu_items.length,
    });
-@@ -10646,11 +10685,26 @@ const codexSyncedVersionLabel = computed(() => {
+@@ -10708,11 +10747,26 @@ const codexSyncedVersionLabel = computed(() => {
    });
  });
  
@@ -945,7 +1024,7 @@ index b153865ff..d5d0419f4 100644
      settings.payment_load_balance_strategy =
        settings.payment_load_balance_strategy || "round-robin";
      // Only assign non-null values from backend (null means unconfigured, keep defaults)
-@@ -11184,6 +11238,8 @@ async function saveSettings() {
+@@ -11249,6 +11303,8 @@ async function saveSettings() {
        oidc_connect_clock_skew_seconds: form.oidc_connect_clock_skew_seconds,
        oidc_connect_require_email_verified:
          form.oidc_connect_require_email_verified,
@@ -955,10 +1034,10 @@ index b153865ff..d5d0419f4 100644
        oidc_connect_userinfo_id_path: form.oidc_connect_userinfo_id_path,
        oidc_connect_userinfo_username_path:
 diff --git a/frontend/src/views/admin/__tests__/SettingsView.spec.ts b/frontend/src/views/admin/__tests__/SettingsView.spec.ts
-index aa81d8f47..31a6116ec 100644
+index bf6fe5e68..1a0edd67f 100644
 --- a/frontend/src/views/admin/__tests__/SettingsView.spec.ts
 +++ b/frontend/src/views/admin/__tests__/SettingsView.spec.ts
-@@ -1110,6 +1110,39 @@ describe("admin SettingsView payment visible method controls", () => {
+@@ -1115,6 +1115,39 @@ describe("admin SettingsView payment visible method controls", () => {
      );
    });
  
