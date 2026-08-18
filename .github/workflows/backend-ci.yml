@@ -80,3 +80,7 @@ jobs:
           version: v2.13
           args: --timeout=30m
           working-directory: backend
+          # 缓存双向失真实录：同一 commit（59fea67）develop push 绿、tag push 红
+          # （7 个幻影 SA5011），本地同版本冷缓存全树 0 issues。全树冷分析仅
+          # ~1 分钟，确定性优先，禁用缓存。
+          skip-cache: true
