@@ -407,7 +407,7 @@ _无。_ 这四个文件在本 change 之前与上游 `main` 零差异，也不�
 | Action 镜像化 | `.github/action-mirrors/**`、`tools/sync-action-mirrors.sh`、`tools/install-goreleaser.sh`、`tools/run-goreleaser-release.sh` | 几乎全新增 |
 | 默认运行参数 | `deploy/docker-compose*.yml`（与 #5 部分重叠） | 补丁 |
 | 文档分支 | `README*.md` 中**非 OpenSpec 功能段落**（如部署/构建说明） | 补丁 |
-| OpenAI ops 观测 | `backend/internal/service/openai_upstream_transport_error.go` 及全部调用点（`openai_*`、`grok_audio.go`、`grok_media.go`、`openai_ws_http_bridge.go`）：`handleOpenAIUpstreamTransportError` 增加 `upstreamURL` 参数，request_error ops 事件标注上游端点。**上游每次新增 transport-error 调用点都会编译失败**，rebase 后按报错逐个补 `safeUpstreamURL(<req>.URL.String())` | 补丁 |
+| OpenAI ops 观测 | `backend/internal/service/openai_upstream_transport_error.go` 及全部调用点（`openai_*`、`grok_audio.go`、`grok_media.go`、`openai_ws_http_bridge.go`）：`handleOpenAIUpstreamTransportError` 增加 `upstreamURL` 参数，request_error ops 事件标注上游端点。**上游每次新增 transport-error 调用点都会编译失败**，rebase 后按报错逐个补 `safeUpstreamURL(<req>.URL.String())`。～2026-08-19 补充：v0.1.178 新增的 anthropic-native 调用点中，`openai_gateway_chat_completions_anthropic_native.go` 与 `openai_gateway_responses_anthropic_native.go` 是**协议转换**路径（非直通），上游误传 `passthrough=true`，fork 已按同类调用点惯例改 `false`（`messages_anthropic_native` 为零转换直通，`true` 正确保留）；下次 rebase 若上游回改需保留此修正 | 补丁 |
 | 前端杂项补丁 | `frontend/src/vite-env.d.ts`（Airwallex SDK 类型声明兜底）、`frontend/src/composables/usePersistedPageSize.ts`（页大小来源追踪，管理员默认值优先于陈旧 localStorage） | 补丁 |
 
 > 这一块文件数量大但大多是 `.github/action-mirrors/` 等"新增目录"，rebase 几乎不会冲突；真正需要看的是 `.goreleaser*.yaml`、`Dockerfile*`、`deploy/docker-compose*.yml` 三处的小补丁。
