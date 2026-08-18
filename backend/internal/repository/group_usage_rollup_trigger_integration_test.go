@@ -472,7 +472,11 @@ func beginGroupUsageRollupTriggerTestTx(t *testing.T, ctx context.Context, schem
 }
 
 func setGroupUsageRollupTriggerSearchPath(ctx context.Context, tx *sql.Tx, quotedSchema string) error {
-	_, err := tx.ExecContext(ctx, "SET LOCAL search_path TO "+quotedSchema)
+	// 触发器按会话时区取自然日（migration 223：current_setting('TimeZone')），
+	// 而本文件的断言以 Asia/Shanghai 锚定；测试容器会话默认 UTC，两侧在
+	// UTC 16:00–24:00 窗口内日期错位。固定会话时区使全部用例与运行环境、
+	// 运行时刻无关（UsesSessionTimezoneAcrossDST 随后自行 SET LOCAL 覆盖）。
+	_, err := tx.ExecContext(ctx, "SET LOCAL search_path TO "+quotedSchema+"; SET LOCAL TIME ZONE 'Asia/Shanghai'")
 	return err
 }
 
