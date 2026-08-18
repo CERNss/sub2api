@@ -298,6 +298,18 @@ func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int
 		return s.testOpenAIAccountConnection(c, account, modelID, prompt, normalizeAccountTestMode(mode))
 	}
 
+	// 国产供应商（kimi/zhipu/deepseek）按账号 api_protocol 选探测协议：
+	// anthropic 协议走 /v1/messages 探测，其余（chat_completions/responses）
+	// 走 OpenAI 兼容探测。上游 v0.1.178 将 CN 平台升为一等公民时漏改本分发，
+	// 全部落入 Claude 探测，导致 chat_completions 协议账号被以
+	// {base}/v1/messages 误探而 404。
+	if account.IsCNProvider() {
+		if account.IsAnthropicProtocol() {
+			return s.testClaudeAccountConnection(c, account, modelID)
+		}
+		return s.testOpenAIAccountConnection(c, account, modelID, prompt, normalizeAccountTestMode(mode))
+	}
+
 	if account.IsGemini() {
 		return s.testGeminiAccountConnection(c, account, modelID, prompt)
 	}
@@ -374,6 +386,11 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 		}
 
 		baseURL := account.GetBaseURL()
+		// CN anthropic 协议账号：凭证缺省时用供应商官方 Anthropic 端点，
+		// 而非 api.anthropic.com（非 anthropic 协议与 Claude 平台账号返回空串，不受影响）。
+		if protoBase := account.GetAnthropicProtocolBaseURL(); protoBase != "" {
+			baseURL = protoBase
+		}
 		if baseURL == "" {
 			baseURL = "https://api.anthropic.com"
 		}
@@ -687,8 +704,8 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 		// OAuth uses ChatGPT internal API
 		apiURL = chatgptCodexAPIURL
 	} else if credentialAccount.Type == "apikey" {
-		// API Key - use Platform API
-		authToken = credentialAccount.GetOpenAIApiKey()
+		// API Key - use Platform API（协议族 getter：openai 原生与 CN 兼容供应商同源）
+		authToken = credentialAccount.GetOpenAIProtocolAPIKey()
 		if authToken == "" {
 			return s.sendErrorAndEnd(c, "No API key available")
 		}
