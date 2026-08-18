@@ -28,7 +28,26 @@ jobs:
         working-directory: backend
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
-          govulncheck ./...
+          # -json 模式恒定 exit 0；按「是否已有修复版」分级：
+          # 有修复版的调用级漏洞 → 硬失败（可执行：升级即可）；
+          # 无修复版（Fixed in: N/A，如 lib/pq GO-2026-616x）→ warning 留痕不阻塞，
+          # 上游一旦发布修复版，本门禁自动恢复硬性。
+          govulncheck -json ./... > /tmp/govulncheck.json
+          jq -rs '[ .[] | select(.finding != null) | .finding
+                    | select(.trace[0].function != null)
+                    | {osv, fixed: (.fixed_version // "")} ] | unique' \
+            /tmp/govulncheck.json > /tmp/findings.json
+          cat /tmp/findings.json
+          TOTAL=$(jq 'length' /tmp/findings.json)
+          FIXABLE=$(jq '[ .[] | select(.fixed != "") ] | length' /tmp/findings.json)
+          echo "call-level findings: ${TOTAL}, with fix available: ${FIXABLE}"
+          if [ "${FIXABLE}" -gt 0 ]; then
+            echo "::error::${FIXABLE} reachable vulnerabilities have released fixes; upgrade the affected modules"
+            exit 1
+          fi
+          if [ "${TOTAL}" -gt 0 ]; then
+            echo "::warning::${TOTAL} reachable vulnerabilities have no released fix yet (non-blocking, tracked)"
+          fi
 
   frontend-security:
     runs-on: ubuntu-latest
