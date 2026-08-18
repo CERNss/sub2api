@@ -45,10 +45,10 @@ Grok 的长思考请求**必定**落在这条路径：`grokChatResponsesBridgeEl
 - _None._
 
 ### Upstream Patch Files
-- `backend/internal/service/openai_gateway_chat_completions_raw.go`：逐行同步循环重构为「读协程 + select」，新增 `keepaliveInterval` / `streamInterval` 解析、`keepaliveWritten` / `midFrame` 标记、`processLine` / `buildResult` / `finalize` 三个闭包；`newStreamHeaderWriter` 的用法换成本地两段式提交（`commitStableSSEHeaders` / `writeStreamHeaders`）；两者均关闭时走原同步快路径。
-- `backend/internal/service/openai_gateway_chat_completions_raw_test.go`：fork 自有测试 `TestForwardAsRawChatCompletions_KeepaliveKeepsSilentThinkingStreamAlive`、`..._SilentRefusalAfterKeepaliveStaysFailoverable`、`..._StreamIdleTimeoutKeepsPartialUsage`、`..._KeepaliveCommitsOnlyStableSSEHeaders`、`..._KeepaliveDoesNotSplitInProgressFrame` 与 `grokRawChatCompletionsTestAccount` 辅助函数（上游既有用例不动——它们的上游体是 `strings.Reader`，一次性返回，仍走同步快路径）。
-- `backend/internal/handler/openai_chat_completions.go`：`ChatCompletions` 的 failover 闸门由 `c.Writer.Size() != writerSizeBeforeForward` 改为 `openAIForwardMayFailover(c, writerSizeBeforeForward, failoverErr)`，放行后按 Responses 侧先例补 `SafeToFailoverAfterWrite && c.Writer.Written()` → `streamStarted = true`；计费入参与 `RecordUsage` 提交抽成 `submitUsageRecord` 闭包，非 failover 的普通错误分支在 `result` 带有非零 token 时也提交计费（空闲超时的部分 usage 不再丢弃）。
-- `backend/internal/handler/openai_gateway_first_output_timeout_test.go`：fork 自有测试 `TestOpenAIChatCompletionsFailoverGateUsesSharedWriteGuard`（源码级契约，锁定闸门口径不回退）。
+- `backend/internal/service/openai_gateway_chat_completions_raw.go`: 逐行同步循环重构为「读协程 + select」，新增 `keepaliveInterval` / `streamInterval` 解析、`keepaliveWritten` / `midFrame` 标记、`processLine` / `buildResult` / `finalize` 三个闭包；`newStreamHeaderWriter` 的用法换成本地两段式提交（`commitStableSSEHeaders` / `writeStreamHeaders`）；两者均关闭时走原同步快路径。
+- `backend/internal/service/openai_gateway_chat_completions_raw_test.go`: fork 自有测试 `TestForwardAsRawChatCompletions_KeepaliveKeepsSilentThinkingStreamAlive`、`..._SilentRefusalAfterKeepaliveStaysFailoverable`、`..._StreamIdleTimeoutKeepsPartialUsage`、`..._KeepaliveCommitsOnlyStableSSEHeaders`、`..._KeepaliveDoesNotSplitInProgressFrame` 与 `grokRawChatCompletionsTestAccount` 辅助函数（上游既有用例不动——它们的上游体是 `strings.Reader`，一次性返回，仍走同步快路径）。
+- `backend/internal/handler/openai_chat_completions.go`: `ChatCompletions` 的 failover 闸门由 `c.Writer.Size() != writerSizeBeforeForward` 改为 `openAIForwardMayFailover(c, writerSizeBeforeForward, failoverErr)`，放行后按 Responses 侧先例补 `SafeToFailoverAfterWrite && c.Writer.Written()` → `streamStarted = true`。（原「计费闭包 + 非零 token 门槛」半边已于 v0.1.178 被上游 #5730 收编为 `submitChatUsage`，不再是本 change 的补丁面，见 FORK.md #10。）
+- `backend/internal/handler/openai_gateway_first_output_timeout_test.go`: fork 自有测试 `TestOpenAIChatCompletionsFailoverGateUsesSharedWriteGuard`（源码级契约，锁定闸门口径不回退）。
 
 ### Shared Touchpoints
 - _None._
