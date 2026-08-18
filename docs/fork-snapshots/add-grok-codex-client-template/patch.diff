@@ -1,5 +1,5 @@
 diff --git a/frontend/src/components/keys/UseKeyModal.vue b/frontend/src/components/keys/UseKeyModal.vue
-index c8ae79d22..050de45a3 100644
+index c8ae79d22..9d170d069 100644
 --- a/frontend/src/components/keys/UseKeyModal.vue
 +++ b/frontend/src/components/keys/UseKeyModal.vue
 @@ -201,7 +201,11 @@ import { useI18n } from 'vue-i18n'
@@ -23,7 +23,7 @@ index c8ae79d22..050de45a3 100644
  }
  
  interface Emits {
-@@ -483,6 +488,32 @@ const operator = (value: string) => wrapToken('text-slate-400', value)
+@@ -483,6 +488,36 @@ const operator = (value: string) => wrapToken('text-slate-400', value)
  const string = (value: string) => wrapToken('text-amber-200', value)
  const comment = (value: string) => wrapToken('text-slate-500', value)
  
@@ -49,14 +49,18 @@ index c8ae79d22..050de45a3 100644
 +    endpoint,
 +    app,
 +    platform: props.platform ?? '',
-+    clientType: activeClientTab.value
++    clientType: activeClientTab.value,
++    // Feeds the shell-aware placeholders (${envSetPrefix} / ${envQuote} /
++    // ${shellLabel} / ${pathSep}) so one template file renders a pasteable
++    // command on every shell tab instead of a POSIX-only `export`.
++    shell: activeTab.value
 +  }))
 +}
 +
  // Syntax highlighting helpers
  // Generate file configs based on platform and active tab
  const currentFiles = computed((): FileConfig[] => {
-@@ -505,6 +536,23 @@ const currentFiles = computed((): FileConfig[] => {
+@@ -505,6 +540,23 @@ const currentFiles = computed((): FileConfig[] => {
    })()
  
    if (activeClientTab.value === 'opencode') {
@@ -80,7 +84,7 @@ index c8ae79d22..050de45a3 100644
      switch (props.platform) {
        case 'anthropic':
          return [generateOpenCodeConfig('anthropic', apiBase, apiKey)]
-@@ -530,8 +578,30 @@ const currentFiles = computed((): FileConfig[] => {
+@@ -530,8 +582,30 @@ const currentFiles = computed((): FileConfig[] => {
          return generateAnthropicFiles(baseUrl, apiKey)
        }
        if (activeClientTab.value === 'codex-ws') {
@@ -111,7 +115,7 @@ index c8ae79d22..050de45a3 100644
        return generateOpenAIFiles(baseUrl, apiKey)
      case 'gemini':
        return [generateGeminiCliContent(baseUrl, apiKey)]
-@@ -545,6 +615,18 @@ const currentFiles = computed((): FileConfig[] => {
+@@ -545,6 +619,18 @@ const currentFiles = computed((): FileConfig[] => {
          return generateGrokClaudeFiles(baseRoot, apiKey)
        }
        if (activeClientTab.value === 'codex') {
@@ -131,10 +135,10 @@ index c8ae79d22..050de45a3 100644
        }
        return generateGrokFiles(apiBase, apiKey)
 diff --git a/frontend/src/components/keys/__tests__/UseKeyModal.spec.ts b/frontend/src/components/keys/__tests__/UseKeyModal.spec.ts
-index 5313a9eb4..7494541f0 100644
+index 5313a9eb4..3e44ffe8d 100644
 --- a/frontend/src/components/keys/__tests__/UseKeyModal.spec.ts
 +++ b/frontend/src/components/keys/__tests__/UseKeyModal.spec.ts
-@@ -263,6 +263,58 @@ describe('UseKeyModal', () => {
+@@ -263,6 +263,122 @@ describe('UseKeyModal', () => {
      expect(codeBlocks.join('\n')).toContain('experimental_bearer_token = "sk-grok-codex-test"')
    })
  
@@ -190,10 +194,74 @@ index 5313a9eb4..7494541f0 100644
 +    expect(allCode).not.toContain('SUB2API_API_KEY')
 +  })
 +
++  it('renders shell-aware grok_codex template placeholders per shell tab', async () => {
++    // Mirrors template/client-templates.json: one env file that must stay
++    // pasteable on every shell tab instead of always emitting `export`.
++    const wrapper = mount(UseKeyModal, {
++      props: {
++        show: true,
++        apiKey: 'sk-grok-shell-test',
++        baseUrl: 'https://example.com/v1',
++        platform: 'grok',
++        clientTemplates: {
++          grok_codex: {
++            files: [
++              {
++                path: '${shellLabel}',
++                content: '${envSetPrefix}SUB2API_KEY=${envQuote}${apiKey}${envQuote}'
++              },
++              {
++                path: '${configDir}${pathSep}config.toml',
++                content: 'base_url = "${apiBase}"'
++              }
++            ]
++          }
++        }
++      },
++      global: {
++        stubs: {
++          BaseDialog: {
++            template: '<div><slot /><slot name="footer" /></div>'
++          },
++          Icon: {
++            template: '<span />'
++          }
++        }
++      }
++    })
++
++    const readCode = () => wrapper.findAll('pre code').map((code) => code.text()).join('\n')
++    const readPaths = () => wrapper.findAll('span.font-mono').map((label) => label.text())
++
++    const codexTab = wrapper.findAll('button').find((button) =>
++      button.text().includes('keys.useKeyModal.cliTabs.codexCli')
++    )
++    expect(codexTab).toBeDefined()
++    await codexTab!.trigger('click')
++    await nextTick()
++
++    expect(readCode()).toContain('export SUB2API_KEY="sk-grok-shell-test"')
++    expect(readPaths()).toContain('Terminal')
++    expect(readPaths()).toContain('~/.codex/config.toml')
++
++    const windowsTab = wrapper.findAll('button').find(
++      (button) => button.text().trim() === 'Windows'
++    )
++    expect(windowsTab).toBeDefined()
++    await windowsTab!.trigger('click')
++    await nextTick()
++
++    // Windows tab defaults to PowerShell: no POSIX `export` may survive here.
++    expect(readCode()).toContain('$env:SUB2API_KEY="sk-grok-shell-test"')
++    expect(readCode()).not.toContain('export SUB2API_KEY')
++    expect(readPaths()).toContain('PowerShell')
++    expect(readPaths()).toContain('%userprofile%\\.codex\\config.toml')
++  })
++
    it('keeps legacy OpenAI Codex config as the default', () => {
      const wrapper = mount(UseKeyModal, {
        props: {
-@@ -594,4 +646,92 @@ describe('UseKeyModal', () => {
+@@ -594,4 +710,92 @@ describe('UseKeyModal', () => {
      expect(fable.options.thinking).toEqual({ type: 'adaptive' })
      expect(fable.options.thinking).not.toHaveProperty('budgetTokens')
    })
@@ -287,7 +355,7 @@ index 5313a9eb4..7494541f0 100644
 +  })
  })
 diff --git a/frontend/src/types/index.ts b/frontend/src/types/index.ts
-index 19ef541bc..cf100a957 100644
+index eaa585f15..187dcc9b0 100644
 --- a/frontend/src/types/index.ts
 +++ b/frontend/src/types/index.ts
 @@ -188,6 +188,7 @@ export interface CustomMenuItem {
@@ -306,7 +374,7 @@ index 19ef541bc..cf100a957 100644
    payment_enabled: boolean
    risk_control_enabled: boolean
    table_default_page_size: number
-@@ -523,6 +525,32 @@ export interface PaginationConfig {
+@@ -525,6 +527,32 @@ export interface PaginationConfig {
    page_size: number
  }
  
@@ -338,7 +406,7 @@ index 19ef541bc..cf100a957 100644
 +
  // ==================== API Key & Group Types ====================
  
- export type GroupPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok' | 'composite'
+ export type GroupPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok' | 'kimi' | 'zhipu' | 'deepseek' | 'composite'
 diff --git a/frontend/src/utils/__tests__/ccswitchImport.spec.ts b/frontend/src/utils/__tests__/ccswitchImport.spec.ts
 index 50789b500..cd03afae8 100644
 --- a/frontend/src/utils/__tests__/ccswitchImport.spec.ts
