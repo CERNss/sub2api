@@ -411,6 +411,7 @@ _无。_ 这四个文件在本 change 之前与上游 `main` 零差异，也不�
 | 前端杂项补丁 | `frontend/src/vite-env.d.ts`（Airwallex SDK 类型声明兜底）、`frontend/src/composables/usePersistedPageSize.ts`（页大小来源追踪，管理员默认值优先于陈旧 localStorage） | 补丁 |
 | Security Scan 分级门禁 | `.github/workflows/security-scan.yml`：govulncheck 改 `-json` 解析，仅「已有修复版的调用级漏洞」硬失败；无修复版（如 lib/pq GO-2026-616x，Fixed in: N/A）报 warning 不阻塞，修复版发布后自动恢复硬性 | 补丁 |
 | Backend CI lint 确定性 | `.github/workflows/backend-ci.yml`：golangci-lint job 加 `skip-cache: true`——实测 Actions 缓存双向失真（同 commit develop push 绿 / tag push 报 7 个幻影 SA5011；本地同版本冷缓存全树 0 issues），全树冷分析仅约 1 分钟，确定性优先 | 补丁 |
+| CN 账号连接测试修补 | `backend/internal/service/account_test_service.go`：`TestAccountConnection` 分发补 CN 供应商分支（anthropic 协议走 Claude 探测、其余走 OpenAI 兼容探测——上游 v0.1.178 漏改，CN 账号全落 Claude 探测致 chat_completions 协议账号 404）；openai 探测 apikey 分支换 `GetOpenAIProtocolAPIKey`；Claude 探测 base 缺省时用 `GetAnthropicProtocolBaseURL` 协议感知默认。可上报上游；上游修复后退场 | 补丁 |
 | 上游测试时区修补 | `backend/internal/repository/group_usage_rollup_trigger_integration_test.go`：事务 helper 钉 `SET LOCAL TIME ZONE 'Asia/Shanghai'`——触发器按会话时区取日（migration 223），测试断言却以上海锚定，容器会话默认 UTC 时在 UTC 16:00–24:00 窗口必挂（上游 cb7b03795 引入即带病）。可上报上游；上游修复后本补丁退场 | 补丁 |
 
 > 这一块文件数量大但大多是 `.github/action-mirrors/` 等"新增目录"，rebase 几乎不会冲突；真正需要看的是 `.goreleaser*.yaml`、`Dockerfile*`、`deploy/docker-compose*.yml` 三处的小补丁。
