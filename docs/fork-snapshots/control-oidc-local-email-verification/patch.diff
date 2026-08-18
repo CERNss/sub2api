@@ -1,5 +1,5 @@
 diff --git a/backend/internal/handler/admin/setting_handler.go b/backend/internal/handler/admin/setting_handler.go
-index a5f3d41d9..13807f36d 100644
+index 01a066165..c960f772a 100644
 --- a/backend/internal/handler/admin/setting_handler.go
 +++ b/backend/internal/handler/admin/setting_handler.go
 @@ -233,6 +233,7 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
@@ -25,7 +25,7 @@ index d6110f43d..53a822b31 100644
  		changed = append(changed, "oidc_connect_userinfo_email_path")
  	}
 diff --git a/backend/internal/handler/admin/setting_handler_update.go b/backend/internal/handler/admin/setting_handler_update.go
-index 5884dc392..890486f11 100644
+index e2399d089..98fb43e67 100644
 --- a/backend/internal/handler/admin/setting_handler_update.go
 +++ b/backend/internal/handler/admin/setting_handler_update.go
 @@ -118,28 +118,29 @@ type UpdateSettingsRequest struct {
@@ -80,7 +80,7 @@ index 5884dc392..890486f11 100644
  
  	GitHubOAuthEnabled             bool   `json:"github_oauth_enabled"`
  	GitHubOAuthClientID            string `json:"github_oauth_client_id"`
-@@ -1274,8 +1275,21 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
+@@ -1275,8 +1276,21 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
  				response.BadRequest(c, "Custom menu item label is too long (max 50 characters)")
  				return
  			}
@@ -102,7 +102,7 @@ index 5884dc392..890486f11 100644
  				// Markdown page mode: URL = "md:<slug>"
  				slug := strings.TrimPrefix(urlTrimmed, "md:")
  				if slug == "" {
-@@ -1539,110 +1553,111 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
+@@ -1540,110 +1554,111 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
  			}
  			return previousSettings.APIKeyACLTrustForwardedIP
  		}(),
@@ -318,7 +318,7 @@ index 5884dc392..890486f11 100644
  		AllowUserViewErrorRequests: func() bool {
  			if req.AllowUserViewErrorRequests != nil {
  				return *req.AllowUserViewErrorRequests
-@@ -2205,6 +2220,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
+@@ -2212,6 +2227,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
  		OIDCConnectAllowedSigningAlgs:                          updatedSettings.OIDCConnectAllowedSigningAlgs,
  		OIDCConnectClockSkewSeconds:                            updatedSettings.OIDCConnectClockSkewSeconds,
  		OIDCConnectRequireEmailVerified:                        updatedSettings.OIDCConnectRequireEmailVerified,
@@ -1211,7 +1211,7 @@ index 08bb459a0..efc43c5bf 100644
  
  type oidcProviderFixture struct {
 diff --git a/backend/internal/handler/dto/settings.go b/backend/internal/handler/dto/settings.go
-index 5ab5eaa68..9a5c95305 100644
+index f0284eb55..302e0580d 100644
 --- a/backend/internal/handler/dto/settings.go
 +++ b/backend/internal/handler/dto/settings.go
 @@ -13,6 +13,7 @@ type CustomMenuItem struct {
@@ -1346,10 +1346,10 @@ index 6e57e9501..8d8a1ba6d 100644
  
  	require.NoError(t, err)
 diff --git a/backend/internal/service/domain_constants.go b/backend/internal/service/domain_constants.go
-index 2d5311bb2..cf55eff00 100644
+index ba35301be..4abc73105 100644
 --- a/backend/internal/service/domain_constants.go
 +++ b/backend/internal/service/domain_constants.go
-@@ -258,28 +258,29 @@ const (
+@@ -310,28 +310,29 @@ const (
  	SettingKeyWeChatConnectFrontendRedirectURL = "wechat_connect_frontend_redirect_url"
  
  	// Generic OIDC OAuth 登录设置
@@ -1432,7 +1432,7 @@ index 648fa1dc2..cffdd8d7d 100644
  func (s *SettingService) GetRegistrationEmailSuffixWhitelist(ctx context.Context) []string {
  	value, err := s.settingRepo.GetValue(ctx, SettingKeyRegistrationEmailSuffixWhitelist)
 diff --git a/backend/internal/service/setting_parse.go b/backend/internal/service/setting_parse.go
-index 283c76f8f..062ca975c 100644
+index 9f3dfbddf..17153755f 100644
 --- a/backend/internal/service/setting_parse.go
 +++ b/backend/internal/service/setting_parse.go
 @@ -120,6 +120,7 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
@@ -1443,7 +1443,7 @@ index 283c76f8f..062ca975c 100644
  		SettingKeyOIDCConnectUserInfoEmailPath:              "",
  		SettingKeyOIDCConnectUserInfoIDPath:                 "",
  		SettingKeyOIDCConnectUserInfoUsernamePath:           "",
-@@ -695,6 +696,11 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
+@@ -696,6 +697,11 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
  	} else {
  		result.OIDCConnectRequireEmailVerified = oidcBase.RequireEmailVerified
  	}
@@ -1456,7 +1456,7 @@ index 283c76f8f..062ca975c 100644
  		result.OIDCConnectUserInfoEmailPath = strings.TrimSpace(v)
  	} else {
 diff --git a/backend/internal/service/setting_update.go b/backend/internal/service/setting_update.go
-index f77a914fd..41ced7638 100644
+index a4fadded0..821d43bb4 100644
 --- a/backend/internal/service/setting_update.go
 +++ b/backend/internal/service/setting_update.go
 @@ -286,6 +286,7 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
@@ -1468,7 +1468,7 @@ index f77a914fd..41ced7638 100644
  	updates[SettingKeyOIDCConnectUserInfoIDPath] = settings.OIDCConnectUserInfoIDPath
  	updates[SettingKeyOIDCConnectUserInfoUsernamePath] = settings.OIDCConnectUserInfoUsernamePath
 diff --git a/backend/internal/service/settings_view.go b/backend/internal/service/settings_view.go
-index 8580f0c8f..f94991621 100644
+index a93900094..b0075d035 100644
 --- a/backend/internal/service/settings_view.go
 +++ b/backend/internal/service/settings_view.go
 @@ -111,29 +111,30 @@ type SystemSettings struct {
@@ -1526,10 +1526,10 @@ index 8580f0c8f..f94991621 100644
  	// GitHub / Google 邮箱快捷登录
  	GitHubOAuthEnabled                bool
 diff --git a/frontend/src/api/admin/settings.ts b/frontend/src/api/admin/settings.ts
-index b176024ae..00581fa2f 100644
+index f5f19918a..d5cc48b47 100644
 --- a/frontend/src/api/admin/settings.ts
 +++ b/frontend/src/api/admin/settings.ts
-@@ -281,7 +281,13 @@ export function appendAuthSourceDefaultsToUpdateRequest(
+@@ -287,7 +287,13 @@ export function appendAuthSourceDefaultsToUpdateRequest(
    const target = payload as Record<string, unknown>;
  
    for (const source of AUTH_SOURCE_TYPES) {
@@ -1544,7 +1544,7 @@ index b176024ae..00581fa2f 100644
      target[`auth_source_default_${source}_balance`] =
        Number(current.balance) || 0;
      target[`auth_source_default_${source}_concurrency`] = Math.max(
-@@ -569,6 +575,7 @@ export interface SystemSettings {
+@@ -575,6 +581,7 @@ export interface SystemSettings {
    oidc_connect_allowed_signing_algs: string;
    oidc_connect_clock_skew_seconds: number;
    oidc_connect_require_email_verified: boolean;
@@ -1552,7 +1552,7 @@ index b176024ae..00581fa2f 100644
    oidc_connect_userinfo_email_path: string;
    oidc_connect_userinfo_id_path: string;
    oidc_connect_userinfo_username_path: string;
-@@ -896,6 +903,7 @@ export interface UpdateSettingsRequest {
+@@ -903,6 +910,7 @@ export interface UpdateSettingsRequest {
    oidc_connect_allowed_signing_algs?: string;
    oidc_connect_clock_skew_seconds?: number;
    oidc_connect_require_email_verified?: boolean;
@@ -1709,10 +1709,10 @@ index a1a5841ea..498578413 100644
      sendPendingOAuthVerifyCode.mockRejectedValue(new Error('send failed'))
  
 diff --git a/frontend/src/i18n/locales/en/admin/settings.ts b/frontend/src/i18n/locales/en/admin/settings.ts
-index b20e2ebee..3d00759dd 100644
+index 424cca1de..fc50d22fd 100644
 --- a/frontend/src/i18n/locales/en/admin/settings.ts
 +++ b/frontend/src/i18n/locales/en/admin/settings.ts
-@@ -367,6 +367,7 @@ export default {
+@@ -370,6 +370,7 @@ export default {
          usePkce: 'Use PKCE',
          validateIdToken: 'Validate ID Token',
          requireEmailVerified: 'Require Email Verified',
@@ -1721,10 +1721,10 @@ index b20e2ebee..3d00759dd 100644
          userinfoEmailPathPlaceholder: 'for example data.email',
          userinfoIdPath: 'UserInfo ID Path',
 diff --git a/frontend/src/i18n/locales/zh/admin/settings.ts b/frontend/src/i18n/locales/zh/admin/settings.ts
-index 3967f25ed..e465a9a8f 100644
+index 41d7b673d..1648b5e16 100644
 --- a/frontend/src/i18n/locales/zh/admin/settings.ts
 +++ b/frontend/src/i18n/locales/zh/admin/settings.ts
-@@ -364,6 +364,7 @@ export default {
+@@ -367,6 +367,7 @@ export default {
          usePkce: '启用 PKCE',
          validateIdToken: '校验 ID Token',
          requireEmailVerified: '要求邮箱已验证',
@@ -1733,10 +1733,10 @@ index 3967f25ed..e465a9a8f 100644
          userinfoEmailPathPlaceholder: '例如 data.email',
          userinfoIdPath: 'UserInfo ID 字段路径',
 diff --git a/frontend/src/views/admin/SettingsView.vue b/frontend/src/views/admin/SettingsView.vue
-index b153865ff..d5d0419f4 100644
+index 80af0b194..2376401bf 100644
 --- a/frontend/src/views/admin/SettingsView.vue
 +++ b/frontend/src/views/admin/SettingsView.vue
-@@ -3391,7 +3391,7 @@
+@@ -3439,7 +3439,7 @@
                  v-if="form.oidc_connect_enabled"
                  class="space-y-6 border-t border-gray-100 pt-4 dark:border-dark-700"
                >
@@ -1745,7 +1745,7 @@ index b153865ff..d5d0419f4 100644
                    <div>
                      <label
                        class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
-@@ -3716,6 +3716,25 @@
+@@ -3764,6 +3764,25 @@
                        v-model="form.oidc_connect_require_email_verified"
                      />
                    </div>
@@ -1771,7 +1771,7 @@ index b153865ff..d5d0419f4 100644
                  </div>
  
                  <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
-@@ -6672,8 +6691,25 @@
+@@ -6720,8 +6739,25 @@
                      </select>
                    </div>
  
@@ -1798,7 +1798,7 @@ index b153865ff..d5d0419f4 100644
                      <label
                        class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
                      >
-@@ -9490,6 +9526,7 @@ const form = reactive<SettingsForm>({
+@@ -9551,6 +9587,7 @@ const form = reactive<SettingsForm>({
      label: string;
      icon_svg: string;
      url: string;
@@ -1806,7 +1806,7 @@ index b153865ff..d5d0419f4 100644
      visibility: "user" | "admin";
      sort_order: number;
    }>,
-@@ -9595,6 +9632,7 @@ const form = reactive<SettingsForm>({
+@@ -9656,6 +9693,7 @@ const form = reactive<SettingsForm>({
    oidc_connect_allowed_signing_algs: "RS256,ES256,PS256",
    oidc_connect_clock_skew_seconds: 120,
    oidc_connect_require_email_verified: false,
@@ -1814,7 +1814,7 @@ index b153865ff..d5d0419f4 100644
    oidc_connect_userinfo_email_path: "",
    oidc_connect_userinfo_id_path: "",
    oidc_connect_userinfo_username_path: "",
-@@ -10459,6 +10497,7 @@ function addMenuItem() {
+@@ -10521,6 +10559,7 @@ function addMenuItem() {
      label: "",
      icon_svg: "",
      url: "",
@@ -1822,7 +1822,7 @@ index b153865ff..d5d0419f4 100644
      visibility: "user",
      sort_order: form.custom_menu_items.length,
    });
-@@ -10646,11 +10685,26 @@ const codexSyncedVersionLabel = computed(() => {
+@@ -10708,11 +10747,26 @@ const codexSyncedVersionLabel = computed(() => {
    });
  });
  
@@ -1849,7 +1849,7 @@ index b153865ff..d5d0419f4 100644
      settings.payment_load_balance_strategy =
        settings.payment_load_balance_strategy || "round-robin";
      // Only assign non-null values from backend (null means unconfigured, keep defaults)
-@@ -11184,6 +11238,8 @@ async function saveSettings() {
+@@ -11249,6 +11303,8 @@ async function saveSettings() {
        oidc_connect_clock_skew_seconds: form.oidc_connect_clock_skew_seconds,
        oidc_connect_require_email_verified:
          form.oidc_connect_require_email_verified,

@@ -2,10 +2,10 @@
   "change_id": "add-grok-codex-client-template",
   "status": "active",
   "proposal_path": "openspec/changes/add-grok-codex-client-template/proposal.md",
-  "captured_at": "2026-08-13T14:09:17+00:00",
-  "captured_at_commit": "1a41cad269f68bc2d42b8b77b3559640e3fa2ab4",
-  "base": "e803e3851",
-  "base_commit": "e803e3851c0a7e222cfadeafad7b8636ab959d11",
+  "captured_at": "2026-08-18T14:08:51+00:00",
+  "captured_at_commit": "6529fd0b41110fa7ed676680a100af310d10f244",
+  "base": "e0c48a19e",
+  "base_commit": "e0c48a19ed794a565e3858662520afe0a1f9f0ba",
   "new_files": [],
   "upstream_patch_files": [
     {
@@ -32,12 +32,12 @@
   "shared_touchpoints": [
     {
       "path": "frontend/src/components/keys/UseKeyModal.vue",
-      "reason": "also owned by `2026-04-28-support-mounted-frontend-client-templates` — keep both the codex/opencode template hooks and the grok_codex hook.",
+      "reason": "also owned by `2026-04-28-support-mounted-frontend-client-templates` — keep both the codex/opencode template hooks and the grok_codex hook; `renderConfiguredFiles` passes `shell: activeTab.value` into placeholder substitution (sole wiring point for shell-aware placeholders).",
       "shared_with": "2026-04-28-support-mounted-frontend-client-templates"
     },
     {
       "path": "frontend/src/components/keys/__tests__/UseKeyModal.spec.ts",
-      "reason": "also owned by `2026-04-28-support-mounted-frontend-client-templates`.",
+      "reason": "also owned by `2026-04-28-support-mounted-frontend-client-templates`; includes the Windows-tab shell-aware rendering regression.",
       "shared_with": "2026-04-28-support-mounted-frontend-client-templates"
     },
     {
@@ -47,22 +47,32 @@
     },
     {
       "path": "frontend/src/utils/clientTemplates.ts",
-      "reason": "also owned by `2026-04-28-support-mounted-frontend-client-templates` — normalize whitelist gains `grok_codex`.",
+      "reason": "also owned by `2026-04-28-support-mounted-frontend-client-templates` — normalize whitelist gains `grok_codex`; adds `buildShellTemplateContext(shell)` (`${shellLabel}` / `${envSetPrefix}` / `${envQuote}` / `${pathSep}`), and `BuildTemplateContextOptions` gains an optional `shell` spread into the context.",
       "shared_with": "2026-04-28-support-mounted-frontend-client-templates"
     },
     {
       "path": "frontend/src/utils/__tests__/clientTemplates.spec.ts",
-      "reason": "also owned by `2026-04-28-support-mounted-frontend-client-templates`.",
+      "reason": "also owned by `2026-04-28-support-mounted-frontend-client-templates`; covers all four shell mappings (including the UI-unreachable `cmd`) and unknown-shell fallback.",
       "shared_with": "2026-04-28-support-mounted-frontend-client-templates"
     },
     {
       "path": "template/client-templates.json",
-      "reason": "also owned by `2026-04-28-support-mounted-frontend-client-templates` — bundled default gains `grok_codex`, `ccs_import` loses hardcoded model.",
+      "reason": "also owned by `2026-04-28-support-mounted-frontend-client-templates` — bundled default gains `grok_codex`, `ccs_import` loses hardcoded model; the grok_codex env file uses `${envSetPrefix}`/`${envQuote}`/`${shellLabel}` and paths use `${pathSep}` so every shell tab renders a paste-able command.",
       "shared_with": "2026-04-28-support-mounted-frontend-client-templates"
     },
     {
       "path": "template/README.md",
-      "reason": "also owned by `2026-04-28-support-mounted-frontend-client-templates`.",
+      "reason": "also owned by `2026-04-28-support-mounted-frontend-client-templates`; documents the shell-aware placeholders.",
+      "shared_with": "2026-04-28-support-mounted-frontend-client-templates"
+    },
+    {
+      "path": "template/client-templates.bundle.example.json",
+      "reason": "also owned by `2026-04-28-support-mounted-frontend-client-templates` — `${pathSep}` sync only.",
+      "shared_with": "2026-04-28-support-mounted-frontend-client-templates"
+    },
+    {
+      "path": "template/client-templates.codex.example.json",
+      "reason": "also owned by `2026-04-28-support-mounted-frontend-client-templates` — `${pathSep}` sync only.",
       "shared_with": "2026-04-28-support-mounted-frontend-client-templates"
     }
   ],
