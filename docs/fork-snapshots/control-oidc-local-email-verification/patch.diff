@@ -1211,7 +1211,7 @@ index 08bb459a0..efc43c5bf 100644
  
  type oidcProviderFixture struct {
 diff --git a/backend/internal/handler/dto/settings.go b/backend/internal/handler/dto/settings.go
-index f0284eb55..302e0580d 100644
+index 798de2fed..2eb6b212f 100644
 --- a/backend/internal/handler/dto/settings.go
 +++ b/backend/internal/handler/dto/settings.go
 @@ -13,6 +13,7 @@ type CustomMenuItem struct {
@@ -1346,10 +1346,10 @@ index 6e57e9501..8d8a1ba6d 100644
  
  	require.NoError(t, err)
 diff --git a/backend/internal/service/domain_constants.go b/backend/internal/service/domain_constants.go
-index ba35301be..4abc73105 100644
+index 860276b75..f6fc77d8d 100644
 --- a/backend/internal/service/domain_constants.go
 +++ b/backend/internal/service/domain_constants.go
-@@ -310,28 +310,29 @@ const (
+@@ -311,28 +311,29 @@ const (
  	SettingKeyWeChatConnectFrontendRedirectURL = "wechat_connect_frontend_redirect_url"
  
  	// Generic OIDC OAuth 登录设置
@@ -1709,7 +1709,7 @@ index a1a5841ea..498578413 100644
      sendPendingOAuthVerifyCode.mockRejectedValue(new Error('send failed'))
  
 diff --git a/frontend/src/i18n/locales/en/admin/settings.ts b/frontend/src/i18n/locales/en/admin/settings.ts
-index 424cca1de..fc50d22fd 100644
+index 2d6d34409..707e5dc26 100644
 --- a/frontend/src/i18n/locales/en/admin/settings.ts
 +++ b/frontend/src/i18n/locales/en/admin/settings.ts
 @@ -370,6 +370,7 @@ export default {
@@ -1721,7 +1721,7 @@ index 424cca1de..fc50d22fd 100644
          userinfoEmailPathPlaceholder: 'for example data.email',
          userinfoIdPath: 'UserInfo ID Path',
 diff --git a/frontend/src/i18n/locales/zh/admin/settings.ts b/frontend/src/i18n/locales/zh/admin/settings.ts
-index 41d7b673d..1648b5e16 100644
+index f31548066..d26e3e6c9 100644
 --- a/frontend/src/i18n/locales/zh/admin/settings.ts
 +++ b/frontend/src/i18n/locales/zh/admin/settings.ts
 @@ -367,6 +367,7 @@ export default {

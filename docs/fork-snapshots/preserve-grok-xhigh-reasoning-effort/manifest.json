@@ -2,19 +2,19 @@
   "change_id": "preserve-grok-xhigh-reasoning-effort",
   "status": "active",
   "proposal_path": "openspec/changes/preserve-grok-xhigh-reasoning-effort/proposal.md",
-  "captured_at": "2026-08-18T14:08:51+00:00",
-  "captured_at_commit": "6529fd0b41110fa7ed676680a100af310d10f244",
-  "base": "e0c48a19e",
-  "base_commit": "e0c48a19ed794a565e3858662520afe0a1f9f0ba",
+  "captured_at": "2026-08-20T08:13:52+00:00",
+  "captured_at_commit": "60e72e58cd6178f5bbb7027d0f37ec4f83408f39",
+  "base": "75f88be5f",
+  "base_commit": "75f88be5f75c27771836b586f7de1503afa0e3bc",
   "new_files": [],
   "upstream_patch_files": [
     {
       "path": "backend/internal/service/openai_gateway_grok.go",
-      "reason": "`normalizeGrokReasoningEffortValue` takes the upstream model and returns `xhigh` for grok-4.6 family; new `grokSupportsXHighReasoningEffort` whitelist; 3 call sites pass `upstreamModel`."
+      "reason": "upstream `892787723` (v0.1.179) absorbed the model-aware `normalizeGrokReasoningEffortValue` signature, its 3 call sites and the `grokSupportsXHighReasoningEffort` whitelist; the remaining fork delta is the alias switch keeping `case \"xhigh\", \"extrahigh\", \"max\", \"ultra\":` as one branch, where upstream split `max`/`ultra` off and flattens them to `high` unconditionally."
     },
     {
       "path": "backend/internal/service/openai_gateway_grok_test.go",
-      "reason": "fork-owned tests `TestPatchGrokResponsesBodyKeepsXHighForGrok46` and `TestNormalizeGrokChatReasoningEffortKeepsXHighForGrok46` (upstream test tables untouched — they pin grok-4.5/4.3 behavior, which is unchanged)."
+      "reason": "fork-owned tests `TestPatchGrokResponsesBodyKeepsXHighForGrok46` (its `max camel` case pins the remaining delta) and `TestNormalizeGrokChatReasoningEffortKeepsXHighForGrok46` (upstream test tables untouched — they pin grok-4.5 flattening and grok-4.6 `xhigh` passthrough, both unchanged)."
     }
   ],
   "shared_touchpoints": [],
