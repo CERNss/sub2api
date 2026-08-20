@@ -36,7 +36,7 @@
 | 5 | `user-token-api-key-automation`           | 🟢 active   | 用户登录换 JWT 后创建 API key 并安全轮换 key 分组 | 2 | 8 |
 | 6 | `support-mounted-frontend-client-templates` | 📦 archived | 前端 `client-templates.json` 挂载渲染 Codex/OpenCode/CCS | 9 | 7 |
 | 7 | `add-openai-compatible-prompt-audit`      | ⬆️ upstreamed | 提示词输入审计（Qwen3Guard 三态门禁 + 审计台） | 0 | 0 |
-| 8 | `preserve-grok-xhigh-reasoning-effort`    | 🟢 active   | grok-4.6 保留 xhigh 推理档，不再拍平成 high      | 0 | 2 |
+| 8 | `preserve-grok-xhigh-reasoning-effort`    | 🟢 active（主体已收编） | grok-4.6 保留 xhigh 推理档；`xhigh`/`extrahigh` 上游 v0.1.179 已收编，fork 仅剩 `max`/`ultra` 同档放行 | 0 | 2 |
 | 9 | `add-grok-codex-client-template`          | 🟢 active   | Grok 组 Codex tab 支持 grok_codex 模板；CCS 默认 grok-4.6 | 0 | 5 |
 | 10 | `keepalive-raw-chat-completions-stream`  | 🟢 active   | CC 直转流补下游保活 + 上游空闲上限，长思考不再被前置代理判 504 | 0 | 4 |
 
@@ -269,7 +269,8 @@ _无。_
 
 - **Capability:** `grok-xhigh-reasoning-effort-passthrough`
 - **意图:** grok-4.6 起 xAI 提供 `xhigh` 推理档；上游网关仍把 `xhigh`/`extrahigh`/`max`/`ultra` 一律拍平成 `high`（写于 4.6 发布前），导致 xhigh 请求被静默降级。本补丁按模型放行：4.6 家族透传 `xhigh`，旧模型维持拍平。
-- **退场条件:** 上游修复 Wei-Shaw/sub2api#5575 后，本 change 转 ⬆️ upstreamed。
+- **⚠️ 2026-08-20 v0.1.179：主体已被上游收编（部分）。** 上游 `892787723 fix(grok): preserve xhigh effort for grok-4.6` 落地了与本 change 同构的实现（`normalizeGrokReasoningEffortValue` 加模型参数、`grokSupportsXHighReasoningEffort` 白名单 `grok-4.6`/`grok-4.6-latest`），rebase 到 `75f88be5f` 时按「谁覆盖面广用谁」取上游形态。**fork 仅剩一处语义差**：上游把 `max`/`ultra` 单独分支恒拍平成 `high`，只放行 `xhigh`/`extrahigh`；fork 保留原口径——`max`/`ultra` 与 `xhigh`/`extrahigh` 同属"顶档别名"，在 4.6 上一并透传 `xhigh`（上游自身在 `gateway_request.go` 的 GLM 归一里也把 `max`/`ultracode` 当顶档处理，且上游删掉了原 `max camel` 用例、没有任何测试锁定 4.6 上 `max`→`high`）。
+- **退场条件:** 上游把 `max`/`ultra` 也并入顶档放行后，本 change 转 ⬆️ upstreamed。
 - **Spec 路径:** `openspec/changes/preserve-grok-xhigh-reasoning-effort/`
 
 #### 新增文件
@@ -278,8 +279,8 @@ _无。本 change 全部为对上游文件的补丁。_
 #### 上游补丁（rebase 后必须确认仍存在）
 | 路径 | 改动要点 |
 |------|---------|
-| `backend/internal/service/openai_gateway_grok.go` | `normalizeGrokReasoningEffortValue` 增加 `upstreamModel` 参数（3 个调用点同步传入）；高档别名在 `grokSupportsXHighReasoningEffort` 白名单（`grok-4.6`/`grok-4.6-latest`）内返回 `xhigh`，否则维持 `high` |
-| `backend/internal/service/openai_gateway_grok_test.go` | fork 自有测试 `TestPatchGrokResponsesBodyKeepsXHighForGrok46`、`TestNormalizeGrokChatReasoningEffortKeepsXHighForGrok46`；上游表驱动用例（锁 4.5/4.3 拍平行为）不动 |
+| `backend/internal/service/openai_gateway_grok.go` | 【上游已收编】`normalizeGrokReasoningEffortValue` 的模型参数（3 个调用点）与 `grokSupportsXHighReasoningEffort` 白名单。【fork 剩余】alias switch 的 `case "xhigh", "extrahigh", "max", "ultra":` 合并写法——上游拆成两支、把 `max`/`ultra` 恒拍平成 `high`，fork 保持四个别名共用白名单判定 |
+| `backend/internal/service/openai_gateway_grok_test.go` | fork 自有测试 `TestPatchGrokResponsesBodyKeepsXHighForGrok46`（含 `max camel` → `xhigh`，即上面那处语义差的锁）、`TestNormalizeGrokChatReasoningEffortKeepsXHighForGrok46`；上游表驱动用例（4.5 拍平、4.6 放行）不动 |
 
 #### ⚠ 跨 change 共享文件
 _无 OpenSpec change 共享。_ 但 `openai_gateway_grok.go` 另叠加「[未纳入 OpenSpec](#未纳入-openspec-的客制化)」的 OpenAI ops 观测补丁（transport-error 调用点的 `safeUpstreamURL` 参数），rebase 时两个补丁都要保留。
@@ -407,11 +408,11 @@ _无。_ 这四个文件在本 change 之前与上游 `main` 零差异，也不�
 | Action 镜像化 | `.github/action-mirrors/**`、`tools/sync-action-mirrors.sh`、`tools/install-goreleaser.sh`、`tools/run-goreleaser-release.sh` | 几乎全新增 |
 | 默认运行参数 | `deploy/docker-compose*.yml`（与 #5 部分重叠） | 补丁 |
 | 文档分支 | `README*.md` 中**非 OpenSpec 功能段落**（如部署/构建说明） | 补丁 |
-| OpenAI ops 观测 | `backend/internal/service/openai_upstream_transport_error.go` 及全部调用点（`openai_*`、`grok_audio.go`、`grok_media.go`、`openai_ws_http_bridge.go`）：`handleOpenAIUpstreamTransportError` 增加 `upstreamURL` 参数，request_error ops 事件标注上游端点。**上游每次新增 transport-error 调用点都会编译失败**，rebase 后按报错逐个补 `safeUpstreamURL(<req>.URL.String())`。～2026-08-19 补充：v0.1.178 新增的 anthropic-native 调用点中，`openai_gateway_chat_completions_anthropic_native.go` 与 `openai_gateway_responses_anthropic_native.go` 是**协议转换**路径（非直通），上游误传 `passthrough=true`，fork 已按同类调用点惯例改 `false`（`messages_anthropic_native` 为零转换直通，`true` 正确保留）；下次 rebase 若上游回改需保留此修正 | 补丁 |
+| OpenAI ops 观测 | `backend/internal/service/openai_upstream_transport_error.go` 及全部调用点（`openai_*`、`grok_audio.go`、`grok_media.go`、`openai_ws_http_bridge.go`）：`handleOpenAIUpstreamTransportError` 增加 `upstreamURL` 参数，request_error ops 事件标注上游端点。**上游每次新增 transport-error 调用点都会编译失败**，rebase 后按报错逐个补 `safeUpstreamURL(<req>.URL.String())`。～2026-08-19 补充：v0.1.178 新增的 anthropic-native 调用点中，`openai_gateway_chat_completions_anthropic_native.go` 与 `openai_gateway_responses_anthropic_native.go` 是**协议转换**路径（非直通），上游误传 `passthrough=true`，fork 已按同类调用点惯例改 `false`（`messages_anthropic_native` 为零转换直通，`true` 正确保留）；下次 rebase 若上游回改需保留此修正。～2026-08-20 v0.1.179：上游未新增 transport-error 调用点（adaptive 协议路由复用既有转发路径），rebase 后零编译失败，23 个非测试调用点全部保持第 6 参 | 补丁 |
 | 前端杂项补丁 | `frontend/src/vite-env.d.ts`（Airwallex SDK 类型声明兜底）、`frontend/src/composables/usePersistedPageSize.ts`（页大小来源追踪，管理员默认值优先于陈旧 localStorage） | 补丁 |
 | Security Scan 分级门禁 | `.github/workflows/security-scan.yml`：govulncheck 改 `-json` 解析，仅「已有修复版的调用级漏洞」硬失败；无修复版（如 lib/pq GO-2026-616x，Fixed in: N/A）报 warning 不阻塞，修复版发布后自动恢复硬性 | 补丁 |
 | Backend CI lint 确定性 | `.github/workflows/backend-ci.yml`：golangci-lint job 加 `skip-cache: true`——实测 Actions 缓存双向失真（同 commit develop push 绿 / tag push 报 7 个幻影 SA5011；本地同版本冷缓存全树 0 issues），全树冷分析仅约 1 分钟，确定性优先 | 补丁 |
-| CN 账号连接测试修补 | `backend/internal/service/account_test_service.go`：`TestAccountConnection` 分发补 CN 供应商分支（anthropic 协议走 Claude 探测、其余走 OpenAI 兼容探测——上游 v0.1.178 漏改，CN 账号全落 Claude 探测致 chat_completions 协议账号 404）；openai 探测 apikey 分支换 `GetOpenAIProtocolAPIKey`；Claude 探测 base 缺省时用 `GetAnthropicProtocolBaseURL` 协议感知默认。可上报上游；上游修复后退场 | 补丁 |
+| CN 账号连接测试修补 | `backend/internal/service/account_test_service.go`：`TestAccountConnection` 分发补 CN 供应商分支（anthropic 协议走 Claude 探测、其余走 OpenAI 兼容探测——上游 v0.1.178 漏改，CN 账号全落 Claude 探测致 chat_completions 协议账号 404）；openai 探测 apikey 分支换 `GetOpenAIProtocolAPIKey`；Claude 探测 base 缺省时用 `GetAnthropicProtocolBaseURL` 协议感知默认。**～2026-08-20 v0.1.179 部分收编**：上游 `ac6208de1` + `85051616f`/`b3092145d` 已在 fork 兜底之前按 `api_protocol` 分发 `adaptive`（`account_test_service_cn_adaptive.go` 三端点自检）与 `chat_completions`（`testCNProviderChatCompletionsConnection`），fork 兜底剩余覆盖面 = `responses`（deepseek 原生，上游仍误落 Claude 探测）+ anthropic 分支显式化；另两处 hunk（`GetOpenAIProtocolAPIKey`、`GetAnthropicProtocolBaseURL`）上游未收编，仍必须保留。可上报上游；上游补齐 `responses` 分发后退场 | 补丁 |
 | 上游测试时区修补 | `backend/internal/repository/group_usage_rollup_trigger_integration_test.go`：事务 helper 钉 `SET LOCAL TIME ZONE 'Asia/Shanghai'`——触发器按会话时区取日（migration 223），测试断言却以上海锚定，容器会话默认 UTC 时在 UTC 16:00–24:00 窗口必挂（上游 cb7b03795 引入即带病）。可上报上游；上游修复后本补丁退场 | 补丁 |
 
 > 这一块文件数量大但大多是 `.github/action-mirrors/` 等"新增目录"，rebase 几乎不会冲突；真正需要看的是 `.goreleaser*.yaml`、`Dockerfile*`、`deploy/docker-compose*.yml` 三处的小补丁。

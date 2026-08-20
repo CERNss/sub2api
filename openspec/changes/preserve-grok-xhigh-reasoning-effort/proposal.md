@@ -23,6 +23,7 @@ xAI shipped a new `xhigh` reasoning-effort tier with grok-4.6 (2026-08-12). Upst
 - `backend/internal/service/openai_gateway_grok.go` — normalize function + whitelist
 - `backend/internal/service/openai_gateway_grok_test.go` — regression coverage
 - Drop this patch once upstream fixes the mapping (watch Wei-Shaw/sub2api#5575); then move this change to ⬆️ upstreamed in `openspec/FORK.md`.
+- 2026-08-20 (rebase onto `75f88be5f`, v0.1.179): upstream `892787723 fix(grok): preserve xhigh effort for grok-4.6` landed an equivalent implementation and was taken wholesale. Only the `max`/`ultra` alias handling still differs — upstream keeps flattening those to `high` even on grok-4.6, the fork keeps treating every top-tier alias alike. Drop the change entirely once upstream folds `max`/`ultra` back in.
 
 ## Fork Touchpoints
 
@@ -30,8 +31,8 @@ xAI shipped a new `xhigh` reasoning-effort tier with grok-4.6 (2026-08-12). Upst
 - _None._
 
 ### Upstream Patch Files
-- `backend/internal/service/openai_gateway_grok.go`: `normalizeGrokReasoningEffortValue` takes the upstream model and returns `xhigh` for grok-4.6 family; new `grokSupportsXHighReasoningEffort` whitelist; 3 call sites pass `upstreamModel`.
-- `backend/internal/service/openai_gateway_grok_test.go`: fork-owned tests `TestPatchGrokResponsesBodyKeepsXHighForGrok46` and `TestNormalizeGrokChatReasoningEffortKeepsXHighForGrok46` (upstream test tables untouched — they pin grok-4.5/4.3 behavior, which is unchanged).
+- `backend/internal/service/openai_gateway_grok.go`: upstream `892787723` (v0.1.179) absorbed the model-aware `normalizeGrokReasoningEffortValue` signature, its 3 call sites and the `grokSupportsXHighReasoningEffort` whitelist; the remaining fork delta is the alias switch keeping `case "xhigh", "extrahigh", "max", "ultra":` as one branch, where upstream split `max`/`ultra` off and flattens them to `high` unconditionally.
+- `backend/internal/service/openai_gateway_grok_test.go`: fork-owned tests `TestPatchGrokResponsesBodyKeepsXHighForGrok46` (its `max camel` case pins the remaining delta) and `TestNormalizeGrokChatReasoningEffortKeepsXHighForGrok46` (upstream test tables untouched — they pin grok-4.5 flattening and grok-4.6 `xhigh` passthrough, both unchanged).
 
 ### Shared Touchpoints
 - _None._
