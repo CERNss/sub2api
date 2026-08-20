@@ -404,15 +404,17 @@ _无。_ 这四个文件在本 change 之前与上游 `main` 零差异，也不�
 | 区域 | 路径示例 | 性质 |
 |------|---------|------|
 | Release 流水线 | `.github/workflows/release.yml`、`.goreleaser.yaml`、`.goreleaser.simple.yaml` | 补丁 + 新增 |
+| Fork 版本线 | `backend/cmd/server/VERSION`：fork 走独立的 `0.0.x` 版本线，与上游 `0.1.x` **每轮 rebase 必然冲突**（链首那条 `chore: sync VERSION to 0.0.24` 停车），取 fork 侧即可，后续 `0.0.25→…` 链会自动跟上；终态应等于 rebase 前的版本号 | 补丁 |
+| OpenSpec overlay 载体 | `openspec/config.yaml`：上游只有一份全是注释的脚手架，fork 把 `context` 与 `rules` 整段填实——这是「proposal 必须写 `## Fork Touchpoints`、一条 bullet 一个路径」这条约束的**唯一强制载体**，`fork_overlay.py` 的快照/校验全靠它产出的结构。上游一旦改写这个脚手架，rebase 可能整段取上游而让 overlay 守护静默失效。<br>`openspec/FORK.md`（本文件）与 `tools/fork_overlay.py`、`docs/fork-snapshots/**` 同属纯 fork 新增，上游无对应物 | 补丁 + 新增 |
 | Docker 打包 | `Dockerfile.goreleaser`（`Dockerfile` 已与上游一致，无补丁） | 补丁/新增 |
 | Action 镜像化 | `.github/action-mirrors/**`、`tools/sync-action-mirrors.sh`、`tools/install-goreleaser.sh`、`tools/run-goreleaser-release.sh` | 几乎全新增 |
 | 默认运行参数 | `deploy/docker-compose*.yml`（与 #5 部分重叠） | 补丁 |
 | 文档分支 | `README*.md` 中**非 OpenSpec 功能段落**（如部署/构建说明） | 补丁 |
-| OpenAI ops 观测 | `backend/internal/service/openai_upstream_transport_error.go` 及全部调用点（`openai_*`、`grok_audio.go`、`grok_media.go`、`openai_ws_http_bridge.go`）：`handleOpenAIUpstreamTransportError` 增加 `upstreamURL` 参数，request_error ops 事件标注上游端点。**上游每次新增 transport-error 调用点都会编译失败**，rebase 后按报错逐个补 `safeUpstreamURL(<req>.URL.String())`。～2026-08-19 补充：v0.1.178 新增的 anthropic-native 调用点中，`openai_gateway_chat_completions_anthropic_native.go` 与 `openai_gateway_responses_anthropic_native.go` 是**协议转换**路径（非直通），上游误传 `passthrough=true`，fork 已按同类调用点惯例改 `false`（`messages_anthropic_native` 为零转换直通，`true` 正确保留）；下次 rebase 若上游回改需保留此修正。～2026-08-20 v0.1.179：上游未新增 transport-error 调用点（adaptive 协议路由复用既有转发路径），rebase 后零编译失败，23 个非测试调用点全部保持第 6 参 | 补丁 |
+| OpenAI ops 观测 + transport-error failover（`0d1d47f17`）| **本行有三层补丁，只有第 1 层受编译器保护，第 2/3 层 rebase 时必须手工核对。**<br>**① 签名扩展（编译期可见）**：`backend/internal/service/openai_upstream_transport_error.go` 的 `handleOpenAIUpstreamTransportError` 增加第 6 参 `upstreamURL`，request_error ops 事件标注上游端点；全部调用点（`openai_*`、`grok_audio.go`、`grok_media.go`、`openai_ws_http_bridge.go`）同步传 `safeUpstreamURL(<req>.URL.String())`。上游新增调用点必编译失败，按报错逐个补即可。<br>**② 行为替换（⚠ 不产生编译错误、不产生冲突，历史上已漏声明至少一轮）**：`openai_embeddings.go:99`、`openai_images.go:632`、`openai_images_responses.go:1727` 三处，上游原本是「内联 `appendOpsUpstreamError` + 写 502/返回 `fmt.Errorf`」的死路，fork 整段（各 10+ 行）替换为 `return nil, s.handleOpenAIUpstreamTransportError(...)`，从而获得 failover 换号 + 持久故障临时摘除。上游若在这三个函数里重写错误分支，rebase 会静默合成"上游内联版"而不报任何错——**每轮 rebase 必须逐个 `git diff <base>..HEAD -- <这三个文件>` 确认 hunk 还在**。<br>**③ passthrough 标志修正（⚠ 单个 bool 字面量，不产生冲突）**：v0.1.178 新增的三条 anthropic-native 调用点里，`openai_gateway_chat_completions_anthropic_native.go` 与 `openai_gateway_responses_anthropic_native.go` 是**协议转换**路径，上游误传 `passthrough=true`，fork 改 `false`；`messages_anthropic_native` 为零转换直通，`true` 正确保留。自 2026-08-20 起由 `backend/internal/service/openai_fork_source_contract_test.go` 的 `TestForkAnthropicNativePassthroughOpsTags` 源码级钉死（同文件的 `TestForkTransportErrorCallSitesTagUpstreamURL` 兜底第 ① 层）。<br>**豁免（A5，2026-08-20 判定）**：`openai_gateway_count_tokens.go` 的 `ForwardResponsesInputTokens`（v0.1.179 净新增，服务 `POST /v1/responses/input_tokens`）与同文件既有的 sibling **有意不接入** helper，保持内联 `setOpsUpstreamError` + 直写 502。理由：这是 preflight 估算路径而非转发路径——handler 侧压根没有 failover 循环（`openai_gateway_count_tokens.go` 只 log 返回值），helper 又刻意不写响应；且该路径自带本地估算降级（`writeOpenAIResponsesInputTokensFallback`），若接入 helper 就会让一次 token 预估探测触发 `tempUnscheduleOpenAITransportError`、把健康账号从**真实流量**调度里摘掉，风险面反而放大。`0d1d47f17` 当年也未转换那个 sibling，本次维持同一口径。已知代价：这两处不产生带 `UpstreamURL`/`Passthrough`/`Kind` 的 ops request_error 事件（`setOpsUpstreamError(c, 0, …)` 仍在，状态码与消息不丢）。若日后想补 ops 对齐，应抽一个「只记事件、不 failover、不摘除」的轻量函数，不要直接复用本 helper。～2026-08-20 v0.1.179：上游未新增 transport-error 调用点（adaptive 协议路由复用既有转发路径），rebase 后零编译失败，23 个非测试调用点全部保持第 6 参 | 补丁 |
 | 前端杂项补丁 | `frontend/src/vite-env.d.ts`（Airwallex SDK 类型声明兜底）、`frontend/src/composables/usePersistedPageSize.ts`（页大小来源追踪，管理员默认值优先于陈旧 localStorage） | 补丁 |
 | Security Scan 分级门禁 | `.github/workflows/security-scan.yml`：govulncheck 改 `-json` 解析，仅「已有修复版的调用级漏洞」硬失败；无修复版（如 lib/pq GO-2026-616x，Fixed in: N/A）报 warning 不阻塞，修复版发布后自动恢复硬性 | 补丁 |
 | Backend CI lint 确定性 | `.github/workflows/backend-ci.yml`：golangci-lint job 加 `skip-cache: true`——实测 Actions 缓存双向失真（同 commit develop push 绿 / tag push 报 7 个幻影 SA5011；本地同版本冷缓存全树 0 issues），全树冷分析仅约 1 分钟，确定性优先 | 补丁 |
-| CN 账号连接测试修补 | `backend/internal/service/account_test_service.go`：`TestAccountConnection` 分发补 CN 供应商分支（anthropic 协议走 Claude 探测、其余走 OpenAI 兼容探测——上游 v0.1.178 漏改，CN 账号全落 Claude 探测致 chat_completions 协议账号 404）；openai 探测 apikey 分支换 `GetOpenAIProtocolAPIKey`；Claude 探测 base 缺省时用 `GetAnthropicProtocolBaseURL` 协议感知默认。**～2026-08-20 v0.1.179 部分收编**：上游 `ac6208de1` + `85051616f`/`b3092145d` 已在 fork 兜底之前按 `api_protocol` 分发 `adaptive`（`account_test_service_cn_adaptive.go` 三端点自检）与 `chat_completions`（`testCNProviderChatCompletionsConnection`），fork 兜底剩余覆盖面 = `responses`（deepseek 原生，上游仍误落 Claude 探测）+ anthropic 分支显式化；另两处 hunk（`GetOpenAIProtocolAPIKey`、`GetAnthropicProtocolBaseURL`）上游未收编，仍必须保留。可上报上游；上游补齐 `responses` 分发后退场 | 补丁 |
+| CN 账号连接测试修补 | `backend/internal/service/account_test_service.go`：`TestAccountConnection` 分发补 CN 供应商分支（anthropic 协议走 Claude 探测、其余走 OpenAI 兼容探测——上游 v0.1.178 漏改，CN 账号全落 Claude 探测致 chat_completions 协议账号 404）；openai 探测 apikey 分支换 `GetOpenAIProtocolAPIKey`；Claude 探测里 `GetAnthropicProtocolBaseURL` 非空时**无条件覆盖** `GetBaseURL()`（不是只在其为空时兜底），使 CN anthropic 账号打供应商官方端点而非 api.anthropic.com。**～2026-08-20 v0.1.179 部分收编 + fork 侧修正**：上游 `ac6208de1` + `85051616f`/`b3092145d` 已在 fork 兜底之前按 `api_protocol` 分发 `adaptive`（`account_test_service_cn_adaptive.go` 三端点自检）与 `chat_completions`（`testCNProviderChatCompletionsConnection`）；fork 兜底剩余覆盖面 = `responses` + anthropic 分支显式化，且 `responses` 分支已改走新增的 fork 自有文件 `backend/internal/service/account_test_service_cn_responses.go`（`testCNProviderResponsesConnection`：`GetOpenAIBaseURL` + `buildOpenAIResponsesURLForPlatform` + `normalizeDeepSeekResponsesRequestBody`，与 `openai_gateway_forward.go` 的真实转发同构；此前误打 `/v1/responses` 且跳过 body 归一，等于把 404 换了个端点）。另两处 hunk（`GetOpenAIProtocolAPIKey`、`GetAnthropicProtocolBaseURL`）上游未收编，仍必须保留。回归测试：`backend/internal/service/account_test_service_cn_fork_dispatch_test.go`。可上报上游；上游补齐 `responses` 分发后退场 | 补丁 + 新增 |
 | 上游测试时区修补 | `backend/internal/repository/group_usage_rollup_trigger_integration_test.go`：事务 helper 钉 `SET LOCAL TIME ZONE 'Asia/Shanghai'`——触发器按会话时区取日（migration 223），测试断言却以上海锚定，容器会话默认 UTC 时在 UTC 16:00–24:00 窗口必挂（上游 cb7b03795 引入即带病）。可上报上游；上游修复后本补丁退场 | 补丁 |
 
 > 这一块文件数量大但大多是 `.github/action-mirrors/` 等"新增目录"，rebase 几乎不会冲突；真正需要看的是 `.goreleaser*.yaml`、`Dockerfile*`、`deploy/docker-compose*.yml` 三处的小补丁。
@@ -425,9 +427,11 @@ _无。_ 这四个文件在本 change 之前与上游 `main` 零差异，也不�
 > - `add-openai-compatible-prompt-audit`（`backend/internal/securityaudit/` 全模块、
 >   `frontend/src/features/prompt-audit/`、路由/侧栏/i18n 接入）— 上游已整体收编
 >   （`10a4c6e3a` 与 `v0.1.176` 的 securityaudit 目录 tree hash 一致，`develop`
->   相对上游零差异）；2026-08-13 rebase 到 `e803e3851` 时确认。fork 仅保留
->   `openspec/changes/add-openai-compatible-prompt-audit/` 文档目录，代码层面
->   无需再作为 fork 补丁守护。
+>   相对上游零差异）；2026-08-13 rebase 到 `e803e3851` 时确认。2026-08-20 复核：
+>   `openspec/changes/add-openai-compatible-prompt-audit/` 文档目录**在上游基线上
+>   同样存在**，fork 对它也是零差异——即上游连文档一并收编了，本条已不构成任何
+>   fork 补丁。该 proposal 的 `## Fork Touchpoints` 是一节显式声明的空触点（补于
+>   2026-08-20），只为让 `fork_overlay.py verify` 不再把它算成"零检查的已验证"。
 
 ---
 
@@ -454,11 +458,16 @@ _无。_ 这四个文件在本 change 之前与上游 `main` 零差异，也不�
    - 每个 `Upstream Patch Files` 路径相对 `main` 仍非零差异（=patch 没丢）；
    - 每个 `Shared Touchpoints` 引用的 co-owner change 也列出该路径（双向闭合）。
 4. **若 verify 报错**：
-   - 若是 patch 丢失：参考 `tools/fork-snapshots/<change-id>/patch.diff`
-     或 spec/tasks/design.md 手工恢复。
+   - 若是 patch 丢失：参考 **`docs/fork-snapshots/<change-id>/patch.diff`**
+     （随 `develop` 一起提交的上一轮已知良好快照）或 spec/tasks/design.md 手工恢复。
+     不要用 `tools/fork-snapshots/`：那只是本次运行刚覆盖出来的临时产物。
    - 若是 shared touchpoint 单边声明：把对面 change 的 proposal 补全。
    - 若是 patch 已被上游收编（diff 永远为空且确认无需保留）：
      从对应 proposal 的 `## Fork Touchpoints` 中删除该路径，并同步本文表格。
+5. **若 verify 报 WARN**：
+   - `missing ## Fork Touchpoints section` / `unparsed bullet`：该 change 的
+     校验实际是空转（"已验证"但一条也没查）。补齐段落或把 bullet 改成
+     「一条一个反引号路径 + 冒号」的合规形态，别放着不管。
 
 ### 共享文件
 当一个文件被多个 change 触碰时，rebase 冲突解决要**把所有 change 的修改都加回来**。
@@ -471,6 +480,11 @@ _无。_ 这四个文件在本 change 之前与上游 `main` 零差异，也不�
 - 两者均接 `--base <ref>`（默认 `main`）
 
 ### 快照归档
-- `tools/fork-snapshots/` 是本地再生成目录，仍然 gitignore。
-- `docs/fork-snapshots/` 保存可提交的快照副本，包含 `manifest.json` 与 `patch.diff`，
-  用于下次 rebase 时从 `develop` 分支直接查阅/恢复。
+- `tools/fork-snapshots/` 是本地再生成的**临时**目录：`.gitignore` 已忽略，
+  且自 2026-08-20 起不再有任何文件被 git 跟踪（此前有 11 个陈旧副本因先于
+  gitignore 加入而一直被跟踪，内容停在旧基线且残缺——`.gitignore` 对已跟踪
+  路径无效，别再往里提交东西）。
+- `docs/fork-snapshots/` 才是**可提交的权威副本**，包含 `manifest.json` 与
+  `patch.diff`，用于下次 rebase 时从 `develop` 分支直接查阅/恢复。
+- `patch.diff` 只含 `Upstream Patch Files` 的 diff，**不含 `New Files`**；
+  新增文件的恢复靠 `manifest.json` 里的清单 + git 历史。
