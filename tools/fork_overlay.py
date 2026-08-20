@@ -43,9 +43,11 @@ SUBSECTIONS = (
 )
 
 BULLET_RE = re.compile(r"^-\s+`([^`]+)`\s*[:：]\s*(.+?)\s*$")
-NONE_RE = re.compile(r"^-\s+_None\._\s*$", re.IGNORECASE)
+# ``- _None._`` may carry a trailing justification on the same line.
+NONE_RE = re.compile(r"^-\s+_None\._(?:\s+.*)?$", re.IGNORECASE)
 SHARED_OWNER_RE = re.compile(r"also owned by[^`]*`([^`]+)`")
 SUBHEADING_RE = re.compile(r"^###\s+(.+?)\s*$")
+ANY_BULLET_RE = re.compile(r"^-\s+\S")
 
 
 @dc.dataclass
@@ -147,6 +149,50 @@ def parse_fork_touchpoints(text: str) -> dict[str, list[Entry]]:
     return sections
 
 
+def collect_touchpoint_parse_findings(text: str) -> list[str]:
+    """Structural findings for a proposal's ``## Fork Touchpoints`` section.
+
+    ``verify``'s per-path checks are silently vacuous when the section is
+    absent, or when a bullet inside it does not match ``BULLET_RE``: the change
+    still gets counted as "verified" while covering nothing at all. Both
+    failure modes have already shipped once in this repo (a full-width colon
+    reduced the keepalive change to zero touchpoints and its archived snapshot
+    to an empty shell), so surface them instead of counting an empty pass.
+    """
+    lines = text.splitlines()
+    start = next(
+        (i for i, ln in enumerate(lines) if ln.strip() == "## Fork Touchpoints"),
+        None,
+    )
+    if start is None:
+        return ["missing `## Fork Touchpoints` section — verify covers nothing"]
+
+    end = len(lines)
+    for i in range(start + 1, len(lines)):
+        ln = lines[i]
+        if ln.startswith("## ") and not ln.startswith("### "):
+            end = i
+            break
+
+    findings: list[str] = []
+    current: str | None = None
+    for lineno, ln in enumerate(lines[start + 1 : end], start=start + 2):
+        m = SUBHEADING_RE.match(ln)
+        if m:
+            heading = m.group(1).strip()
+            current = heading if heading in SUBSECTIONS else None
+            continue
+        if current is None or NONE_RE.match(ln) or not ANY_BULLET_RE.match(ln):
+            continue
+        if BULLET_RE.match(ln):
+            continue
+        findings.append(
+            f"unparsed bullet under `{current}` (line {lineno}), "
+            f"silently dropped: {ln.strip()}"
+        )
+    return findings
+
+
 def build_manifest(proposal_path: Path, status: str, base: str) -> Manifest:
     sections = parse_fork_touchpoints(proposal_path.read_text(encoding="utf-8"))
     return Manifest(
@@ -215,6 +261,10 @@ def cmd_verify(args: argparse.Namespace) -> int:
 
     for m in manifests:
         header = f"[{m.status:<8}] {m.change_id}"
+
+        proposal_text = (REPO_ROOT / m.proposal_path).read_text(encoding="utf-8")
+        for finding in collect_touchpoint_parse_findings(proposal_text):
+            warnings.append(f"{header}: {finding}")
 
         for e in m.new_files:
             if not (REPO_ROOT / e.path).exists():
