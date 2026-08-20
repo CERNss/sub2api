@@ -1,0 +1,88 @@
+diff --git a/frontend/src/composables/useModelWhitelist.ts b/frontend/src/composables/useModelWhitelist.ts
+index 2ca860c67..24e28ede2 100644
+--- a/frontend/src/composables/useModelWhitelist.ts
++++ b/frontend/src/composables/useModelWhitelist.ts
+@@ -90,7 +90,7 @@ const antigravityModels = [
+ const zhipuModels = [
+   'glm-4', 'glm-4v', 'glm-4-plus', 'glm-4-0520',
+   'glm-4-air', 'glm-4-airx', 'glm-4-long', 'glm-4-flash',
+-  'glm-4v-plus', 'glm-4.5', 'glm-4.6',
++  'glm-4v-plus', 'glm-4.5', 'glm-4.6', 'glm-4.7',
+   'glm-3-turbo', 'glm-4-alltools',
+   'chatglm_turbo', 'chatglm_pro', 'chatglm_std', 'chatglm_lite',
+   'cogview-3', 'cogvideo'
+diff --git a/frontend/src/utils/__tests__/ccswitchImport.spec.ts b/frontend/src/utils/__tests__/ccswitchImport.spec.ts
+index 50789b500..9097609cf 100644
+--- a/frontend/src/utils/__tests__/ccswitchImport.spec.ts
++++ b/frontend/src/utils/__tests__/ccswitchImport.spec.ts
+@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
+ import {
+   GROK_CC_SWITCH_MODEL,
+   OPENAI_CC_SWITCH_CODEX_MODEL,
++  ZHIPU_CC_SWITCH_MODEL,
+   buildCcSwitchImportDeeplink
+ } from '@/utils/ccswitchImport'
+ import type { GroupPlatform } from '@/types'
+@@ -17,7 +18,11 @@ describe('ccswitchImport utils', () => {
+   })
+ 
+   it('defaults Grok Build imports to the current Grok model', () => {
+-    expect(GROK_CC_SWITCH_MODEL).toBe('grok-4.5')
++    expect(GROK_CC_SWITCH_MODEL).toBe('grok-4.6')
++  })
++
++  it('defaults GLM imports to the current GLM model', () => {
++    expect(ZHIPU_CC_SWITCH_MODEL).toBe('glm-4.6')
+   })
+ 
+   const baseInput = {
+@@ -63,6 +68,20 @@ describe('ccswitchImport utils', () => {
+     expect(params.get('model')).toBe(GROK_CC_SWITCH_MODEL)
+   })
+ 
++  it('pins the GLM model on zhipu imports as a Claude-type provider', () => {
++    const params = paramsFromDeeplink(
++      buildCcSwitchImportDeeplink({
++        ...baseInput,
++        platform: 'zhipu',
++        clientType: 'claude'
++      })
++    )
++
++    expect(params.get('app')).toBe('claude')
++    expect(params.get('endpoint')).toBe(baseInput.baseUrl)
++    expect(params.get('model')).toBe(ZHIPU_CC_SWITCH_MODEL)
++  })
++
+   it.each([
+     { platform: 'anthropic' as GroupPlatform, clientType: 'claude' as const, app: 'claude' },
+     { platform: 'gemini' as GroupPlatform, clientType: 'gemini' as const, app: 'gemini' }
+diff --git a/frontend/src/utils/ccswitchImport.ts b/frontend/src/utils/ccswitchImport.ts
+index d7858eab4..aca3b6584 100644
+--- a/frontend/src/utils/ccswitchImport.ts
++++ b/frontend/src/utils/ccswitchImport.ts
+@@ -1,7 +1,8 @@
+ import type { GroupPlatform } from '@/types'
+ 
+ export const OPENAI_CC_SWITCH_CODEX_MODEL = 'gpt-5.5'
+-export const GROK_CC_SWITCH_MODEL = 'grok-4.5'
++export const GROK_CC_SWITCH_MODEL = 'grok-4.6'
++export const ZHIPU_CC_SWITCH_MODEL = 'glm-4.6'
+ 
+ export type CcSwitchClientType = 'claude' | 'gemini'
+ 
+@@ -53,6 +54,14 @@ export function resolveCcSwitchImportConfig(
+         endpoint: withV1Endpoint(baseUrl),
+         model: GROK_CC_SWITCH_MODEL
+       }
++    case 'zhipu':
++      // Claude-type import: model becomes ANTHROPIC_MODEL so the imported
++      // provider pins its own GLM model instead of relying on upstream mapping.
++      return {
++        app: 'claude',
++        endpoint: baseUrl,
++        model: ZHIPU_CC_SWITCH_MODEL
++      }
+     default:
+       return {
+         app: 'claude',

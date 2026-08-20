@@ -1,0 +1,62 @@
+{
+  "change_id": "add-platform-opencode-templates",
+  "status": "active",
+  "proposal_path": "openspec/changes/add-platform-opencode-templates/proposal.md",
+  "captured_at": "2026-08-20T10:07:46+00:00",
+  "captured_at_commit": "9168cd2a029f19dc7b272c183dfa265cdeb83180",
+  "base": "75f88be5f",
+  "base_commit": "75f88be5f75c27771836b586f7de1503afa0e3bc",
+  "new_files": [],
+  "upstream_patch_files": [
+    {
+      "path": "frontend/src/utils/ccswitchImport.ts",
+      "reason": "`ZHIPU_CC_SWITCH_MODEL` plus the `zhipu` branch of `resolveCcSwitchImportConfig`."
+    },
+    {
+      "path": "frontend/src/utils/__tests__/ccswitchImport.spec.ts",
+      "reason": "Zhipu import assertions."
+    },
+    {
+      "path": "frontend/src/composables/useModelWhitelist.ts",
+      "reason": "`zhipuModels` gains `glm-4.7` so the recommended GLM model is whitelistable."
+    }
+  ],
+  "shared_touchpoints": [
+    {
+      "path": "frontend/src/components/keys/UseKeyModal.vue",
+      "reason": "also owned by `2026-04-28-support-mounted-frontend-client-templates` — the OpenCode branch now resolves a per-platform section before the shared one for openai/grok/zhipu only, `default` must stay on the shared section, and `generateOpenCodeConfig` gained the `zhipu` branch plus the `pinDefaultModel` option.",
+      "shared_with": "2026-04-28-support-mounted-frontend-client-templates"
+    },
+    {
+      "path": "frontend/src/components/keys/__tests__/UseKeyModal.spec.ts",
+      "reason": "also owned by `2026-04-28-support-mounted-frontend-client-templates` — keeps the per-platform priority tests and the regression test that `default`-branch platforms never see `openai/gpt-5.5`.",
+      "shared_with": "2026-04-28-support-mounted-frontend-client-templates"
+    },
+    {
+      "path": "frontend/src/types/index.ts",
+      "reason": "also owned by `2026-04-28-support-mounted-frontend-client-templates` — `ClientTemplatesConfig` gains the three per-platform OpenCode sections alongside the existing extensions.",
+      "shared_with": "2026-04-28-support-mounted-frontend-client-templates"
+    },
+    {
+      "path": "frontend/src/utils/clientTemplates.ts",
+      "reason": "also owned by `2026-04-28-support-mounted-frontend-client-templates` — the known-section whitelist gains the three new sections.",
+      "shared_with": "2026-04-28-support-mounted-frontend-client-templates"
+    },
+    {
+      "path": "frontend/src/utils/__tests__/clientTemplates.spec.ts",
+      "reason": "also owned by `2026-04-28-support-mounted-frontend-client-templates` — normalization coverage for payloads defining only a per-platform OpenCode section.",
+      "shared_with": "2026-04-28-support-mounted-frontend-client-templates"
+    },
+    {
+      "path": "template/client-templates.json",
+      "reason": "also owned by `2026-04-28-support-mounted-frontend-client-templates` — bundled default gains the three sections.",
+      "shared_with": "2026-04-28-support-mounted-frontend-client-templates"
+    },
+    {
+      "path": "template/README.md",
+      "reason": "also owned by `2026-04-28-support-mounted-frontend-client-templates` — documents the lookup order and that only openai/grok/zhipu consult a platform section.",
+      "shared_with": "2026-04-28-support-mounted-frontend-client-templates"
+    }
+  ],
+  "non_openspec_overlap": []
+}
