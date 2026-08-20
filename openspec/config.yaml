@@ -25,7 +25,9 @@ rules:
         ### Non-OpenSpec Overlap
         - `path/to/file`: overlaps infra/docs fork area (e.g. `.goreleaser.yaml`, README non-feature sections) because <reason>
 
-      This is the machine-readable boundary used by `tools/fork-snapshot.sh` / `tools/fork-verify.sh` and by `openspec/FORK.md`.
+      One path per bullet — `tools/fork_overlay.py` parses these lines and drops any bullet whose path list is not a single backticked path followed by a colon. An empty subsection is written as `- _None._` (an inline justification after it is allowed).
+
+      This is the machine-readable boundary used by `python3 tools/fork_overlay.py snapshot` / `verify` and by `openspec/FORK.md`. `verify` WARNs when the `## Fork Touchpoints` section is missing or when a bullet in it cannot be parsed, because either case silently reduces the change's coverage to nothing.
     - When a proposal is created or modified, the matching row in `openspec/FORK.md` must be added/updated in the same commit.
 
   tasks:
