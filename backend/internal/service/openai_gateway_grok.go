@@ -728,6 +728,11 @@ func normalizeGrokReasoningEffortValue(raw, model string) (string, bool) {
 		return value, true
 	case "minimal":
 		return "low", true
+	// fork: max/ultra 与 xhigh/extrahigh 同属"顶档"别名，必须共用下面的白名单判定。
+	// 上游 v0.1.179 (892787723) 把 max/ultra 拆成独立分支恒拍平成 high——那正是本
+	// 补丁要治的静默降级，且上游自己在 gateway_request.go 的 GLM 归一里也把
+	// max/ultracode 当顶档。rebase 时勿按上游形态拆开（该差异不产生冲突，
+	// 由 TestPatchGrokResponsesBodyKeepsXHighForGrok46 等用例兜底）。
 	case "xhigh", "extrahigh", "max", "ultra":
 		if GrokSupportsXHighReasoningEffort(model) {
 			return "xhigh", true
