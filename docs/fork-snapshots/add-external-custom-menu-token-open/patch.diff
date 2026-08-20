@@ -855,7 +855,7 @@ index 8439c23fc..dc4dedc5d 100644
 +  })
 +})
 diff --git a/frontend/src/types/index.ts b/frontend/src/types/index.ts
-index eaa585f15..187dcc9b0 100644
+index eaa585f15..48f653a3f 100644
 --- a/frontend/src/types/index.ts
 +++ b/frontend/src/types/index.ts
 @@ -188,6 +188,7 @@ export interface CustomMenuItem {
@@ -874,7 +874,7 @@ index eaa585f15..187dcc9b0 100644
    payment_enabled: boolean
    risk_control_enabled: boolean
    table_default_page_size: number
-@@ -525,6 +527,32 @@ export interface PaginationConfig {
+@@ -525,6 +527,37 @@ export interface PaginationConfig {
    page_size: number
  }
  
@@ -900,6 +900,11 @@ index eaa585f15..187dcc9b0 100644
 +  codex?: ClientTemplateSectionConfig
 +  grok_codex?: ClientTemplateSectionConfig
 +  opencode?: ClientTemplateSectionConfig
++  // Per-platform OpenCode overrides: each platform pins its own model so one
++  // shared template never leaks another platform's model list.
++  openai_opencode?: ClientTemplateSectionConfig
++  grok_opencode?: ClientTemplateSectionConfig
++  zhipu_opencode?: ClientTemplateSectionConfig
 +  ccs_import?: CcsImportTemplateConfig
 +  [key: string]: ClientTemplateSectionConfig | CcsImportTemplateConfig | undefined
 +}
