@@ -144,6 +144,21 @@ describe('clientTemplates', () => {
     })
   })
 
+  it.each(['openai_opencode', 'grok_opencode', 'zhipu_opencode'])(
+    'accepts payloads that only define the %s section',
+    (section) => {
+      const payload = {
+        [section]: {
+          files: [{ path: 'opencode.json', content: '{"apiKey":"${apiKey}"}' }]
+        }
+      }
+
+      expect(
+        normalizeClientTemplatesConfig({ client_templates: payload })
+      ).toEqual(payload)
+    }
+  )
+
   it('loads static client templates from the template runtime path', async () => {
     const fetchImpl = vi.fn().mockResolvedValue({
       ok: true,

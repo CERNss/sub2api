@@ -798,4 +798,314 @@ describe('UseKeyModal', () => {
     expect(codeBlock.text()).toContain('"apiKey":"sk-test"')
     expect(codeBlock.text()).not.toContain('Gemini 2.5 Flash')
   })
+
+  async function openOpenCodeTab(wrapper: ReturnType<typeof mount>) {
+    const opencodeTab = wrapper.findAll('button').find((button) =>
+      button.text().includes('keys.useKeyModal.cliTabs.opencode')
+    )
+    expect(opencodeTab).toBeDefined()
+    await opencodeTab!.trigger('click')
+    await nextTick()
+  }
+
+  it('prefers the grok_opencode template over the shared opencode template', async () => {
+    const wrapper = mount(UseKeyModal, {
+      props: {
+        show: true,
+        apiKey: 'sk-grok-oc-test',
+        baseUrl: 'https://example.com/v1',
+        platform: 'grok',
+        clientTemplates: {
+          opencode: {
+            files: [{ path: 'opencode.json', content: '{"shared":"${apiKey}"}' }]
+          },
+          grok_opencode: {
+            files: [
+              {
+                path: 'opencode.json',
+                content: '{"model":"grok/grok-4.6","baseURL":"${endpoint}","apiKey":"${apiKey}"}'
+              }
+            ]
+          }
+        }
+      },
+      global: {
+        stubs: {
+          BaseDialog: {
+            template: '<div><slot /><slot name="footer" /></div>'
+          },
+          Icon: {
+            template: '<span />'
+          }
+        }
+      }
+    })
+
+    await openOpenCodeTab(wrapper)
+
+    const codeBlock = wrapper.find('pre code')
+    expect(codeBlock.text()).toContain('"model":"grok/grok-4.6"')
+    expect(codeBlock.text()).toContain('"baseURL":"https://example.com/v1"')
+    expect(codeBlock.text()).toContain('"apiKey":"sk-grok-oc-test"')
+    expect(codeBlock.text()).not.toContain('"shared"')
+  })
+
+  it('prefers the zhipu_opencode template and falls back to the shared template without it', async () => {
+    const sharedOnly = mount(UseKeyModal, {
+      props: {
+        show: true,
+        apiKey: 'sk-glm-oc-test',
+        baseUrl: 'https://example.com/v1',
+        platform: 'zhipu',
+        clientTemplates: {
+          opencode: {
+            files: [{ path: 'opencode.json', content: '{"shared":"${apiKey}"}' }]
+          }
+        }
+      },
+      global: {
+        stubs: {
+          BaseDialog: {
+            template: '<div><slot /><slot name="footer" /></div>'
+          },
+          Icon: {
+            template: '<span />'
+          }
+        }
+      }
+    })
+
+    await openOpenCodeTab(sharedOnly)
+    expect(sharedOnly.find('pre code').text()).toContain('"shared":"sk-glm-oc-test"')
+
+    const withOverride = mount(UseKeyModal, {
+      props: {
+        show: true,
+        apiKey: 'sk-glm-oc-test',
+        baseUrl: 'https://example.com/v1',
+        platform: 'zhipu',
+        clientTemplates: {
+          opencode: {
+            files: [{ path: 'opencode.json', content: '{"shared":"${apiKey}"}' }]
+          },
+          zhipu_opencode: {
+            files: [
+              {
+                path: 'opencode.json',
+                content: '{"model":"zhipu/glm-4.6","baseURL":"${endpoint}"}'
+              }
+            ]
+          }
+        }
+      },
+      global: {
+        stubs: {
+          BaseDialog: {
+            template: '<div><slot /><slot name="footer" /></div>'
+          },
+          Icon: {
+            template: '<span />'
+          }
+        }
+      }
+    })
+
+    await openOpenCodeTab(withOverride)
+    const codeBlock = withOverride.find('pre code')
+    expect(codeBlock.text()).toContain('"model":"zhipu/glm-4.6"')
+    expect(codeBlock.text()).not.toContain('"shared"')
+  })
+
+  it('renders an isolated GLM OpenCode fallback without OpenAI catalog models', async () => {
+    const wrapper = mount(UseKeyModal, {
+      props: {
+        show: true,
+        apiKey: 'sk-glm-test',
+        baseUrl: 'https://example.com/v1',
+        platform: 'zhipu'
+      },
+      global: {
+        stubs: {
+          BaseDialog: {
+            template: '<div><slot /><slot name="footer" /></div>'
+          },
+          Icon: {
+            template: '<span />'
+          }
+        }
+      }
+    })
+
+    await openOpenCodeTab(wrapper)
+
+    const parsed = JSON.parse(wrapper.find('pre code').text())
+    expect(parsed.model).toBe('zhipu/glm-4.6')
+    expect(parsed.provider.zhipu.npm).toBe('@ai-sdk/openai-compatible')
+    expect(parsed.provider.zhipu.name).toBe('GLM via Sub2API')
+    expect(parsed.provider.zhipu.options).toEqual({
+      baseURL: 'https://example.com/v1',
+      apiKey: 'sk-glm-test'
+    })
+    expect(parsed.provider.zhipu.models['glm-4.6']).toBeDefined()
+    expect(parsed.provider.zhipu.models['glm-4.7']).toBeDefined()
+    expect(parsed.provider.openai).toBeUndefined()
+    expect(JSON.stringify(parsed)).not.toContain('gpt-')
+  })
+
+  it('pins one default model per platform in built-in OpenCode fallbacks', async () => {
+    const grokWrapper = mount(UseKeyModal, {
+      props: {
+        show: true,
+        apiKey: 'sk-grok-test',
+        baseUrl: 'https://example.com/v1',
+        platform: 'grok'
+      },
+      global: {
+        stubs: {
+          BaseDialog: {
+            template: '<div><slot /><slot name="footer" /></div>'
+          },
+          Icon: {
+            template: '<span />'
+          }
+        }
+      }
+    })
+    await openOpenCodeTab(grokWrapper)
+    const grokParsed = JSON.parse(grokWrapper.find('pre code').text())
+    expect(grokParsed.model).toBe('grok/grok-4.6')
+    expect(grokParsed.provider.grok.models['grok-4.6']).toBeDefined()
+
+    const openaiWrapper = mount(UseKeyModal, {
+      props: {
+        show: true,
+        apiKey: 'sk-openai-test',
+        baseUrl: 'https://example.com/v1',
+        platform: 'openai'
+      },
+      global: {
+        stubs: {
+          BaseDialog: {
+            template: '<div><slot /><slot name="footer" /></div>'
+          },
+          Icon: {
+            template: '<span />'
+          }
+        }
+      }
+    })
+    await openOpenCodeTab(openaiWrapper)
+    const openaiParsed = JSON.parse(openaiWrapper.find('pre code').text())
+    expect(openaiParsed.model).toBe('openai/gpt-5.5')
+  })
+
+  it('prefers the openai_opencode template over the shared opencode template', async () => {
+    const wrapper = mount(UseKeyModal, {
+      props: {
+        show: true,
+        apiKey: 'sk-openai-oc-test',
+        baseUrl: 'https://example.com/v1',
+        platform: 'openai',
+        clientTemplates: {
+          opencode: {
+            files: [{ path: 'opencode.json', content: '{"shared":"${apiKey}"}' }]
+          },
+          openai_opencode: {
+            files: [
+              {
+                path: 'opencode.json',
+                content: '{"model":"openai/gpt-5.5","baseURL":"${endpoint}","apiKey":"${apiKey}"}'
+              }
+            ]
+          }
+        }
+      },
+      global: {
+        stubs: {
+          BaseDialog: {
+            template: '<div><slot /><slot name="footer" /></div>'
+          },
+          Icon: {
+            template: '<span />'
+          }
+        }
+      }
+    })
+
+    await openOpenCodeTab(wrapper)
+
+    const codeBlock = wrapper.find('pre code')
+    expect(codeBlock.text()).toContain('"model":"openai/gpt-5.5"')
+    expect(codeBlock.text()).toContain('"baseURL":"https://example.com/v1"')
+    expect(codeBlock.text()).toContain('"apiKey":"sk-openai-oc-test"')
+    expect(codeBlock.text()).not.toContain('"shared"')
+  })
+
+  // Regression guard: platforms without their own section must never inherit the
+  // OpenAI one. `case 'openai'` and `default` were briefly merged, which pinned
+  // kimi/deepseek/composite OpenCode configs to openai/gpt-5.5 — a model their
+  // groups cannot route.
+  it('keeps platforms without a dedicated section off the openai_opencode section and model pin', async () => {
+    const withOpenAISection = mount(UseKeyModal, {
+      props: {
+        show: true,
+        apiKey: 'sk-kimi-oc-test',
+        baseUrl: 'https://example.com/v1',
+        platform: 'kimi',
+        clientTemplates: {
+          opencode: {
+            files: [{ path: 'opencode.json', content: '{"shared":"${apiKey}"}' }]
+          },
+          openai_opencode: {
+            files: [{ path: 'opencode.json', content: '{"model":"openai/gpt-5.5"}' }]
+          }
+        }
+      },
+      global: {
+        stubs: {
+          BaseDialog: {
+            template: '<div><slot /><slot name="footer" /></div>'
+          },
+          Icon: {
+            template: '<span />'
+          }
+        }
+      }
+    })
+
+    await openOpenCodeTab(withOpenAISection)
+    const sharedText = withOpenAISection.find('pre code').text()
+    expect(sharedText).toContain('"shared":"sk-kimi-oc-test"')
+    expect(sharedText).not.toContain('openai/gpt-5.5')
+
+    const builtinFallback = mount(UseKeyModal, {
+      props: {
+        show: true,
+        apiKey: 'sk-kimi-builtin-test',
+        baseUrl: 'https://example.com/v1',
+        platform: 'kimi'
+      },
+      global: {
+        stubs: {
+          BaseDialog: {
+            template: '<div><slot /><slot name="footer" /></div>'
+          },
+          Icon: {
+            template: '<span />'
+          }
+        }
+      }
+    })
+
+    await openOpenCodeTab(builtinFallback)
+    const parsed = JSON.parse(builtinFallback.find('pre code').text())
+    expect(parsed.model).toBeUndefined()
+    expect(JSON.stringify(parsed)).not.toContain('openai/gpt-5.5')
+    // The OpenAI-compatible provider shape itself is unchanged from before the
+    // per-platform split — only the model pin is withheld.
+    expect(parsed.provider.openai.options).toEqual({
+      baseURL: 'https://example.com/v1',
+      apiKey: 'sk-kimi-builtin-test'
+    })
+  })
 })

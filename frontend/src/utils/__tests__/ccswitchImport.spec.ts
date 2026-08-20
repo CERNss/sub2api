@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   GROK_CC_SWITCH_MODEL,
   OPENAI_CC_SWITCH_CODEX_MODEL,
+  ZHIPU_CC_SWITCH_MODEL,
   buildCcSwitchImportDeeplink
 } from '@/utils/ccswitchImport'
 import type { GroupPlatform } from '@/types'
@@ -18,6 +19,10 @@ describe('ccswitchImport utils', () => {
 
   it('defaults Grok Build imports to the current Grok model', () => {
     expect(GROK_CC_SWITCH_MODEL).toBe('grok-4.6')
+  })
+
+  it('defaults GLM imports to the current GLM model', () => {
+    expect(ZHIPU_CC_SWITCH_MODEL).toBe('glm-4.6')
   })
 
   const baseInput = {
@@ -61,6 +66,20 @@ describe('ccswitchImport utils', () => {
     expect(params.get('app')).toBe('grokbuild')
     expect(params.get('endpoint')).toBe('https://api.example.com/v1')
     expect(params.get('model')).toBe(GROK_CC_SWITCH_MODEL)
+  })
+
+  it('pins the GLM model on zhipu imports as a Claude-type provider', () => {
+    const params = paramsFromDeeplink(
+      buildCcSwitchImportDeeplink({
+        ...baseInput,
+        platform: 'zhipu',
+        clientType: 'claude'
+      })
+    )
+
+    expect(params.get('app')).toBe('claude')
+    expect(params.get('endpoint')).toBe(baseInput.baseUrl)
+    expect(params.get('model')).toBe(ZHIPU_CC_SWITCH_MODEL)
   })
 
   it.each([
