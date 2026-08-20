@@ -1,5 +1,5 @@
 diff --git a/frontend/src/components/keys/UseKeyModal.vue b/frontend/src/components/keys/UseKeyModal.vue
-index c8ae79d22..9d170d069 100644
+index c8ae79d22..38719e1f0 100644
 --- a/frontend/src/components/keys/UseKeyModal.vue
 +++ b/frontend/src/components/keys/UseKeyModal.vue
 @@ -201,7 +201,11 @@ import { useI18n } from 'vue-i18n'
@@ -60,10 +60,12 @@ index c8ae79d22..9d170d069 100644
  // Syntax highlighting helpers
  // Generate file configs based on platform and active tab
  const currentFiles = computed((): FileConfig[] => {
-@@ -505,6 +540,23 @@ const currentFiles = computed((): FileConfig[] => {
+@@ -505,6 +540,42 @@ const currentFiles = computed((): FileConfig[] => {
    })()
  
    if (activeClientTab.value === 'opencode') {
++    // Per-platform sections win over the shared `opencode` template so each
++    // platform ships its own pinned model instead of a cross-platform mix.
 +    const configuredOpenCodeFiles = (() => {
 +      switch (props.platform) {
 +        case 'gemini':
@@ -72,8 +74,25 @@ index c8ae79d22..9d170d069 100644
 +          return renderConfiguredFiles(props.clientTemplates?.opencode?.files, baseUrl, apiKey, antigravityBase, 'antigravity')
 +        case 'anthropic':
 +          return renderConfiguredFiles(props.clientTemplates?.opencode?.files, baseUrl, apiKey, apiBase, 'claude')
++        case 'grok':
++          return renderConfiguredFiles(
++            props.clientTemplates?.grok_opencode?.files ?? props.clientTemplates?.opencode?.files,
++            baseUrl, apiKey, apiBase, 'opencode'
++          )
++        case 'zhipu':
++          return renderConfiguredFiles(
++            props.clientTemplates?.zhipu_opencode?.files ?? props.clientTemplates?.opencode?.files,
++            baseUrl, apiKey, apiBase, 'opencode'
++          )
 +        case 'openai':
++          return renderConfiguredFiles(
++            props.clientTemplates?.openai_opencode?.files ?? props.clientTemplates?.opencode?.files,
++            baseUrl, apiKey, apiBase, 'codex'
++          )
 +        default:
++          // Platforms without a dedicated section (kimi, deepseek, composite, …)
++          // must NOT pick up `openai_opencode`: that section pins OpenAI models
++          // their groups do not serve. Shared section only.
 +          return renderConfiguredFiles(props.clientTemplates?.opencode?.files, baseUrl, apiKey, apiBase, 'codex')
 +      }
 +    })()
@@ -84,7 +103,23 @@ index c8ae79d22..9d170d069 100644
      switch (props.platform) {
        case 'anthropic':
          return [generateOpenCodeConfig('anthropic', apiBase, apiKey)]
-@@ -530,8 +582,30 @@ const currentFiles = computed((): FileConfig[] => {
+@@ -519,8 +590,14 @@ const currentFiles = computed((): FileConfig[] => {
+         ]
+       case 'grok':
+         return [generateOpenCodeConfig('grok', apiBase, apiKey)]
++      case 'zhipu':
++        return [generateOpenCodeConfig('zhipu', apiBase, apiKey)]
+       default:
+-        return [generateOpenCodeConfig('openai', apiBase, apiKey)]
++        // OpenAI-compatible shape for platforms we do not model explicitly, but
++        // without the pinned `model`: their groups serve entirely different
++        // model names, so claiming openai/gpt-5.5 would send every request to a
++        // model the group cannot route.
++        return [generateOpenCodeConfig('openai', apiBase, apiKey, undefined, { pinDefaultModel: false })]
+     }
+   }
+ 
+@@ -530,8 +607,30 @@ const currentFiles = computed((): FileConfig[] => {
          return generateAnthropicFiles(baseUrl, apiKey)
        }
        if (activeClientTab.value === 'codex-ws') {
@@ -115,7 +150,7 @@ index c8ae79d22..9d170d069 100644
        return generateOpenAIFiles(baseUrl, apiKey)
      case 'gemini':
        return [generateGeminiCliContent(baseUrl, apiKey)]
-@@ -545,6 +619,18 @@ const currentFiles = computed((): FileConfig[] => {
+@@ -545,6 +644,18 @@ const currentFiles = computed((): FileConfig[] => {
          return generateGrokClaudeFiles(baseRoot, apiKey)
        }
        if (activeClientTab.value === 'codex') {
@@ -134,8 +169,90 @@ index c8ae79d22..9d170d069 100644
          return generateGrokCodexFiles(apiBase, apiKey)
        }
        return generateGrokFiles(apiBase, apiKey)
+@@ -1015,7 +1126,13 @@ goals = true`
+   ]
+ }
+ 
+-function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: string, pathLabel?: string): FileConfig {
++function generateOpenCodeConfig(
++  platform: string,
++  baseUrl: string,
++  apiKey: string,
++  pathLabel?: string,
++  options?: { pinDefaultModel?: boolean }
++): FileConfig {
+   const provider: Record<string, any> = {
+     [platform]: {
+       options: {
+@@ -1480,6 +1597,10 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
+   // Align context_window with Grok Build official sample (docs.x.ai/build/settings) where known.
+   // Image/video: grok-imagine-image / grok-imagine-video on media endpoints — not this list.
+   const grokModels = {
++    'grok-4.6': {
++      name: 'Grok 4.6',
++      limit: { context: 500000, output: 64000 }
++    },
+     'grok-4.5': {
+       name: 'Grok 4.5',
+       limit: { context: 500000, output: 64000 }
+@@ -1501,6 +1622,18 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
+       limit: { context: 500000, output: 64000 }
+     }
+   }
++  // GLM catalog (z.ai / bigmodel): declared explicitly because the gateway's
++  // GLM group serves none of the builtin "openai" catalog models.
++  const zhipuModels = {
++    'glm-4.6': {
++      name: 'GLM-4.6',
++      limit: { context: 200000, output: 128000 }
++    },
++    'glm-4.7': {
++      name: 'GLM-4.7',
++      limit: { context: 200000, output: 128000 }
++    }
++  }
+ 
+   if (platform === 'gemini') {
+     provider[platform].npm = '@ai-sdk/google'
+@@ -1522,8 +1655,28 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
+     provider[platform].npm = '@ai-sdk/openai-compatible'
+     provider[platform].name = 'Grok via Sub2API'
+     provider[platform].models = grokModels
++  } else if (platform === 'zhipu') {
++    provider[platform].npm = '@ai-sdk/openai-compatible'
++    provider[platform].name = 'GLM via Sub2API'
++    provider[platform].models = zhipuModels
+   }
+ 
++  // One pinned default model per platform — keeps each platform's opencode.json
++  // self-contained instead of inheriting another platform's catalog. Callers
++  // that reuse the OpenAI-compatible shape for a *different* platform pass
++  // pinDefaultModel: false, otherwise the pin would be the cross-platform leak
++  // this whole per-platform split exists to prevent.
++  const defaultModel =
++    options?.pinDefaultModel === false
++      ? undefined
++      : platform === 'openai'
++        ? 'openai/gpt-5.5'
++        : platform === 'grok'
++          ? 'grok/grok-4.6'
++          : platform === 'zhipu'
++            ? 'zhipu/glm-4.6'
++            : undefined
++
+   const agent =
+     platform === 'openai'
+       ? {
+@@ -1542,6 +1695,7 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
+ 
+   const content = JSON.stringify(
+     {
++      ...(defaultModel ? { model: defaultModel } : {}),
+       provider,
+       ...(agent ? { agent } : {}),
+       $schema: 'https://opencode.ai/config.json'
 diff --git a/frontend/src/components/keys/__tests__/UseKeyModal.spec.ts b/frontend/src/components/keys/__tests__/UseKeyModal.spec.ts
-index 5313a9eb4..3e44ffe8d 100644
+index 5313a9eb4..c2516fd12 100644
 --- a/frontend/src/components/keys/__tests__/UseKeyModal.spec.ts
 +++ b/frontend/src/components/keys/__tests__/UseKeyModal.spec.ts
 @@ -263,6 +263,122 @@ describe('UseKeyModal', () => {
@@ -261,7 +378,7 @@ index 5313a9eb4..3e44ffe8d 100644
    it('keeps legacy OpenAI Codex config as the default', () => {
      const wrapper = mount(UseKeyModal, {
        props: {
-@@ -594,4 +710,92 @@ describe('UseKeyModal', () => {
+@@ -594,4 +710,402 @@ describe('UseKeyModal', () => {
      expect(fable.options.thinking).toEqual({ type: 'adaptive' })
      expect(fable.options.thinking).not.toHaveProperty('budgetTokens')
    })
@@ -353,9 +470,319 @@ index 5313a9eb4..3e44ffe8d 100644
 +    expect(codeBlock.text()).toContain('"apiKey":"sk-test"')
 +    expect(codeBlock.text()).not.toContain('Gemini 2.5 Flash')
 +  })
++
++  async function openOpenCodeTab(wrapper: ReturnType<typeof mount>) {
++    const opencodeTab = wrapper.findAll('button').find((button) =>
++      button.text().includes('keys.useKeyModal.cliTabs.opencode')
++    )
++    expect(opencodeTab).toBeDefined()
++    await opencodeTab!.trigger('click')
++    await nextTick()
++  }
++
++  it('prefers the grok_opencode template over the shared opencode template', async () => {
++    const wrapper = mount(UseKeyModal, {
++      props: {
++        show: true,
++        apiKey: 'sk-grok-oc-test',
++        baseUrl: 'https://example.com/v1',
++        platform: 'grok',
++        clientTemplates: {
++          opencode: {
++            files: [{ path: 'opencode.json', content: '{"shared":"${apiKey}"}' }]
++          },
++          grok_opencode: {
++            files: [
++              {
++                path: 'opencode.json',
++                content: '{"model":"grok/grok-4.6","baseURL":"${endpoint}","apiKey":"${apiKey}"}'
++              }
++            ]
++          }
++        }
++      },
++      global: {
++        stubs: {
++          BaseDialog: {
++            template: '<div><slot /><slot name="footer" /></div>'
++          },
++          Icon: {
++            template: '<span />'
++          }
++        }
++      }
++    })
++
++    await openOpenCodeTab(wrapper)
++
++    const codeBlock = wrapper.find('pre code')
++    expect(codeBlock.text()).toContain('"model":"grok/grok-4.6"')
++    expect(codeBlock.text()).toContain('"baseURL":"https://example.com/v1"')
++    expect(codeBlock.text()).toContain('"apiKey":"sk-grok-oc-test"')
++    expect(codeBlock.text()).not.toContain('"shared"')
++  })
++
++  it('prefers the zhipu_opencode template and falls back to the shared template without it', async () => {
++    const sharedOnly = mount(UseKeyModal, {
++      props: {
++        show: true,
++        apiKey: 'sk-glm-oc-test',
++        baseUrl: 'https://example.com/v1',
++        platform: 'zhipu',
++        clientTemplates: {
++          opencode: {
++            files: [{ path: 'opencode.json', content: '{"shared":"${apiKey}"}' }]
++          }
++        }
++      },
++      global: {
++        stubs: {
++          BaseDialog: {
++            template: '<div><slot /><slot name="footer" /></div>'
++          },
++          Icon: {
++            template: '<span />'
++          }
++        }
++      }
++    })
++
++    await openOpenCodeTab(sharedOnly)
++    expect(sharedOnly.find('pre code').text()).toContain('"shared":"sk-glm-oc-test"')
++
++    const withOverride = mount(UseKeyModal, {
++      props: {
++        show: true,
++        apiKey: 'sk-glm-oc-test',
++        baseUrl: 'https://example.com/v1',
++        platform: 'zhipu',
++        clientTemplates: {
++          opencode: {
++            files: [{ path: 'opencode.json', content: '{"shared":"${apiKey}"}' }]
++          },
++          zhipu_opencode: {
++            files: [
++              {
++                path: 'opencode.json',
++                content: '{"model":"zhipu/glm-4.6","baseURL":"${endpoint}"}'
++              }
++            ]
++          }
++        }
++      },
++      global: {
++        stubs: {
++          BaseDialog: {
++            template: '<div><slot /><slot name="footer" /></div>'
++          },
++          Icon: {
++            template: '<span />'
++          }
++        }
++      }
++    })
++
++    await openOpenCodeTab(withOverride)
++    const codeBlock = withOverride.find('pre code')
++    expect(codeBlock.text()).toContain('"model":"zhipu/glm-4.6"')
++    expect(codeBlock.text()).not.toContain('"shared"')
++  })
++
++  it('renders an isolated GLM OpenCode fallback without OpenAI catalog models', async () => {
++    const wrapper = mount(UseKeyModal, {
++      props: {
++        show: true,
++        apiKey: 'sk-glm-test',
++        baseUrl: 'https://example.com/v1',
++        platform: 'zhipu'
++      },
++      global: {
++        stubs: {
++          BaseDialog: {
++            template: '<div><slot /><slot name="footer" /></div>'
++          },
++          Icon: {
++            template: '<span />'
++          }
++        }
++      }
++    })
++
++    await openOpenCodeTab(wrapper)
++
++    const parsed = JSON.parse(wrapper.find('pre code').text())
++    expect(parsed.model).toBe('zhipu/glm-4.6')
++    expect(parsed.provider.zhipu.npm).toBe('@ai-sdk/openai-compatible')
++    expect(parsed.provider.zhipu.name).toBe('GLM via Sub2API')
++    expect(parsed.provider.zhipu.options).toEqual({
++      baseURL: 'https://example.com/v1',
++      apiKey: 'sk-glm-test'
++    })
++    expect(parsed.provider.zhipu.models['glm-4.6']).toBeDefined()
++    expect(parsed.provider.zhipu.models['glm-4.7']).toBeDefined()
++    expect(parsed.provider.openai).toBeUndefined()
++    expect(JSON.stringify(parsed)).not.toContain('gpt-')
++  })
++
++  it('pins one default model per platform in built-in OpenCode fallbacks', async () => {
++    const grokWrapper = mount(UseKeyModal, {
++      props: {
++        show: true,
++        apiKey: 'sk-grok-test',
++        baseUrl: 'https://example.com/v1',
++        platform: 'grok'
++      },
++      global: {
++        stubs: {
++          BaseDialog: {
++            template: '<div><slot /><slot name="footer" /></div>'
++          },
++          Icon: {
++            template: '<span />'
++          }
++        }
++      }
++    })
++    await openOpenCodeTab(grokWrapper)
++    const grokParsed = JSON.parse(grokWrapper.find('pre code').text())
++    expect(grokParsed.model).toBe('grok/grok-4.6')
++    expect(grokParsed.provider.grok.models['grok-4.6']).toBeDefined()
++
++    const openaiWrapper = mount(UseKeyModal, {
++      props: {
++        show: true,
++        apiKey: 'sk-openai-test',
++        baseUrl: 'https://example.com/v1',
++        platform: 'openai'
++      },
++      global: {
++        stubs: {
++          BaseDialog: {
++            template: '<div><slot /><slot name="footer" /></div>'
++          },
++          Icon: {
++            template: '<span />'
++          }
++        }
++      }
++    })
++    await openOpenCodeTab(openaiWrapper)
++    const openaiParsed = JSON.parse(openaiWrapper.find('pre code').text())
++    expect(openaiParsed.model).toBe('openai/gpt-5.5')
++  })
++
++  it('prefers the openai_opencode template over the shared opencode template', async () => {
++    const wrapper = mount(UseKeyModal, {
++      props: {
++        show: true,
++        apiKey: 'sk-openai-oc-test',
++        baseUrl: 'https://example.com/v1',
++        platform: 'openai',
++        clientTemplates: {
++          opencode: {
++            files: [{ path: 'opencode.json', content: '{"shared":"${apiKey}"}' }]
++          },
++          openai_opencode: {
++            files: [
++              {
++                path: 'opencode.json',
++                content: '{"model":"openai/gpt-5.5","baseURL":"${endpoint}","apiKey":"${apiKey}"}'
++              }
++            ]
++          }
++        }
++      },
++      global: {
++        stubs: {
++          BaseDialog: {
++            template: '<div><slot /><slot name="footer" /></div>'
++          },
++          Icon: {
++            template: '<span />'
++          }
++        }
++      }
++    })
++
++    await openOpenCodeTab(wrapper)
++
++    const codeBlock = wrapper.find('pre code')
++    expect(codeBlock.text()).toContain('"model":"openai/gpt-5.5"')
++    expect(codeBlock.text()).toContain('"baseURL":"https://example.com/v1"')
++    expect(codeBlock.text()).toContain('"apiKey":"sk-openai-oc-test"')
++    expect(codeBlock.text()).not.toContain('"shared"')
++  })
++
++  // Regression guard: platforms without their own section must never inherit the
++  // OpenAI one. `case 'openai'` and `default` were briefly merged, which pinned
++  // kimi/deepseek/composite OpenCode configs to openai/gpt-5.5 — a model their
++  // groups cannot route.
++  it('keeps platforms without a dedicated section off the openai_opencode section and model pin', async () => {
++    const withOpenAISection = mount(UseKeyModal, {
++      props: {
++        show: true,
++        apiKey: 'sk-kimi-oc-test',
++        baseUrl: 'https://example.com/v1',
++        platform: 'kimi',
++        clientTemplates: {
++          opencode: {
++            files: [{ path: 'opencode.json', content: '{"shared":"${apiKey}"}' }]
++          },
++          openai_opencode: {
++            files: [{ path: 'opencode.json', content: '{"model":"openai/gpt-5.5"}' }]
++          }
++        }
++      },
++      global: {
++        stubs: {
++          BaseDialog: {
++            template: '<div><slot /><slot name="footer" /></div>'
++          },
++          Icon: {
++            template: '<span />'
++          }
++        }
++      }
++    })
++
++    await openOpenCodeTab(withOpenAISection)
++    const sharedText = withOpenAISection.find('pre code').text()
++    expect(sharedText).toContain('"shared":"sk-kimi-oc-test"')
++    expect(sharedText).not.toContain('openai/gpt-5.5')
++
++    const builtinFallback = mount(UseKeyModal, {
++      props: {
++        show: true,
++        apiKey: 'sk-kimi-builtin-test',
++        baseUrl: 'https://example.com/v1',
++        platform: 'kimi'
++      },
++      global: {
++        stubs: {
++          BaseDialog: {
++            template: '<div><slot /><slot name="footer" /></div>'
++          },
++          Icon: {
++            template: '<span />'
++          }
++        }
++      }
++    })
++
++    await openOpenCodeTab(builtinFallback)
++    const parsed = JSON.parse(builtinFallback.find('pre code').text())
++    expect(parsed.model).toBeUndefined()
++    expect(JSON.stringify(parsed)).not.toContain('openai/gpt-5.5')
++    // The OpenAI-compatible provider shape itself is unchanged from before the
++    // per-platform split — only the model pin is withheld.
++    expect(parsed.provider.openai.options).toEqual({
++      baseURL: 'https://example.com/v1',
++      apiKey: 'sk-kimi-builtin-test'
++    })
++  })
  })
 diff --git a/frontend/src/types/index.ts b/frontend/src/types/index.ts
-index eaa585f15..187dcc9b0 100644
+index eaa585f15..48f653a3f 100644
 --- a/frontend/src/types/index.ts
 +++ b/frontend/src/types/index.ts
 @@ -188,6 +188,7 @@ export interface CustomMenuItem {
@@ -374,7 +801,7 @@ index eaa585f15..187dcc9b0 100644
    payment_enabled: boolean
    risk_control_enabled: boolean
    table_default_page_size: number
-@@ -525,6 +527,32 @@ export interface PaginationConfig {
+@@ -525,6 +527,37 @@ export interface PaginationConfig {
    page_size: number
  }
  
@@ -400,6 +827,11 @@ index eaa585f15..187dcc9b0 100644
 +  codex?: ClientTemplateSectionConfig
 +  grok_codex?: ClientTemplateSectionConfig
 +  opencode?: ClientTemplateSectionConfig
++  // Per-platform OpenCode overrides: each platform pins its own model so one
++  // shared template never leaks another platform's model list.
++  openai_opencode?: ClientTemplateSectionConfig
++  grok_opencode?: ClientTemplateSectionConfig
++  zhipu_opencode?: ClientTemplateSectionConfig
 +  ccs_import?: CcsImportTemplateConfig
 +  [key: string]: ClientTemplateSectionConfig | CcsImportTemplateConfig | undefined
 +}
@@ -408,28 +840,77 @@ index eaa585f15..187dcc9b0 100644
  
  export type GroupPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok' | 'kimi' | 'zhipu' | 'deepseek' | 'composite'
 diff --git a/frontend/src/utils/__tests__/ccswitchImport.spec.ts b/frontend/src/utils/__tests__/ccswitchImport.spec.ts
-index 50789b500..cd03afae8 100644
+index 50789b500..9097609cf 100644
 --- a/frontend/src/utils/__tests__/ccswitchImport.spec.ts
 +++ b/frontend/src/utils/__tests__/ccswitchImport.spec.ts
-@@ -17,7 +17,7 @@ describe('ccswitchImport utils', () => {
+@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
+ import {
+   GROK_CC_SWITCH_MODEL,
+   OPENAI_CC_SWITCH_CODEX_MODEL,
++  ZHIPU_CC_SWITCH_MODEL,
+   buildCcSwitchImportDeeplink
+ } from '@/utils/ccswitchImport'
+ import type { GroupPlatform } from '@/types'
+@@ -17,7 +18,11 @@ describe('ccswitchImport utils', () => {
    })
  
    it('defaults Grok Build imports to the current Grok model', () => {
 -    expect(GROK_CC_SWITCH_MODEL).toBe('grok-4.5')
 +    expect(GROK_CC_SWITCH_MODEL).toBe('grok-4.6')
++  })
++
++  it('defaults GLM imports to the current GLM model', () => {
++    expect(ZHIPU_CC_SWITCH_MODEL).toBe('glm-4.6')
    })
  
    const baseInput = {
+@@ -63,6 +68,20 @@ describe('ccswitchImport utils', () => {
+     expect(params.get('model')).toBe(GROK_CC_SWITCH_MODEL)
+   })
+ 
++  it('pins the GLM model on zhipu imports as a Claude-type provider', () => {
++    const params = paramsFromDeeplink(
++      buildCcSwitchImportDeeplink({
++        ...baseInput,
++        platform: 'zhipu',
++        clientType: 'claude'
++      })
++    )
++
++    expect(params.get('app')).toBe('claude')
++    expect(params.get('endpoint')).toBe(baseInput.baseUrl)
++    expect(params.get('model')).toBe(ZHIPU_CC_SWITCH_MODEL)
++  })
++
+   it.each([
+     { platform: 'anthropic' as GroupPlatform, clientType: 'claude' as const, app: 'claude' },
+     { platform: 'gemini' as GroupPlatform, clientType: 'gemini' as const, app: 'gemini' }
 diff --git a/frontend/src/utils/ccswitchImport.ts b/frontend/src/utils/ccswitchImport.ts
-index d7858eab4..57b16df2a 100644
+index d7858eab4..aca3b6584 100644
 --- a/frontend/src/utils/ccswitchImport.ts
 +++ b/frontend/src/utils/ccswitchImport.ts
-@@ -1,7 +1,7 @@
+@@ -1,7 +1,8 @@
  import type { GroupPlatform } from '@/types'
  
  export const OPENAI_CC_SWITCH_CODEX_MODEL = 'gpt-5.5'
 -export const GROK_CC_SWITCH_MODEL = 'grok-4.5'
 +export const GROK_CC_SWITCH_MODEL = 'grok-4.6'
++export const ZHIPU_CC_SWITCH_MODEL = 'glm-4.6'
  
  export type CcSwitchClientType = 'claude' | 'gemini'
  
+@@ -53,6 +54,14 @@ export function resolveCcSwitchImportConfig(
+         endpoint: withV1Endpoint(baseUrl),
+         model: GROK_CC_SWITCH_MODEL
+       }
++    case 'zhipu':
++      // Claude-type import: model becomes ANTHROPIC_MODEL so the imported
++      // provider pins its own GLM model instead of relying on upstream mapping.
++      return {
++        app: 'claude',
++        endpoint: baseUrl,
++        model: ZHIPU_CC_SWITCH_MODEL
++      }
+     default:
+       return {
+         app: 'claude',

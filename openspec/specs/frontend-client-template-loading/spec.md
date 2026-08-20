@@ -31,7 +31,7 @@ The frontend SHALL support client templates from multiple runtime sources and SH
 - **AND** it SHALL continue using built-in generated client configs
 
 ### Requirement: The frontend SHALL normalize template payloads and ignore invalid ones safely
-The frontend SHALL accept either a bare client-template object or an object with a nested `client_templates` field. It SHALL only accept payloads that expose at least one known template section such as `codex`, `opencode`, or `ccs_import`, and SHALL ignore invalid payloads without breaking key usage flows.
+The frontend SHALL accept either a bare client-template object or an object with a nested `client_templates` field. It SHALL only accept payloads that expose at least one known template section — `codex`, `grok_codex`, `opencode`, the per-platform OpenCode sections `openai_opencode` / `grok_opencode` / `zhipu_opencode`, or `ccs_import` — and SHALL ignore invalid payloads without breaking key usage flows.
 
 #### Scenario: Nested runtime payload is normalized
 - **WHEN** `/client-templates.json` or another runtime source returns `{ "client_templates": { "codex": ... } }`

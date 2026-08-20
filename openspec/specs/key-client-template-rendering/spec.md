@@ -31,6 +31,16 @@ The Use Key flow SHALL treat configured template files as targeted overrides for
 - **THEN** the Use Key modal SHALL render those OpenCode files as the visible output
 - **AND** it SHALL use a rendered endpoint appropriate for the current platform context
 
+#### Scenario: Per-platform OpenCode sections take priority for their own platform
+- **WHEN** the platform is OpenAI, Grok or Zhipu, the active client tab is `opencode`, and the matching `openai_opencode` / `grok_opencode` / `zhipu_opencode` section is present
+- **THEN** the Use Key modal SHALL render that per-platform section instead of the shared `opencode` section
+- **AND** the shared `opencode` section SHALL remain the fallback when the per-platform section is absent
+
+#### Scenario: Other platforms never resolve a per-platform OpenCode section
+- **WHEN** the active client tab is `opencode` for any platform other than OpenAI, Grok or Zhipu
+- **THEN** the Use Key modal SHALL resolve only the shared `opencode` section
+- **AND** a configured per-platform section SHALL NOT affect that platform's output
+
 ### Requirement: Placeholder rendering SHALL support the shared template context
 Configured client template files SHALL render from a shared placeholder engine that supports both `${name}` and `{{ name }}` syntax and leaves unknown placeholders unchanged.
 
@@ -59,8 +69,9 @@ The CCS import flow SHALL support a configurable deeplink base and param overrid
 Client template support SHALL be additive. If a specific client surface has no configured template files, the frontend SHALL keep using the built-in generated output for that surface.
 
 #### Scenario: Built-in OpenCode config remains when no OpenCode templates exist
-- **WHEN** the active client tab is `opencode` and no `client_templates.opencode.files` section is configured
+- **WHEN** the active client tab is `opencode` and neither the platform's per-platform section nor `client_templates.opencode.files` is configured
 - **THEN** the Use Key modal SHALL show the built-in generated OpenCode config for the current platform
+- **AND** that built-in output SHALL NOT pin a model belonging to a different platform
 
 #### Scenario: Built-in Codex files remain when no Codex templates exist
 - **WHEN** the active client tab is `codex` or `codex-ws` and the matching Codex template section is absent

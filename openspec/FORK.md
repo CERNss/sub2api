@@ -18,6 +18,7 @@
   - [8. preserve-grok-xhigh-reasoning-effort](#8-preserve-grok-xhigh-reasoning-effort)
   - [9. add-grok-codex-client-template](#9-add-grok-codex-client-template)
   - [10. keepalive-raw-chat-completions-stream](#10-keepalive-raw-chat-completions-stream)
+  - [11. add-platform-opencode-templates](#11-add-platform-opencode-templates)
 - [Archived changes](#archived-changes)
   - [6. support-mounted-frontend-client-templates](#6-support-mounted-frontend-client-templates)
 - [未纳入 OpenSpec 的客制化](#未纳入-openspec-的客制化)
@@ -39,6 +40,7 @@
 | 8 | `preserve-grok-xhigh-reasoning-effort`    | 🟢 active（主体已收编） | grok-4.6 保留 xhigh 推理档；`xhigh`/`extrahigh` 上游 v0.1.179 已收编，fork 仅剩 `max`/`ultra` 同档放行 | 0 | 2 |
 | 9 | `add-grok-codex-client-template`          | 🟢 active   | Grok 组 Codex tab 支持 grok_codex 模板；CCS 默认 grok-4.6 | 0 | 5 |
 | 10 | `keepalive-raw-chat-completions-stream`  | 🟢 active   | CC 直转流补下游保活 + 上游空闲上限，长思考不再被前置代理判 504 | 0 | 4 |
+| 11 | `add-platform-opencode-templates`        | 🟢 active   | OpenCode tab 支持 openai/grok/zhipu 每平台模版段；内置生成器补 GLM 分支与每平台 model pin；CCS 补 zhipu | 0 | 3 |
 
 **状态图例**
 
@@ -349,6 +351,39 @@ _无。_ 这四个文件在本 change 之前与上游 `main` 零差异，也不�
 
 #### 关联 commits
 - `d46ffcce1` fix(gateway): keep raw chat completions streams alive during long thinking
+
+---
+
+### 11. `add-platform-opencode-templates`
+
+- **Capability:** `platform-opencode-client-templates`
+- **意图:** OpenCode tab 原本只有一个共享 `client_templates.opencode` 段，运营方一旦在其中钉 model，就会泄漏到所有平台的 tab（Grok 组的 `opencode.json` 广播 OpenAI 模型，反之亦然）。新增 `openai_opencode` / `grok_opencode` / `zhipu_opencode` 三个每平台段，查找顺序：平台段 → 共享 `opencode` 段 → 内置生成器。同时补齐 Zhipu 的两处空白：内置生成器此前无 GLM 分支（GLM 组落到通用 OpenAI 兼容形态、广播它根本路由不了的 OpenAI 目录），CCS deeplink 导入也没有 zhipu 分支。
+- **⚠ 关键不变量（回归易碎点）:** **只有 openai / grok / zhipu 三个平台查平台段**；其余平台（gemini/anthropic/antigravity/kimi/deepseek/composite…）必须直接读共享 `opencode` 段。`case 'openai'` 与 `default:` 一旦合并（WIP 阶段真的发生过），kimi/deepseek/composite 就会被喂上 `openai_opencode` 段并被内置回退钉上 `openai/gpt-5.5` —— 模型串台。同理，内置回退里复用 OpenAI 兼容形态的 `default:` 分支必须传 `pinDefaultModel: false`。由 `UseKeyModal.spec.ts` 的「keeps platforms without a dedicated section off the openai_opencode section and model pin」用例钉死。
+- **依赖:** 归档 #6（模版加载与渲染管线全部来自它）；与 #9 同构（#9 对 Codex tab 做的事，本 change 对 OpenCode tab 做）。部署侧模版文件可提前加三个新段，旧前端忽略未知段无副作用。
+- **Spec 路径:** `openspec/changes/add-platform-opencode-templates/`
+
+#### 新增文件
+_无。本 change 全部为对上游/既有 fork 文件的补丁。_
+
+#### 上游补丁（rebase 后必须确认仍存在）
+| 路径 | 改动要点 |
+|------|---------|
+| `frontend/src/utils/ccswitchImport.ts` | 新增 `ZHIPU_CC_SWITCH_MODEL = 'glm-4.6'` 与 `resolveCcSwitchImportConfig` 的 `zhipu` 分支（`app: 'claude'`，model 落到 `ANTHROPIC_MODEL`）|
+| `frontend/src/utils/__tests__/ccswitchImport.spec.ts` | zhipu 导入断言 |
+| `frontend/src/composables/useModelWhitelist.ts` | `zhipuModels` 补 `glm-4.7`，使本 change 在 catalog 与模版里推荐的 GLM 模型可白名单化 |
+
+#### ⚠ 跨 change 共享文件
+> 以下文件与归档 #6 共享（`types/index.ts` 同时属于 #2），且与 #9 高度重叠——#9 改 Codex tab、本 change 改 OpenCode tab，同一个 `switch` 的不同分支。rebase 时须同时保留各方的修改。
+- `frontend/src/components/keys/UseKeyModal.vue` → 也属于 #6、#9
+- `frontend/src/components/keys/__tests__/UseKeyModal.spec.ts` → 也属于 #6、#9
+- `frontend/src/types/index.ts` → 也属于 #2、#6、#9
+- `frontend/src/utils/clientTemplates.ts` → 也属于 #6、#9（normalize 白名单再加三个段）
+- `frontend/src/utils/__tests__/clientTemplates.spec.ts` → 也属于 #6、#9
+- `template/client-templates.json` → 也属于 #6、#9（新增三个 mount-ready 段）
+- `template/README.md` → 也属于 #6、#9（记录查找顺序，并明确只有三个平台查平台段）
+
+#### 退场条件
+上游若自行给 OpenCode tab 引入每平台模版段（或把整套 client-templates 挂载机制收编），本 change 随 #6 一并转 ⬆️ upstreamed。
 
 ---
 
