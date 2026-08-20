@@ -607,7 +607,13 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 			// 不释放 pendingLines、也不置 clientOutputStarted，静默拒答的缓冲与
 			// 判定语义保持原样。
 			commitStableSSEHeaders()
-			if _, werr := fmt.Fprint(c.Writer, ":\n\n"); werr != nil {
+			n, werr := fmt.Fprint(c.Writer, ":\n\n")
+			// 心跳字节必须登记到共享计数器，否则会被
+			// OpenAICompactKeepaliveAdjustedWrittenSize 当成语义输出，毒化
+			// openAIStreamClientOutputStarted 与 handler 的 Forward 前后 Size 比较，
+			// 让复用同一 gin.Context 的后续 failover 尝试被静默跳过。
+			recordOpenAIStreamKeepaliveBytes(c, n)
+			if werr != nil {
 				logger.L().Debug("openai chat_completions raw: client disconnected during keepalive",
 					zap.Error(werr),
 					zap.String("request_id", requestID),

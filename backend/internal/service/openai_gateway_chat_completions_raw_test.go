@@ -580,6 +580,17 @@ func TestForwardAsRawChatCompletions_SilentRefusalAfterKeepaliveStaysFailoverabl
 	require.True(t, failoverErr.SafeToFailoverAfterWrite, "仅写出保活注释时必须仍可切换账号")
 	require.Contains(t, rec.Body.String(), ":\n\n")
 	require.NotContains(t, rec.Body.String(), "chatcmpl_silent_ka", "静默拒答不得把缓冲的语义帧放给客户端")
+
+	// 保活字节必须登记进共享计数器：否则 OpenAICompactKeepaliveAdjustedWrittenSize
+	// 把它们当语义输出，openAIStreamClientOutputStarted 被毒化，复用同一
+	// gin.Context 的后续 failover 尝试（capacity-shed 抑制、pre-output error）
+	// 会被静默跳过。SafeToFailoverAfterWrite 只是 fork 自己那条闸门的防御纵深，
+	// 挡不住上游这四个消费点。
+	require.Greater(t, c.Writer.Size(), 0, "保活确实写了字节，下面的断言才有意义")
+	require.Equal(t, -1, OpenAICompactKeepaliveAdjustedWrittenSize(c),
+		"仅保活注释时必须归一化回 gin 的未写出哨兵值")
+	require.False(t, openAIStreamClientOutputStarted(c, false),
+		"保活注释不构成语义输出，不得阻断后续 failover")
 }
 
 // 保活会让下游连接一直活着，挂死的上游必须由空闲上限收口；同时已经观测到的
