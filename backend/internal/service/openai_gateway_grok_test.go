@@ -289,7 +289,12 @@ func TestPatchGrokResponsesBodyKeepsXHighForGrok46(t *testing.T) {
 	}{
 		{name: "xhigh nested", body: `{"input":"hi","reasoning":{"effort":"xhigh"}}`, path: "reasoning.effort"},
 		{name: "xhigh snake", body: `{"input":"hi","reasoning_effort":"xhigh"}`, path: "reasoning_effort"},
+		// max / ultra / extrahigh 是本 fork 相对上游 892787723 的唯一语义差：
+		// 上游把它们拆成独立分支恒拍平成 high，这三条用例是防止 rebase 时
+		// 被无冲突解掉的唯一屏障（上游表只覆盖 xhigh）。
 		{name: "max camel", body: `{"input":"hi","reasoningEffort":"max"}`, path: "reasoning_effort"},
+		{name: "ultra snake", body: `{"input":"hi","reasoning_effort":"ultra"}`, path: "reasoning_effort"},
+		{name: "extra-high nested", body: `{"input":"hi","reasoning":{"effort":"extra-high"}}`, path: "reasoning.effort"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -329,16 +334,26 @@ func TestNormalizeGrokChatReasoningEffort(t *testing.T) {
 }
 
 func TestNormalizeGrokChatReasoningEffortKeepsXHighForGrok46(t *testing.T) {
+	// 4.6 家族放行全部顶档别名。max / ultra / extrahigh 是 fork 相对上游
+	// 892787723 的唯一语义差（上游只放行 xhigh / extrahigh），必须逐个钉住。
 	for _, model := range []string{"grok-4.6", "grok-4.6-latest"} {
-		patched, err := normalizeGrokChatReasoningEffort([]byte(`{"reasoning_effort":"xhigh"}`), model)
-		require.NoError(t, err)
-		require.Equal(t, "xhigh", gjson.GetBytes(patched, "reasoning_effort").String(), model)
+		for _, alias := range []string{"xhigh", "extrahigh", "extra-high", "max", "ultra"} {
+			patched, err := normalizeGrokChatReasoningEffort(
+				[]byte(`{"reasoning_effort":"`+alias+`"}`), model)
+			require.NoError(t, err)
+			require.Equal(t, "xhigh", gjson.GetBytes(patched, "reasoning_effort").String(),
+				"%s @ %s", alias, model)
+		}
 	}
 
-	// Models older than grok-4.6 keep the historical flattening.
-	patched, err := normalizeGrokChatReasoningEffort([]byte(`{"reasoning_effort":"xhigh"}`), "grok-4.5")
-	require.NoError(t, err)
-	require.Equal(t, "high", gjson.GetBytes(patched, "reasoning_effort").String())
+	// 4.6 之前的模型维持历史拍平：上游 v0.1.179 删掉了自己表里的 max 用例，
+	// 这里补回 max / ultra 的旧模型边界，防止白名单被放宽到全模型。
+	for _, alias := range []string{"xhigh", "extrahigh", "max", "ultra"} {
+		patched, err := normalizeGrokChatReasoningEffort(
+			[]byte(`{"reasoning_effort":"`+alias+`"}`), "grok-4.5")
+		require.NoError(t, err)
+		require.Equal(t, "high", gjson.GetBytes(patched, "reasoning_effort").String(), alias)
+	}
 }
 
 func TestPatchGrokResponsesBodyDropsNestedUnsupportedFields(t *testing.T) {
