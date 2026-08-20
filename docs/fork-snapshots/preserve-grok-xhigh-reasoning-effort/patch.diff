@@ -1,5 +1,5 @@
 diff --git a/backend/internal/service/openai_gateway_grok.go b/backend/internal/service/openai_gateway_grok.go
-index d9c7c5b0e..e546cabe6 100644
+index d9c7c5b0e..79e30c09d 100644
 --- a/backend/internal/service/openai_gateway_grok.go
 +++ b/backend/internal/service/openai_gateway_grok.go
 @@ -113,7 +113,7 @@ func (s *OpenAIGatewayService) forwardGrokResponses(
@@ -11,11 +11,16 @@ index d9c7c5b0e..e546cabe6 100644
  		}
  
  		// xAI can reject encrypted reasoning copied from a response produced under
-@@ -626,13 +626,11 @@ func normalizeGrokReasoningEffortValue(raw, model string) (string, bool) {
+@@ -626,13 +626,16 @@ func normalizeGrokReasoningEffortValue(raw, model string) (string, bool) {
  		return value, true
  	case "minimal":
  		return "low", true
 -	case "xhigh", "extrahigh":
++	// fork: max/ultra 与 xhigh/extrahigh 同属"顶档"别名，必须共用下面的白名单判定。
++	// 上游 v0.1.179 (892787723) 把 max/ultra 拆成独立分支恒拍平成 high——那正是本
++	// 补丁要治的静默降级，且上游自己在 gateway_request.go 的 GLM 归一里也把
++	// max/ultracode 当顶档。rebase 时勿按上游形态拆开（该差异不产生冲突，
++	// 由 TestPatchGrokResponsesBodyKeepsXHighForGrok46 等用例兜底）。
 +	case "xhigh", "extrahigh", "max", "ultra":
  		if grokSupportsXHighReasoningEffort(model) {
  			return "xhigh", true
@@ -26,7 +31,7 @@ index d9c7c5b0e..e546cabe6 100644
  	default:
  		return "", false
  	}
-@@ -1148,7 +1146,7 @@ func (s *OpenAIGatewayService) describeGrokComposerImage(
+@@ -1148,7 +1151,7 @@ func (s *OpenAIGatewayService) describeGrokComposerImage(
  
  	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
  	if err != nil {
@@ -36,10 +41,10 @@ index d9c7c5b0e..e546cabe6 100644
  	defer func() { _ = resp.Body.Close() }()
  
 diff --git a/backend/internal/service/openai_gateway_grok_test.go b/backend/internal/service/openai_gateway_grok_test.go
-index 7b30e683a..8aaeb3bf6 100644
+index 7b30e683a..a9a1a687e 100644
 --- a/backend/internal/service/openai_gateway_grok_test.go
 +++ b/backend/internal/service/openai_gateway_grok_test.go
-@@ -279,6 +279,28 @@ func TestPatchGrokResponsesBodyNormalizesReasoningEffortAliases(t *testing.T) {
+@@ -279,6 +279,33 @@ func TestPatchGrokResponsesBodyNormalizesReasoningEffortAliases(t *testing.T) {
  	}
  }
  
@@ -53,7 +58,12 @@ index 7b30e683a..8aaeb3bf6 100644
 +	}{
 +		{name: "xhigh nested", body: `{"input":"hi","reasoning":{"effort":"xhigh"}}`, path: "reasoning.effort"},
 +		{name: "xhigh snake", body: `{"input":"hi","reasoning_effort":"xhigh"}`, path: "reasoning_effort"},
++		// max / ultra / extrahigh 是本 fork 相对上游 892787723 的唯一语义差：
++		// 上游把它们拆成独立分支恒拍平成 high，这三条用例是防止 rebase 时
++		// 被无冲突解掉的唯一屏障（上游表只覆盖 xhigh）。
 +		{name: "max camel", body: `{"input":"hi","reasoningEffort":"max"}`, path: "reasoning_effort"},
++		{name: "ultra snake", body: `{"input":"hi","reasoning_effort":"ultra"}`, path: "reasoning_effort"},
++		{name: "extra-high nested", body: `{"input":"hi","reasoning":{"effort":"extra-high"}}`, path: "reasoning.effort"},
 +	}
 +	for _, tt := range tests {
 +		t.Run(tt.name, func(t *testing.T) {
@@ -68,21 +78,31 @@ index 7b30e683a..8aaeb3bf6 100644
  func TestPatchGrokResponsesBodyAddsDefaultFunctionParameters(t *testing.T) {
  	patched, err := patchGrokResponsesBody(
  		[]byte(`{"input":"hi","tools":[{"type":"function","name":"lookup"},{"type":"function","name":"wait","parameters":null}]}`),
-@@ -306,6 +328,19 @@ func TestNormalizeGrokChatReasoningEffort(t *testing.T) {
+@@ -306,6 +333,29 @@ func TestNormalizeGrokChatReasoningEffort(t *testing.T) {
  	require.False(t, gjson.GetBytes(patched, "reasoning_effort").Exists())
  }
  
 +func TestNormalizeGrokChatReasoningEffortKeepsXHighForGrok46(t *testing.T) {
++	// 4.6 家族放行全部顶档别名。max / ultra / extrahigh 是 fork 相对上游
++	// 892787723 的唯一语义差（上游只放行 xhigh / extrahigh），必须逐个钉住。
 +	for _, model := range []string{"grok-4.6", "grok-4.6-latest"} {
-+		patched, err := normalizeGrokChatReasoningEffort([]byte(`{"reasoning_effort":"xhigh"}`), model)
-+		require.NoError(t, err)
-+		require.Equal(t, "xhigh", gjson.GetBytes(patched, "reasoning_effort").String(), model)
++		for _, alias := range []string{"xhigh", "extrahigh", "extra-high", "max", "ultra"} {
++			patched, err := normalizeGrokChatReasoningEffort(
++				[]byte(`{"reasoning_effort":"`+alias+`"}`), model)
++			require.NoError(t, err)
++			require.Equal(t, "xhigh", gjson.GetBytes(patched, "reasoning_effort").String(),
++				"%s @ %s", alias, model)
++		}
 +	}
 +
-+	// Models older than grok-4.6 keep the historical flattening.
-+	patched, err := normalizeGrokChatReasoningEffort([]byte(`{"reasoning_effort":"xhigh"}`), "grok-4.5")
-+	require.NoError(t, err)
-+	require.Equal(t, "high", gjson.GetBytes(patched, "reasoning_effort").String())
++	// 4.6 之前的模型维持历史拍平：上游 v0.1.179 删掉了自己表里的 max 用例，
++	// 这里补回 max / ultra 的旧模型边界，防止白名单被放宽到全模型。
++	for _, alias := range []string{"xhigh", "extrahigh", "max", "ultra"} {
++		patched, err := normalizeGrokChatReasoningEffort(
++			[]byte(`{"reasoning_effort":"`+alias+`"}`), "grok-4.5")
++		require.NoError(t, err)
++		require.Equal(t, "high", gjson.GetBytes(patched, "reasoning_effort").String(), alias)
++	}
 +}
 +
  func TestPatchGrokResponsesBodyDropsNestedUnsupportedFields(t *testing.T) {
