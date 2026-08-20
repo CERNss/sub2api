@@ -49,7 +49,7 @@ index bd7cc7af0..26eb5958c 100644
  	failoverErr := &service.UpstreamFailoverError{SafeToFailoverAfterWrite: true}
  	count := 0
 diff --git a/backend/internal/service/openai_gateway_chat_completions_raw.go b/backend/internal/service/openai_gateway_chat_completions_raw.go
-index 3c4619418..13598e311 100644
+index 3c4619418..ffc186cc6 100644
 --- a/backend/internal/service/openai_gateway_chat_completions_raw.go
 +++ b/backend/internal/service/openai_gateway_chat_completions_raw.go
 @@ -6,6 +6,7 @@ import (
@@ -160,7 +160,7 @@ index 3c4619418..13598e311 100644
  		refusalDetector.ObserveSSELine(line)
  		if payload, ok := extractOpenAISSEDataLine(line); ok {
  			trimmedPayload := strings.TrimSpace(payload)
-@@ -334,57 +396,180 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
+@@ -334,57 +396,186 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
  			if !clientDisconnected && clientOutputStarted {
  				c.Writer.Flush()
  			}
@@ -365,7 +365,13 @@ index 3c4619418..13598e311 100644
 +			// 不释放 pendingLines、也不置 clientOutputStarted，静默拒答的缓冲与
 +			// 判定语义保持原样。
 +			commitStableSSEHeaders()
-+			if _, werr := fmt.Fprint(c.Writer, ":\n\n"); werr != nil {
++			n, werr := fmt.Fprint(c.Writer, ":\n\n")
++			// 心跳字节必须登记到共享计数器，否则会被
++			// OpenAICompactKeepaliveAdjustedWrittenSize 当成语义输出，毒化
++			// openAIStreamClientOutputStarted 与 handler 的 Forward 前后 Size 比较，
++			// 让复用同一 gin.Context 的后续 failover 尝试被静默跳过。
++			recordOpenAIStreamKeepaliveBytes(c, n)
++			if werr != nil {
 +				logger.L().Debug("openai chat_completions raw: client disconnected during keepalive",
 +					zap.Error(werr),
 +					zap.String("request_id", requestID),
@@ -381,7 +387,7 @@ index 3c4619418..13598e311 100644
  
  // ensureOpenAIChatStreamUsage 确保 raw Chat Completions 流式请求会让上游返回 usage。
 diff --git a/backend/internal/service/openai_gateway_chat_completions_raw_test.go b/backend/internal/service/openai_gateway_chat_completions_raw_test.go
-index a80234913..8cf619517 100644
+index a80234913..8eb48e323 100644
 --- a/backend/internal/service/openai_gateway_chat_completions_raw_test.go
 +++ b/backend/internal/service/openai_gateway_chat_completions_raw_test.go
 @@ -15,6 +15,7 @@ import (
@@ -392,7 +398,7 @@ index a80234913..8cf619517 100644
  	"github.com/gin-gonic/gin"
  	"github.com/stretchr/testify/require"
  	"github.com/tidwall/gjson"
-@@ -495,6 +496,243 @@ func TestForwardAsRawChatCompletions_SilentRefusalTriggersFailover(t *testing.T)
+@@ -495,6 +496,254 @@ func TestForwardAsRawChatCompletions_SilentRefusalTriggersFailover(t *testing.T)
  	require.Empty(t, rec.Body.String())
  }
  
@@ -480,6 +486,17 @@ index a80234913..8cf619517 100644
 +	require.True(t, failoverErr.SafeToFailoverAfterWrite, "仅写出保活注释时必须仍可切换账号")
 +	require.Contains(t, rec.Body.String(), ":\n\n")
 +	require.NotContains(t, rec.Body.String(), "chatcmpl_silent_ka", "静默拒答不得把缓冲的语义帧放给客户端")
++
++	// 保活字节必须登记进共享计数器：否则 OpenAICompactKeepaliveAdjustedWrittenSize
++	// 把它们当语义输出，openAIStreamClientOutputStarted 被毒化，复用同一
++	// gin.Context 的后续 failover 尝试（capacity-shed 抑制、pre-output error）
++	// 会被静默跳过。SafeToFailoverAfterWrite 只是 fork 自己那条闸门的防御纵深，
++	// 挡不住上游这四个消费点。
++	require.Greater(t, c.Writer.Size(), 0, "保活确实写了字节，下面的断言才有意义")
++	require.Equal(t, -1, OpenAICompactKeepaliveAdjustedWrittenSize(c),
++		"仅保活注释时必须归一化回 gin 的未写出哨兵值")
++	require.False(t, openAIStreamClientOutputStarted(c, false),
++		"保活注释不构成语义输出，不得阻断后续 failover")
 +}
 +
 +// 保活会让下游连接一直活着，挂死的上游必须由空闲上限收口；同时已经观测到的
@@ -636,7 +653,7 @@ index a80234913..8cf619517 100644
  func TestForwardAsRawChatCompletions_SilentRefusalToolCallsExempt(t *testing.T) {
  	gin.SetMode(gin.TestMode)
  
-@@ -791,6 +1029,15 @@ func rawChatCompletionsTestAccount() *Account {
+@@ -791,6 +1040,15 @@ func rawChatCompletionsTestAccount() *Account {
  	}
  }
  
