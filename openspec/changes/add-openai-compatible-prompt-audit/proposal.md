@@ -49,3 +49,24 @@
 - `source-feature-map.md`：AICodex 功能到目标 Requirement、代码位置和证据的逐项映射。
 - `implementation-guide.md`：按文件实施顺序、时序、状态机、API/路由矩阵和常见错误。
 - `verification.md`：35 条 Requirement 的证据矩阵、协议测试、泄露门禁、灰度阈值和回滚手册。
+
+## Fork Touchpoints
+
+> ⬆️ 已被上游整体收编。`backend/internal/securityaudit/` 全模块、
+> `frontend/src/features/prompt-audit/` 及其路由/侧栏/i18n 接入都已进入上游
+> （2026-08-13 rebase 到 `e803e3851` 时确认 tree hash 与上游一致），`develop`
+> 相对上游零差异，因此本 change 没有任何需要 rebase 守护的触点。
+> 这一节必须显式存在：缺少 `## Fork Touchpoints` 时 `fork_overlay.py verify`
+> 会把本 change 计入"已验证"却什么也没检查（现已改为 WARN）。
+
+### New Files
+- _None._ 代码已全部进入上游，fork 侧只剩本文档目录。
+
+### Upstream Patch Files
+- _None._ 相对上游零差异；若未来上游回退该功能，需要重新登记触点。
+
+### Shared Touchpoints
+- _None._
+
+### Non-OpenSpec Overlap
+- _None._
