@@ -553,6 +553,11 @@ export interface ClientTemplatesConfig {
   codex?: ClientTemplateSectionConfig
   grok_codex?: ClientTemplateSectionConfig
   opencode?: ClientTemplateSectionConfig
+  // Per-platform OpenCode overrides: each platform pins its own model so one
+  // shared template never leaks another platform's model list.
+  openai_opencode?: ClientTemplateSectionConfig
+  grok_opencode?: ClientTemplateSectionConfig
+  zhipu_opencode?: ClientTemplateSectionConfig
   ccs_import?: CcsImportTemplateConfig
   [key: string]: ClientTemplateSectionConfig | CcsImportTemplateConfig | undefined
 }

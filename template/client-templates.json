@@ -45,6 +45,30 @@
         }
       ]
     },
+    "openai_opencode": {
+      "files": [
+        {
+          "path": "opencode.json",
+          "content": "{\n  \"$schema\": \"https://opencode.ai/config.json\",\n  \"model\": \"openai/gpt-5.5\",\n  \"provider\": {\n    \"openai\": {\n      \"options\": {\n        \"baseURL\": \"${endpoint}\",\n        \"apiKey\": \"${apiKey}\"\n      }\n    }\n  }\n}"
+        }
+      ]
+    },
+    "grok_opencode": {
+      "files": [
+        {
+          "path": "opencode.json",
+          "content": "{\n  \"$schema\": \"https://opencode.ai/config.json\",\n  \"model\": \"grok/grok-4.6\",\n  \"provider\": {\n    \"grok\": {\n      \"npm\": \"@ai-sdk/openai-compatible\",\n      \"name\": \"Grok via Sub2API\",\n      \"options\": {\n        \"baseURL\": \"${endpoint}\",\n        \"apiKey\": \"${apiKey}\"\n      },\n      \"models\": {\n        \"grok-4.6\": {\n          \"name\": \"Grok 4.6\",\n          \"limit\": {\n            \"context\": 500000,\n            \"output\": 64000\n          }\n        },\n        \"grok-4.5\": {\n          \"name\": \"Grok 4.5\",\n          \"limit\": {\n            \"context\": 500000,\n            \"output\": 64000\n          }\n        }\n      }\n    }\n  }\n}"
+        }
+      ]
+    },
+    "zhipu_opencode": {
+      "files": [
+        {
+          "path": "opencode.json",
+          "content": "{\n  \"$schema\": \"https://opencode.ai/config.json\",\n  \"model\": \"zhipu/glm-4.6\",\n  \"provider\": {\n    \"zhipu\": {\n      \"npm\": \"@ai-sdk/openai-compatible\",\n      \"name\": \"GLM via Sub2API\",\n      \"options\": {\n        \"baseURL\": \"${endpoint}\",\n        \"apiKey\": \"${apiKey}\"\n      },\n      \"models\": {\n        \"glm-4.6\": {\n          \"name\": \"GLM-4.6\",\n          \"limit\": {\n            \"context\": 200000,\n            \"output\": 128000\n          }\n        },\n        \"glm-4.7\": {\n          \"name\": \"GLM-4.7\",\n          \"limit\": {\n            \"context\": 200000,\n            \"output\": 128000\n          }\n        }\n      }\n    }\n  }\n}"
+        }
+      ]
+    },
     "ccs_import": {
       "base": "ccswitch://v1/import",
       "params": {

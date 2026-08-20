@@ -64,6 +64,17 @@ Notes:
 - `grok_codex.files` is used for the Codex tab of Grok groups; without it the
   frontend falls back to the built-in Grok Codex config.
 - `opencode.files` fully replaces the built-in OpenCode config output when present.
+- `openai_opencode.files` / `grok_opencode.files` / `zhipu_opencode.files` are
+  per-platform OpenCode overrides. **Only these three platforms look for a
+  platform section**; every other platform (gemini, anthropic, antigravity,
+  kimi, deepseek, composite, …) reads the shared `opencode` section directly and
+  ignores the per-platform ones. So the lookup order is:
+  - openai / grok / zhipu: platform section → shared `opencode` → built-in fallback;
+  - all other platforms: shared `opencode` → built-in fallback.
+
+  Keep each platform's pinned model in its own section (one model per platform);
+  the shared `opencode` section should stay model-free so it never leaks a model
+  into another platform's tab.
 - `ccs_import.params.usageScript` is auto-base64 encoded by the frontend before opening the deeplink.
 - Avoid hardcoding `model` in `ccs_import.params`: the value overrides the
   per-platform default the frontend computes, so a fixed model leaks into every

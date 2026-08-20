@@ -2,6 +2,7 @@ import type { GroupPlatform } from '@/types'
 
 export const OPENAI_CC_SWITCH_CODEX_MODEL = 'gpt-5.5'
 export const GROK_CC_SWITCH_MODEL = 'grok-4.6'
+export const ZHIPU_CC_SWITCH_MODEL = 'glm-4.6'
 
 export type CcSwitchClientType = 'claude' | 'gemini'
 
@@ -52,6 +53,14 @@ export function resolveCcSwitchImportConfig(
         app: 'grokbuild',
         endpoint: withV1Endpoint(baseUrl),
         model: GROK_CC_SWITCH_MODEL
+      }
+    case 'zhipu':
+      // Claude-type import: model becomes ANTHROPIC_MODEL so the imported
+      // provider pins its own GLM model instead of relying on upstream mapping.
+      return {
+        app: 'claude',
+        endpoint: baseUrl,
+        model: ZHIPU_CC_SWITCH_MODEL
       }
     default:
       return {

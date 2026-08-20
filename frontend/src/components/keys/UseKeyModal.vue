@@ -738,6 +738,8 @@ const currentFiles = computed((): FileConfig[] => {
   })()
 
   if (activeClientTab.value === 'opencode') {
+    // Per-platform sections win over the shared `opencode` template so each
+    // platform ships its own pinned model instead of a cross-platform mix.
     const configuredOpenCodeFiles = (() => {
       switch (props.platform) {
         case 'gemini':
@@ -746,8 +748,25 @@ const currentFiles = computed((): FileConfig[] => {
           return renderConfiguredFiles(props.clientTemplates?.opencode?.files, baseUrl, apiKey, antigravityBase, 'antigravity')
         case 'anthropic':
           return renderConfiguredFiles(props.clientTemplates?.opencode?.files, baseUrl, apiKey, apiBase, 'claude')
+        case 'grok':
+          return renderConfiguredFiles(
+            props.clientTemplates?.grok_opencode?.files ?? props.clientTemplates?.opencode?.files,
+            baseUrl, apiKey, apiBase, 'opencode'
+          )
+        case 'zhipu':
+          return renderConfiguredFiles(
+            props.clientTemplates?.zhipu_opencode?.files ?? props.clientTemplates?.opencode?.files,
+            baseUrl, apiKey, apiBase, 'opencode'
+          )
         case 'openai':
+          return renderConfiguredFiles(
+            props.clientTemplates?.openai_opencode?.files ?? props.clientTemplates?.opencode?.files,
+            baseUrl, apiKey, apiBase, 'codex'
+          )
         default:
+          // Platforms without a dedicated section (kimi, deepseek, composite, …)
+          // must NOT pick up `openai_opencode`: that section pins OpenAI models
+          // their groups do not serve. Shared section only.
           return renderConfiguredFiles(props.clientTemplates?.opencode?.files, baseUrl, apiKey, apiBase, 'codex')
       }
     })()
@@ -769,8 +788,14 @@ const currentFiles = computed((): FileConfig[] => {
         ]
       case 'grok':
         return [generateOpenCodeConfig('grok', apiBase, apiKey)]
+      case 'zhipu':
+        return [generateOpenCodeConfig('zhipu', apiBase, apiKey)]
       default:
-        return [generateOpenCodeConfig('openai', apiBase, apiKey)]
+        // OpenAI-compatible shape for platforms we do not model explicitly, but
+        // without the pinned `model`: their groups serve entirely different
+        // model names, so claiming openai/gpt-5.5 would send every request to a
+        // model the group cannot route.
+        return [generateOpenCodeConfig('openai', apiBase, apiKey, undefined, { pinDefaultModel: false })]
     }
   }
 
@@ -1383,7 +1408,13 @@ goals = true`
   return buildOpenAICodexFileConfigs(configDir, configContent, apiKey)
 }
 
-function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: string, pathLabel?: string): FileConfig {
+function generateOpenCodeConfig(
+  platform: string,
+  baseUrl: string,
+  apiKey: string,
+  pathLabel?: string,
+  options?: { pinDefaultModel?: boolean }
+): FileConfig {
   const provider: Record<string, any> = {
     [platform]: {
       options: {
@@ -1864,6 +1895,10 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
   // Align context_window with Grok Build official sample (docs.x.ai/build/settings) where known.
   // Image/video: grok-imagine-image / grok-imagine-video on media endpoints — not this list.
   const grokModels = {
+    'grok-4.6': {
+      name: 'Grok 4.6',
+      limit: { context: 500000, output: 64000 }
+    },
     'grok-4.5': {
       name: 'Grok 4.5',
       limit: { context: 500000, output: 64000 }
@@ -1883,6 +1918,18 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
     'grok-composer-2.5-fast': {
       name: 'Grok Composer 2.5 Fast',
       limit: { context: 500000, output: 64000 }
+    }
+  }
+  // GLM catalog (z.ai / bigmodel): declared explicitly because the gateway's
+  // GLM group serves none of the builtin "openai" catalog models.
+  const zhipuModels = {
+    'glm-4.6': {
+      name: 'GLM-4.6',
+      limit: { context: 200000, output: 128000 }
+    },
+    'glm-4.7': {
+      name: 'GLM-4.7',
+      limit: { context: 200000, output: 128000 }
     }
   }
 
@@ -1906,7 +1953,27 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
     provider[platform].npm = '@ai-sdk/openai-compatible'
     provider[platform].name = 'Grok via Sub2API'
     provider[platform].models = grokModels
+  } else if (platform === 'zhipu') {
+    provider[platform].npm = '@ai-sdk/openai-compatible'
+    provider[platform].name = 'GLM via Sub2API'
+    provider[platform].models = zhipuModels
   }
+
+  // One pinned default model per platform — keeps each platform's opencode.json
+  // self-contained instead of inheriting another platform's catalog. Callers
+  // that reuse the OpenAI-compatible shape for a *different* platform pass
+  // pinDefaultModel: false, otherwise the pin would be the cross-platform leak
+  // this whole per-platform split exists to prevent.
+  const defaultModel =
+    options?.pinDefaultModel === false
+      ? undefined
+      : platform === 'openai'
+        ? 'openai/gpt-5.5'
+        : platform === 'grok'
+          ? 'grok/grok-4.6'
+          : platform === 'zhipu'
+            ? 'zhipu/glm-4.6'
+            : undefined
 
   const agent =
     platform === 'openai'
@@ -1926,6 +1993,7 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
 
   const content = JSON.stringify(
     {
+      ...(defaultModel ? { model: defaultModel } : {}),
       provider,
       ...(agent ? { agent } : {}),
       $schema: 'https://opencode.ai/config.json'
