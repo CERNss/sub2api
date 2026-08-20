@@ -310,17 +310,21 @@ func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int
 		return s.testOpenAIAccountConnection(c, account, modelID, prompt, normalizeAccountTestMode(mode))
 	}
 
-	// 国产供应商（kimi/zhipu/deepseek）按账号 api_protocol 选探测协议：
-	// anthropic 协议走 /v1/messages 探测，其余走 OpenAI 兼容探测。
-	// 上游 v0.1.179 已在上面按协议分发 adaptive 与 chat_completions，
-	// 但 responses（deepseek 原生 /responses）仍会掉到函数末尾的 Claude 探测，
-	// 被以 {base}/v1/messages 误探而 404；本兜底覆盖该剩余缺口，
-	// 并把 anthropic 协议的走向显式写出，避免再次隐式依赖末尾默认分支。
+	// 国产供应商（kimi/zhipu/deepseek）按账号 api_protocol 选探测协议。
+	// 上游 v0.1.179 已在上面分发 adaptive 与 chat_completions，剩下两种协议
+	// 会掉到函数末尾的 Claude 探测、被以 {base}/v1/messages 误探而 404：
+	// anthropic 协议走 Claude 探测本身正确（这里显式写出，不再隐式依赖末尾默认
+	// 分支），responses 协议则必须走平台感知的原生 /responses 探测。
 	if account.IsCNProvider() {
-		if account.IsAnthropicProtocol() {
+		switch account.GetAPIProtocol() {
+		case APIProtocolAnthropic:
 			return s.testClaudeAccountConnection(c, account, modelID)
+		case APIProtocolResponses:
+			return s.testCNProviderResponsesConnection(c, account, modelID, prompt)
+		default:
+			// 未知/未来协议：CN 供应商以 OpenAI 兼容居多，兜底比 Claude 探测更接近现实。
+			return s.testOpenAIAccountConnection(c, account, modelID, prompt, normalizeAccountTestMode(mode))
 		}
-		return s.testOpenAIAccountConnection(c, account, modelID, prompt, normalizeAccountTestMode(mode))
 	}
 
 	if account.IsGemini() {
@@ -399,8 +403,13 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 		}
 
 		baseURL := account.GetBaseURL()
-		// CN anthropic 协议账号：凭证缺省时用供应商官方 Anthropic 端点，
-		// 而非 api.anthropic.com（非 anthropic 协议与 Claude 平台账号返回空串，不受影响）。
+		// CN anthropic 协议账号改用协议感知的 base：非空则无条件覆盖
+		// （不是只在 GetBaseURL() 为空时兜底），这样凭证未配 base_url 时打的是
+		// 供应商官方 Anthropic 端点而非 api.anthropic.com；凭证配了 base_url 时
+		// GetAnthropicProtocolBaseURL 本身也优先返回它，两条路结果一致。
+		// 注意 getter 的非空条件自上游 85051616f 起是「anthropic 协议 or adaptive」，
+		// 不再只有 anthropic：adaptive 的 CN 账号已被上面的 CN 分发拦走、到不了这里，
+		// Claude 平台账号与非 CN 账号仍返回空串，都不受影响。
 		if protoBase := account.GetAnthropicProtocolBaseURL(); protoBase != "" {
 			baseURL = protoBase
 		}
