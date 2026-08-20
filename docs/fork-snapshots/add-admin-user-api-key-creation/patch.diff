@@ -1,5 +1,5 @@
 diff --git a/README.md b/README.md
-index f4ad2fa6b..7b40686bf 100644
+index d463f66d9..bd9e008e2 100644
 --- a/README.md
 +++ b/README.md
 @@ -27,6 +27,137 @@ Please read the following carefully before using this project:
@@ -141,7 +141,7 @@ index f4ad2fa6b..7b40686bf 100644
  
  > [Want to appear here?](mailto:support@sub2api.org)
 diff --git a/README_CN.md b/README_CN.md
-index 2d2a57a9f..8d7be4df6 100644
+index b69ddd2be..9684b7214 100644
 --- a/README_CN.md
 +++ b/README_CN.md
 @@ -28,6 +28,73 @@
@@ -219,7 +219,7 @@ index 2d2a57a9f..8d7be4df6 100644
  
  > [想出现在这里？](mailto:support@sub2api.org)
 diff --git a/backend/cmd/server/wire_gen.go b/backend/cmd/server/wire_gen.go
-index e68a6bd7d..18a4c3499 100644
+index 6432afcfb..dd282e72e 100644
 --- a/backend/cmd/server/wire_gen.go
 +++ b/backend/cmd/server/wire_gen.go
 @@ -189,7 +189,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {

@@ -49,7 +49,7 @@ index bd7cc7af0..26eb5958c 100644
  	failoverErr := &service.UpstreamFailoverError{SafeToFailoverAfterWrite: true}
  	count := 0
 diff --git a/backend/internal/service/openai_gateway_chat_completions_raw.go b/backend/internal/service/openai_gateway_chat_completions_raw.go
-index 34c281b28..0ecf37047 100644
+index 3c4619418..13598e311 100644
 --- a/backend/internal/service/openai_gateway_chat_completions_raw.go
 +++ b/backend/internal/service/openai_gateway_chat_completions_raw.go
 @@ -6,6 +6,7 @@ import (
@@ -60,7 +60,7 @@ index 34c281b28..0ecf37047 100644
  	"time"
  
  	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
-@@ -262,16 +263,75 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
+@@ -269,16 +270,75 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
  		observer = beginUpstreamResponseModelObservation(c)
  	}
  	requestID := resp.Header.Get("x-request-id")
@@ -137,7 +137,7 @@ index 34c281b28..0ecf37047 100644
  	writeLine := func(line string) {
  		if clientDisconnected {
  			return
-@@ -291,6 +351,7 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
+@@ -298,6 +358,7 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
  					)
  					return
  				}
@@ -145,7 +145,7 @@ index 34c281b28..0ecf37047 100644
  			}
  			pendingLines = pendingLines[:0]
  			clientOutputStarted = true
-@@ -301,11 +362,12 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
+@@ -308,11 +369,12 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
  				zap.Error(werr),
  				zap.String("request_id", requestID),
  			)
@@ -160,7 +160,7 @@ index 34c281b28..0ecf37047 100644
  		refusalDetector.ObserveSSELine(line)
  		if payload, ok := extractOpenAISSEDataLine(line); ok {
  			trimmedPayload := strings.TrimSpace(payload)
-@@ -327,57 +389,180 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
+@@ -334,57 +396,180 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
  			if !clientDisconnected && clientOutputStarted {
  				c.Writer.Flush()
  			}
