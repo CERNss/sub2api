@@ -299,10 +299,11 @@ func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int
 	}
 
 	// 国产供应商（kimi/zhipu/deepseek）按账号 api_protocol 选探测协议：
-	// anthropic 协议走 /v1/messages 探测，其余（chat_completions/responses）
-	// 走 OpenAI 兼容探测。上游 v0.1.178 将 CN 平台升为一等公民时漏改本分发，
-	// 全部落入 Claude 探测，导致 chat_completions 协议账号被以
-	// {base}/v1/messages 误探而 404。
+	// anthropic 协议走 /v1/messages 探测，其余走 OpenAI 兼容探测。
+	// 上游 v0.1.179 已在上面按协议分发 adaptive 与 chat_completions，
+	// 但 responses（deepseek 原生 /responses）仍会掉到函数末尾的 Claude 探测，
+	// 被以 {base}/v1/messages 误探而 404；本兜底覆盖该剩余缺口，
+	// 并把 anthropic 协议的走向显式写出，避免再次隐式依赖末尾默认分支。
 	if account.IsCNProvider() {
 		if account.IsAnthropicProtocol() {
 			return s.testClaudeAccountConnection(c, account, modelID)
