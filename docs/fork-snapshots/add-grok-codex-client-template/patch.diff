@@ -1,5 +1,5 @@
 diff --git a/frontend/src/components/keys/UseKeyModal.vue b/frontend/src/components/keys/UseKeyModal.vue
-index c8ae79d22..38719e1f0 100644
+index c8ae79d22..61cd00fc0 100644
 --- a/frontend/src/components/keys/UseKeyModal.vue
 +++ b/frontend/src/components/keys/UseKeyModal.vue
 @@ -201,7 +201,11 @@ import { useI18n } from 'vue-i18n'
@@ -195,13 +195,19 @@ index c8ae79d22..38719e1f0 100644
      'grok-4.5': {
        name: 'Grok 4.5',
        limit: { context: 500000, output: 64000 }
-@@ -1501,6 +1622,18 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
+@@ -1501,6 +1622,24 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
        limit: { context: 500000, output: 64000 }
      }
    }
 +  // GLM catalog (z.ai / bigmodel): declared explicitly because the gateway's
 +  // GLM group serves none of the builtin "openai" catalog models.
++  // glm-5.1 limits come from the pricing catalog entry (max_input/output_tokens);
++  // the 4.x rows predate that entry and keep the vendor-published window.
 +  const zhipuModels = {
++    'glm-5.1': {
++      name: 'GLM-5.1',
++      limit: { context: 81920, output: 81920 }
++    },
 +    'glm-4.6': {
 +      name: 'GLM-4.6',
 +      limit: { context: 200000, output: 128000 }
@@ -214,7 +220,7 @@ index c8ae79d22..38719e1f0 100644
  
    if (platform === 'gemini') {
      provider[platform].npm = '@ai-sdk/google'
-@@ -1522,8 +1655,28 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
+@@ -1522,8 +1661,28 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
      provider[platform].npm = '@ai-sdk/openai-compatible'
      provider[platform].name = 'Grok via Sub2API'
      provider[platform].models = grokModels
@@ -237,13 +243,13 @@ index c8ae79d22..38719e1f0 100644
 +        : platform === 'grok'
 +          ? 'grok/grok-4.6'
 +          : platform === 'zhipu'
-+            ? 'zhipu/glm-4.6'
++            ? 'zhipu/glm-5.1'
 +            : undefined
 +
    const agent =
      platform === 'openai'
        ? {
-@@ -1542,6 +1695,7 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
+@@ -1542,6 +1701,7 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
  
    const content = JSON.stringify(
      {
@@ -252,7 +258,7 @@ index c8ae79d22..38719e1f0 100644
        ...(agent ? { agent } : {}),
        $schema: 'https://opencode.ai/config.json'
 diff --git a/frontend/src/components/keys/__tests__/UseKeyModal.spec.ts b/frontend/src/components/keys/__tests__/UseKeyModal.spec.ts
-index 5313a9eb4..c2516fd12 100644
+index 5313a9eb4..1132eb73f 100644
 --- a/frontend/src/components/keys/__tests__/UseKeyModal.spec.ts
 +++ b/frontend/src/components/keys/__tests__/UseKeyModal.spec.ts
 @@ -263,6 +263,122 @@ describe('UseKeyModal', () => {
@@ -378,7 +384,7 @@ index 5313a9eb4..c2516fd12 100644
    it('keeps legacy OpenAI Codex config as the default', () => {
      const wrapper = mount(UseKeyModal, {
        props: {
-@@ -594,4 +710,402 @@ describe('UseKeyModal', () => {
+@@ -594,4 +710,403 @@ describe('UseKeyModal', () => {
      expect(fable.options.thinking).toEqual({ type: 'adaptive' })
      expect(fable.options.thinking).not.toHaveProperty('budgetTokens')
    })
@@ -611,13 +617,14 @@ index 5313a9eb4..c2516fd12 100644
 +    await openOpenCodeTab(wrapper)
 +
 +    const parsed = JSON.parse(wrapper.find('pre code').text())
-+    expect(parsed.model).toBe('zhipu/glm-4.6')
++    expect(parsed.model).toBe('zhipu/glm-5.1')
 +    expect(parsed.provider.zhipu.npm).toBe('@ai-sdk/openai-compatible')
 +    expect(parsed.provider.zhipu.name).toBe('GLM via Sub2API')
 +    expect(parsed.provider.zhipu.options).toEqual({
 +      baseURL: 'https://example.com/v1',
 +      apiKey: 'sk-glm-test'
 +    })
++    expect(parsed.provider.zhipu.models['glm-5.1']).toBeDefined()
 +    expect(parsed.provider.zhipu.models['glm-4.6']).toBeDefined()
 +    expect(parsed.provider.zhipu.models['glm-4.7']).toBeDefined()
 +    expect(parsed.provider.openai).toBeUndefined()
@@ -840,7 +847,7 @@ index eaa585f15..48f653a3f 100644
  
  export type GroupPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok' | 'kimi' | 'zhipu' | 'deepseek' | 'composite'
 diff --git a/frontend/src/utils/__tests__/ccswitchImport.spec.ts b/frontend/src/utils/__tests__/ccswitchImport.spec.ts
-index 50789b500..9097609cf 100644
+index 50789b500..11885ea4c 100644
 --- a/frontend/src/utils/__tests__/ccswitchImport.spec.ts
 +++ b/frontend/src/utils/__tests__/ccswitchImport.spec.ts
 @@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
@@ -860,7 +867,7 @@ index 50789b500..9097609cf 100644
 +  })
 +
 +  it('defaults GLM imports to the current GLM model', () => {
-+    expect(ZHIPU_CC_SWITCH_MODEL).toBe('glm-4.6')
++    expect(ZHIPU_CC_SWITCH_MODEL).toBe('glm-5.1')
    })
  
    const baseInput = {
@@ -886,7 +893,7 @@ index 50789b500..9097609cf 100644
      { platform: 'anthropic' as GroupPlatform, clientType: 'claude' as const, app: 'claude' },
      { platform: 'gemini' as GroupPlatform, clientType: 'gemini' as const, app: 'gemini' }
 diff --git a/frontend/src/utils/ccswitchImport.ts b/frontend/src/utils/ccswitchImport.ts
-index d7858eab4..aca3b6584 100644
+index d7858eab4..5fe3d6ec5 100644
 --- a/frontend/src/utils/ccswitchImport.ts
 +++ b/frontend/src/utils/ccswitchImport.ts
 @@ -1,7 +1,8 @@
@@ -895,7 +902,7 @@ index d7858eab4..aca3b6584 100644
  export const OPENAI_CC_SWITCH_CODEX_MODEL = 'gpt-5.5'
 -export const GROK_CC_SWITCH_MODEL = 'grok-4.5'
 +export const GROK_CC_SWITCH_MODEL = 'grok-4.6'
-+export const ZHIPU_CC_SWITCH_MODEL = 'glm-4.6'
++export const ZHIPU_CC_SWITCH_MODEL = 'glm-5.1'
  
  export type CcSwitchClientType = 'claude' | 'gemini'
  

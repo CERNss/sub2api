@@ -1,5 +1,5 @@
 diff --git a/frontend/src/composables/useModelWhitelist.ts b/frontend/src/composables/useModelWhitelist.ts
-index 2ca860c67..24e28ede2 100644
+index 2ca860c67..f81fcc03f 100644
 --- a/frontend/src/composables/useModelWhitelist.ts
 +++ b/frontend/src/composables/useModelWhitelist.ts
 @@ -90,7 +90,7 @@ const antigravityModels = [
@@ -7,12 +7,12 @@ index 2ca860c67..24e28ede2 100644
    'glm-4', 'glm-4v', 'glm-4-plus', 'glm-4-0520',
    'glm-4-air', 'glm-4-airx', 'glm-4-long', 'glm-4-flash',
 -  'glm-4v-plus', 'glm-4.5', 'glm-4.6',
-+  'glm-4v-plus', 'glm-4.5', 'glm-4.6', 'glm-4.7',
++  'glm-4v-plus', 'glm-4.5', 'glm-4.6', 'glm-4.7', 'glm-5.1',
    'glm-3-turbo', 'glm-4-alltools',
    'chatglm_turbo', 'chatglm_pro', 'chatglm_std', 'chatglm_lite',
    'cogview-3', 'cogvideo'
 diff --git a/frontend/src/utils/__tests__/ccswitchImport.spec.ts b/frontend/src/utils/__tests__/ccswitchImport.spec.ts
-index 50789b500..9097609cf 100644
+index 50789b500..11885ea4c 100644
 --- a/frontend/src/utils/__tests__/ccswitchImport.spec.ts
 +++ b/frontend/src/utils/__tests__/ccswitchImport.spec.ts
 @@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
@@ -32,7 +32,7 @@ index 50789b500..9097609cf 100644
 +  })
 +
 +  it('defaults GLM imports to the current GLM model', () => {
-+    expect(ZHIPU_CC_SWITCH_MODEL).toBe('glm-4.6')
++    expect(ZHIPU_CC_SWITCH_MODEL).toBe('glm-5.1')
    })
  
    const baseInput = {
@@ -58,7 +58,7 @@ index 50789b500..9097609cf 100644
      { platform: 'anthropic' as GroupPlatform, clientType: 'claude' as const, app: 'claude' },
      { platform: 'gemini' as GroupPlatform, clientType: 'gemini' as const, app: 'gemini' }
 diff --git a/frontend/src/utils/ccswitchImport.ts b/frontend/src/utils/ccswitchImport.ts
-index d7858eab4..aca3b6584 100644
+index d7858eab4..5fe3d6ec5 100644
 --- a/frontend/src/utils/ccswitchImport.ts
 +++ b/frontend/src/utils/ccswitchImport.ts
 @@ -1,7 +1,8 @@
@@ -67,7 +67,7 @@ index d7858eab4..aca3b6584 100644
  export const OPENAI_CC_SWITCH_CODEX_MODEL = 'gpt-5.5'
 -export const GROK_CC_SWITCH_MODEL = 'grok-4.5'
 +export const GROK_CC_SWITCH_MODEL = 'grok-4.6'
-+export const ZHIPU_CC_SWITCH_MODEL = 'glm-4.6'
++export const ZHIPU_CC_SWITCH_MODEL = 'glm-5.1'
  
  export type CcSwitchClientType = 'claude' | 'gemini'
  
