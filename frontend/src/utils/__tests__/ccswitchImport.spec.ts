@@ -22,7 +22,7 @@ describe('ccswitchImport utils', () => {
   })
 
   it('defaults GLM imports to the current GLM model', () => {
-    expect(ZHIPU_CC_SWITCH_MODEL).toBe('glm-4.6')
+    expect(ZHIPU_CC_SWITCH_MODEL).toBe('glm-5.1')
   })
 
   const baseInput = {
