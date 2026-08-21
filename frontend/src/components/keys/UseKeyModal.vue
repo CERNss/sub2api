@@ -1624,7 +1624,13 @@ function generateOpenCodeConfig(
   }
   // GLM catalog (z.ai / bigmodel): declared explicitly because the gateway's
   // GLM group serves none of the builtin "openai" catalog models.
+  // glm-5.1 limits come from the pricing catalog entry (max_input/output_tokens);
+  // the 4.x rows predate that entry and keep the vendor-published window.
   const zhipuModels = {
+    'glm-5.1': {
+      name: 'GLM-5.1',
+      limit: { context: 81920, output: 81920 }
+    },
     'glm-4.6': {
       name: 'GLM-4.6',
       limit: { context: 200000, output: 128000 }
@@ -1674,7 +1680,7 @@ function generateOpenCodeConfig(
         : platform === 'grok'
           ? 'grok/grok-4.6'
           : platform === 'zhipu'
-            ? 'zhipu/glm-4.6'
+            ? 'zhipu/glm-5.1'
             : undefined
 
   const agent =

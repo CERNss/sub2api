@@ -2,7 +2,7 @@ import type { GroupPlatform } from '@/types'
 
 export const OPENAI_CC_SWITCH_CODEX_MODEL = 'gpt-5.5'
 export const GROK_CC_SWITCH_MODEL = 'grok-4.6'
-export const ZHIPU_CC_SWITCH_MODEL = 'glm-4.6'
+export const ZHIPU_CC_SWITCH_MODEL = 'glm-5.1'
 
 export type CcSwitchClientType = 'claude' | 'gemini'
 
