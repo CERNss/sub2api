@@ -65,7 +65,7 @@
       "files": [
         {
           "path": "opencode.json",
-          "content": "{\n  \"$schema\": \"https://opencode.ai/config.json\",\n  \"model\": \"zhipu/glm-4.6\",\n  \"provider\": {\n    \"zhipu\": {\n      \"npm\": \"@ai-sdk/openai-compatible\",\n      \"name\": \"GLM via Sub2API\",\n      \"options\": {\n        \"baseURL\": \"${endpoint}\",\n        \"apiKey\": \"${apiKey}\"\n      },\n      \"models\": {\n        \"glm-4.6\": {\n          \"name\": \"GLM-4.6\",\n          \"limit\": {\n            \"context\": 200000,\n            \"output\": 128000\n          }\n        },\n        \"glm-4.7\": {\n          \"name\": \"GLM-4.7\",\n          \"limit\": {\n            \"context\": 200000,\n            \"output\": 128000\n          }\n        }\n      }\n    }\n  }\n}"
+          "content": "{\n  \"$schema\": \"https://opencode.ai/config.json\",\n  \"model\": \"zhipu/glm-5.1\",\n  \"provider\": {\n    \"zhipu\": {\n      \"npm\": \"@ai-sdk/openai-compatible\",\n      \"name\": \"GLM via Sub2API\",\n      \"options\": {\n        \"baseURL\": \"${endpoint}\",\n        \"apiKey\": \"${apiKey}\"\n      },\n      \"models\": {\n        \"glm-5.1\": {\n          \"name\": \"GLM-5.1\",\n          \"limit\": {\n            \"context\": 81920,\n            \"output\": 81920\n          }\n        },\n        \"glm-4.6\": {\n          \"name\": \"GLM-4.6\",\n          \"limit\": {\n            \"context\": 200000,\n            \"output\": 128000\n          }\n        },\n        \"glm-4.7\": {\n          \"name\": \"GLM-4.7\",\n          \"limit\": {\n            \"context\": 200000,\n            \"output\": 128000\n          }\n        }\n      }\n    }\n  }\n}"
         }
       ]
     },
