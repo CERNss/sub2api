@@ -1,8 +1,8 @@
 diff --git a/backend/internal/handler/openai_chat_completions.go b/backend/internal/handler/openai_chat_completions.go
-index 79709cabb..b3bd479eb 100644
+index aa2b610d7..6add6d185 100644
 --- a/backend/internal/handler/openai_chat_completions.go
 +++ b/backend/internal/handler/openai_chat_completions.go
-@@ -314,10 +314,18 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
+@@ -320,11 +320,19 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
  						)
  						return
  					}
@@ -12,6 +12,7 @@ index 79709cabb..b3bd479eb 100644
 +					// 静默拒答等场景会丢掉原本可用的 failover（与 Responses 侧
 +					// openAIForwardMayFailover 的口径保持一致）。
 +					if !openAIForwardMayFailover(c, writerSizeBeforeForward, failoverErr) {
+ 						h.gatewayService.ObserveOpenAIAccountHealthFailure(c.Request.Context(), account, err)
  						h.handleFailoverExhausted(c, failoverErr, true)
  						return
  					}
@@ -20,7 +21,7 @@ index 79709cabb..b3bd479eb 100644
 +						streamStarted = true
 +					}
  					if failoverErr.ShouldReportAccountScheduleFailure() {
- 						h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, account.GetMappedModel(reqModel), false, nil)
+ 						h.gatewayService.ReportOpenAIAccountScheduleResult(account, openAIAccountScheduleModel(c, account, reqModel, false, nil), false, nil, err)
  					}
 diff --git a/backend/internal/handler/openai_gateway_first_output_timeout_test.go b/backend/internal/handler/openai_gateway_first_output_timeout_test.go
 index bd7cc7af0..26eb5958c 100644
@@ -49,7 +50,7 @@ index bd7cc7af0..26eb5958c 100644
  	failoverErr := &service.UpstreamFailoverError{SafeToFailoverAfterWrite: true}
  	count := 0
 diff --git a/backend/internal/service/openai_gateway_chat_completions_raw.go b/backend/internal/service/openai_gateway_chat_completions_raw.go
-index 3c4619418..ffc186cc6 100644
+index 7427c6fc9..506cb5ad5 100644
 --- a/backend/internal/service/openai_gateway_chat_completions_raw.go
 +++ b/backend/internal/service/openai_gateway_chat_completions_raw.go
 @@ -6,6 +6,7 @@ import (
@@ -60,7 +61,7 @@ index 3c4619418..ffc186cc6 100644
  	"time"
  
  	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
-@@ -269,16 +270,75 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
+@@ -276,16 +277,75 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
  		observer = beginUpstreamResponseModelObservation(c)
  	}
  	requestID := resp.Header.Get("x-request-id")
@@ -137,7 +138,7 @@ index 3c4619418..ffc186cc6 100644
  	writeLine := func(line string) {
  		if clientDisconnected {
  			return
-@@ -298,6 +358,7 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
+@@ -305,6 +365,7 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
  					)
  					return
  				}
@@ -145,7 +146,7 @@ index 3c4619418..ffc186cc6 100644
  			}
  			pendingLines = pendingLines[:0]
  			clientOutputStarted = true
-@@ -308,11 +369,12 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
+@@ -315,11 +376,12 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
  				zap.Error(werr),
  				zap.String("request_id", requestID),
  			)
@@ -160,7 +161,7 @@ index 3c4619418..ffc186cc6 100644
  		refusalDetector.ObserveSSELine(line)
  		if payload, ok := extractOpenAISSEDataLine(line); ok {
  			trimmedPayload := strings.TrimSpace(payload)
-@@ -334,57 +396,186 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
+@@ -343,58 +405,187 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
  			if !clientDisconnected && clientOutputStarted {
  				c.Writer.Flush()
  			}
@@ -191,8 +192,9 @@ index 3c4619418..ffc186cc6 100644
 +			UpstreamModel:                 upstreamModel,
 +			UpstreamResponseModel:         observedUpstreamResponseModel(c),
 +			UpstreamResponseModelConflict: observedUpstreamResponseModelConflict(c),
++			UpstreamResponseServiceTier:   observedUpstreamResponseServiceTier(c),
 +			ReasoningEffort:               reasoningEffort,
-+			ServiceTier:                   serviceTier,
++			ServiceTier:                   resolvedOpenAIUpstreamServiceTier(c, serviceTier),
 +			Stream:                        true,
 +			Duration:                      time.Since(startTime),
 +			FirstTokenMs:                  firstTokenMs,
@@ -259,8 +261,9 @@ index 3c4619418..ffc186cc6 100644
 -		UpstreamModel:                 upstreamModel,
 -		UpstreamResponseModel:         observedUpstreamResponseModel(c),
 -		UpstreamResponseModelConflict: observedUpstreamResponseModelConflict(c),
+-		UpstreamResponseServiceTier:   observedUpstreamResponseServiceTier(c),
 -		ReasoningEffort:               reasoningEffort,
--		ServiceTier:                   serviceTier,
+-		ServiceTier:                   resolvedOpenAIUpstreamServiceTier(c, serviceTier),
 -		Stream:                        true,
 -		Duration:                      time.Since(startTime),
 -		FirstTokenMs:                  firstTokenMs,
@@ -387,7 +390,7 @@ index 3c4619418..ffc186cc6 100644
  
  // ensureOpenAIChatStreamUsage 确保 raw Chat Completions 流式请求会让上游返回 usage。
 diff --git a/backend/internal/service/openai_gateway_chat_completions_raw_test.go b/backend/internal/service/openai_gateway_chat_completions_raw_test.go
-index a80234913..8eb48e323 100644
+index 8a83bbc7e..e094d857f 100644
 --- a/backend/internal/service/openai_gateway_chat_completions_raw_test.go
 +++ b/backend/internal/service/openai_gateway_chat_completions_raw_test.go
 @@ -15,6 +15,7 @@ import (
@@ -653,7 +656,7 @@ index a80234913..8eb48e323 100644
  func TestForwardAsRawChatCompletions_SilentRefusalToolCallsExempt(t *testing.T) {
  	gin.SetMode(gin.TestMode)
  
-@@ -791,6 +1040,15 @@ func rawChatCompletionsTestAccount() *Account {
+@@ -871,6 +1120,15 @@ func rawChatCompletionsTestAccount() *Account {
  	}
  }
  

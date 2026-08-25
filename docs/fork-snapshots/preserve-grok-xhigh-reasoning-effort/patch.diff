@@ -1,17 +1,17 @@
 diff --git a/backend/internal/service/openai_gateway_grok.go b/backend/internal/service/openai_gateway_grok.go
-index d9c7c5b0e..79e30c09d 100644
+index 21c734235..a49b9790d 100644
 --- a/backend/internal/service/openai_gateway_grok.go
 +++ b/backend/internal/service/openai_gateway_grok.go
-@@ -113,7 +113,7 @@ func (s *OpenAIGatewayService) forwardGrokResponses(
- 		resp, err = s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
+@@ -112,7 +112,7 @@ func (s *OpenAIGatewayService) forwardGrokResponses(
+ 		resp, err = s.doOpenAIUpstream(upstreamReq, proxyURL, account)
  		SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
  		if err != nil {
 -			return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
 +			return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false, safeUpstreamURL(upstreamReq.URL.String()))
  		}
  
- 		// xAI can reject encrypted reasoning copied from a response produced under
-@@ -626,13 +626,16 @@ func normalizeGrokReasoningEffortValue(raw, model string) (string, bool) {
+ 		// xAI can reject encrypted reasoning or a compaction blob copied from a
+@@ -722,13 +722,16 @@ func normalizeGrokReasoningEffortValue(raw, model string) (string, bool) {
  		return value, true
  	case "minimal":
  		return "low", true
@@ -31,9 +31,9 @@ index d9c7c5b0e..79e30c09d 100644
  	default:
  		return "", false
  	}
-@@ -1148,7 +1151,7 @@ func (s *OpenAIGatewayService) describeGrokComposerImage(
+@@ -1352,7 +1355,7 @@ func (s *OpenAIGatewayService) describeGrokComposerImage(
  
- 	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
+ 	resp, err := s.doOpenAIUpstream(upstreamReq, proxyURL, account)
  	if err != nil {
 -		return "", OpenAIUsage{}, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
 +		return "", OpenAIUsage{}, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false, safeUpstreamURL(upstreamReq.URL.String()))
@@ -41,7 +41,7 @@ index d9c7c5b0e..79e30c09d 100644
  	defer func() { _ = resp.Body.Close() }()
  
 diff --git a/backend/internal/service/openai_gateway_grok_test.go b/backend/internal/service/openai_gateway_grok_test.go
-index 7b30e683a..a9a1a687e 100644
+index d1c966ac0..339386b69 100644
 --- a/backend/internal/service/openai_gateway_grok_test.go
 +++ b/backend/internal/service/openai_gateway_grok_test.go
 @@ -279,6 +279,33 @@ func TestPatchGrokResponsesBodyNormalizesReasoningEffortAliases(t *testing.T) {
@@ -77,8 +77,8 @@ index 7b30e683a..a9a1a687e 100644
 +
  func TestPatchGrokResponsesBodyAddsDefaultFunctionParameters(t *testing.T) {
  	patched, err := patchGrokResponsesBody(
- 		[]byte(`{"input":"hi","tools":[{"type":"function","name":"lookup"},{"type":"function","name":"wait","parameters":null}]}`),
-@@ -306,6 +333,29 @@ func TestNormalizeGrokChatReasoningEffort(t *testing.T) {
+ 		[]byte(`{"input":"hi","tools":[{"type":"function","name":"lookup","large_id":9007199254740993},{"type":"function","name":"wait","parameters":null}]}`),
+@@ -307,6 +334,29 @@ func TestNormalizeGrokChatReasoningEffort(t *testing.T) {
  	require.False(t, gjson.GetBytes(patched, "reasoning_effort").Exists())
  }
  

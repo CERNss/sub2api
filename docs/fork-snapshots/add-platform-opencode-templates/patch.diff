@@ -1,5 +1,5 @@
 diff --git a/frontend/src/composables/useModelWhitelist.ts b/frontend/src/composables/useModelWhitelist.ts
-index 2ca860c67..f81fcc03f 100644
+index 4b16d44b0..a0fbb9d29 100644
 --- a/frontend/src/composables/useModelWhitelist.ts
 +++ b/frontend/src/composables/useModelWhitelist.ts
 @@ -90,7 +90,7 @@ const antigravityModels = [
