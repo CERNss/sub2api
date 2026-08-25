@@ -36,7 +36,7 @@ index 156b6c97a..ebe35428d 100644
 +- GitHub repository: the repository that published this image
 +- Documentation: see `deploy/README.md` in that repository
 diff --git a/deploy/docker-compose.local.yml b/deploy/docker-compose.local.yml
-index 588862e2f..5dea64079 100644
+index 0df1fb0d8..7a12bc46f 100644
 --- a/deploy/docker-compose.local.yml
 +++ b/deploy/docker-compose.local.yml
 @@ -41,6 +41,10 @@ services:
@@ -51,7 +51,7 @@ index 588862e2f..5dea64079 100644
        # =======================================================================
        # Auto Setup (REQUIRED for Docker deployment)
 diff --git a/deploy/docker-compose.yml b/deploy/docker-compose.yml
-index 68a51e78d..3e26b80fd 100644
+index f15b40590..ae1d0bfd7 100644
 --- a/deploy/docker-compose.yml
 +++ b/deploy/docker-compose.yml
 @@ -33,6 +33,10 @@ services:
@@ -856,7 +856,7 @@ index 5313a9eb4..1132eb73f 100644
 +  })
  })
 diff --git a/frontend/src/types/index.ts b/frontend/src/types/index.ts
-index eaa585f15..48f653a3f 100644
+index 10a72a0a1..c647b3976 100644
 --- a/frontend/src/types/index.ts
 +++ b/frontend/src/types/index.ts
 @@ -188,6 +188,7 @@ export interface CustomMenuItem {
@@ -875,7 +875,7 @@ index eaa585f15..48f653a3f 100644
    payment_enabled: boolean
    risk_control_enabled: boolean
    table_default_page_size: number
-@@ -525,6 +527,37 @@ export interface PaginationConfig {
+@@ -526,6 +528,37 @@ export interface PaginationConfig {
    page_size: number
  }
  

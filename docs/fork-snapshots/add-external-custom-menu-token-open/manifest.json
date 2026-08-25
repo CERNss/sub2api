@@ -2,10 +2,10 @@
   "change_id": "add-external-custom-menu-token-open",
   "status": "active",
   "proposal_path": "openspec/changes/add-external-custom-menu-token-open/proposal.md",
-  "captured_at": "2026-08-20T10:07:46+00:00",
-  "captured_at_commit": "9168cd2a029f19dc7b272c183dfa265cdeb83180",
-  "base": "75f88be5f",
-  "base_commit": "75f88be5f75c27771836b586f7de1503afa0e3bc",
+  "captured_at": "2026-08-25T06:58:09+00:00",
+  "captured_at_commit": "d626cf6510c67b737db0f60eee1af46fd600ca86",
+  "base": "5a7d46962",
+  "base_commit": "5a7d469622911a6b1291a692376df5fa03f9ac2e",
   "new_files": [
     {
       "path": "frontend/src/utils/external-menu-url.ts",
