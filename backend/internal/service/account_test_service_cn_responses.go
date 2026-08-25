@@ -15,20 +15,29 @@ import (
 // testCNProviderResponsesConnection 探测 api_protocol 固定为 responses 的国产
 // 供应商账号（目前只有 DeepSeek 提供原生 /responses 端点）。
 //
-// Fork 补丁。上游 v0.1.179 的 CN 分发只覆盖 adaptive 与 chat_completions，
-// 固定 responses 协议的账号会掉到 TestAccountConnection 末尾的 Claude 探测，
-// 被以 {base}/v1/messages 误探而必然 404。改投通用 OpenAI 探测也不对：
-// 那条路径用 buildOpenAIResponsesURL 拼 /v1/responses，且不过
-// normalizeDeepSeekResponsesRequestBody，而真实网关
-// （openai_gateway_forward.go 的 GetOpenAIBaseURL + buildOpenAIResponsesURLForPlatform）
-// 打的是 DeepSeek 无 /v1 前缀的 /responses 且强制 store=false。本探测与网关同构。
+// Fork 补丁（v0.1.182 起大幅收窄，勿照旧描述理解）。
 //
-// 与上游 adaptive 版 testCNProviderAdaptiveResponsesConnection 的差异：
-//   - base URL 用 GetOpenAIBaseURL()（固定协议账号的自定义 base_url 生效），
-//     而非只对 adaptive 有意义的 GetCNProtocolBaseURL；
-//   - 自带 SSE 生命周期（test_start / processOpenAIStream 收尾 test_complete），
-//     不依赖多端点自检的外层；
-//   - 保留 429 的 reconcileOpenAI429State 归位（adaptive 版复制原型时漏了）。
+// 本函数最初是为了补上游 v0.1.179 CN 分发的空洞：固定 responses 协议的账号会掉到
+// TestAccountConnection 末尾的 Claude 探测、被以 {base}/v1/messages 误探而 404。
+// 上游 v0.1.182（01a008394，PR #5913）已把该分支收编，并投给通用 OpenAI 探测
+// testOpenAIAccountConnection；配套的 f75c4161f 也让 URL 拼接变成平台感知
+// （buildOpenAIResponsesURLForPlatform），因此 URL、请求头、TLS profile、429 的
+// reconcileOpenAI429State 现在上游都已对齐——原注释列举的那几条差异均已失效。
+//
+// 仍然改投本函数的**唯一**理由是请求体与转发路径的同构：
+//   - 上游探测不过 normalizeDeepSeekResponsesRequestBody，body 里根本没有 store
+//     字段；而真实转发（openai_gateway_forward.go:1284 与
+//     openai_gateway_passthrough.go:606）对 DeepSeek 恒发 store=false。DeepSeek 的
+//     原生 /responses 无状态，探测与转发在这一点上必须一致，否则探测绿、真实流量
+//     仍可能被拒。
+//   - 上游探测还留了一个逃生口：extra.openai_responses_supported 为假时改打
+//     /v1/chat/completions（account_test_service.go 的 ShouldUseResponsesAPI 分支），
+//     而真实转发对固定 responses 协议明确拒绝被该探针旧值覆盖
+//     （shouldForwardOpenAIResponsesViaRawChatCompletions）。陈旧 extra 会让探测
+//     打到一个转发根本不会用的端点。
+//
+// 退场条件：上游给 testOpenAIAccountConnection 接上 body 归一（并去掉上面那个
+// 逃生口）后，本文件连同 CN switch 里的 responses 分支一并退场。
 func (s *AccountTestService) testCNProviderResponsesConnection(c *gin.Context, account *Account, modelID string, prompt string) error {
 	ctx := c.Request.Context()
 

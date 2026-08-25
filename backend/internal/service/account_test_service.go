@@ -298,7 +298,15 @@ func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int
 		case APIProtocolAdaptive:
 			return s.testCNProviderAdaptiveConnection(c, account, modelID, prompt)
 		case APIProtocolResponses:
-			return s.testOpenAIAccountConnection(c, account, modelID, prompt, normalizeAccountTestMode(mode))
+			// fork: 上游 v0.1.182 (01a008394) 把固定 responses 协议的 CN 账号收编到
+			// 这条分发上，但投给了通用 OpenAI 探测——那条路径不过
+			// normalizeDeepSeekResponsesRequestBody，会把 store=true /
+			// previous_response_id 发给 DeepSeek 无状态的 /responses。上游自己的
+			// adaptive 探测（account_test_service_cn_adaptive.go）与真实转发
+			// （openai_gateway_forward.go / openai_gateway_passthrough.go）都做这层归一，
+			// 唯独这条没有。改投 fork 的同构探测：URL 与上游一致
+			// （buildOpenAIResponsesURLForPlatform），额外补上 body 归一。
+			return s.testCNProviderResponsesConnection(c, account, modelID, prompt)
 		case APIProtocolChatCompletions:
 			return s.testCNProviderChatCompletionsConnection(c, account, modelID, prompt)
 		case APIProtocolAnthropic:
@@ -308,23 +316,6 @@ func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int
 
 	if account.IsOpenAI() {
 		return s.testOpenAIAccountConnection(c, account, modelID, prompt, normalizeAccountTestMode(mode))
-	}
-
-	// 国产供应商（kimi/zhipu/deepseek）按账号 api_protocol 选探测协议。
-	// 上游 v0.1.179 已在上面分发 adaptive 与 chat_completions，剩下两种协议
-	// 会掉到函数末尾的 Claude 探测、被以 {base}/v1/messages 误探而 404：
-	// anthropic 协议走 Claude 探测本身正确（这里显式写出，不再隐式依赖末尾默认
-	// 分支），responses 协议则必须走平台感知的原生 /responses 探测。
-	if account.IsCNProvider() {
-		switch account.GetAPIProtocol() {
-		case APIProtocolAnthropic:
-			return s.testClaudeAccountConnection(c, account, modelID)
-		case APIProtocolResponses:
-			return s.testCNProviderResponsesConnection(c, account, modelID, prompt)
-		default:
-			// 未知/未来协议：CN 供应商以 OpenAI 兼容居多，兜底比 Claude 探测更接近现实。
-			return s.testOpenAIAccountConnection(c, account, modelID, prompt, normalizeAccountTestMode(mode))
-		}
 	}
 
 	if account.IsGemini() {
@@ -407,9 +398,15 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 		// （不是只在 GetBaseURL() 为空时兜底），这样凭证未配 base_url 时打的是
 		// 供应商官方 Anthropic 端点而非 api.anthropic.com；凭证配了 base_url 时
 		// GetAnthropicProtocolBaseURL 本身也优先返回它，两条路结果一致。
-		// 注意 getter 的非空条件自上游 85051616f 起是「anthropic 协议 or adaptive」，
-		// 不再只有 anthropic：adaptive 的 CN 账号已被上面的 CN 分发拦走、到不了这里，
-		// Claude 平台账号与非 CN 账号仍返回空串，都不受影响。
+		//
+		// 防御纵深：自上游 v0.1.182（a749673de）起，顶部的 CN switch 对
+		// GetAPIProtocol() 四个取值完全穷尽，anthropic 与 adaptive 的 CN 账号都
+		// 已被 testCNProviderAnthropicConnection / testCNProviderAdaptiveConnection
+		// 拦走，走不到这里；getter 的非空条件恰好也只有这两种协议（且仅 CN 账号，
+		// 见 GetAPIProtocol 对非 CN 恒返回 chat_completions）。因此本覆盖当前是
+		// 空转。保留它是因为一旦上游把某个 arm 收窄，回落到这里的 CN 账号会带着
+		// 供应商密钥去打 api.anthropic.com——这条兜底的代价是零，漏掉的代价是
+		// 凭证外泄。另一个调用方 routeAntigravityTest 非 CN 平台，getter 返回空串。
 		if protoBase := account.GetAnthropicProtocolBaseURL(); protoBase != "" {
 			baseURL = protoBase
 		}
