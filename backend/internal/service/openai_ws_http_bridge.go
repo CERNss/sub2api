@@ -411,11 +411,16 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 	turnStart := time.Now()
 	rejectedFieldRetryState := newOpenAIResponsesRejectedFieldRetryState(body)
 	var resp *http.Response
+	// 上游把请求构造挪进了 rejected-field 重试循环，upstreamReq 不再是函数级
+	// 变量；transport-error ops 补丁的后两个调用点在循环之外，这里显式留存最后
+	// 一次实际发出的上游 URL 供其标注。
+	upstreamRequestURL := ""
 	for {
 		upstreamReq, buildErr := buildUpstreamRequest(body)
 		if buildErr != nil {
 			return nil, buildErr
 		}
+		upstreamRequestURL = upstreamReq.URL.String()
 		resp, err = s.doOpenAIUpstream(upstreamReq, proxyURL, account)
 		if err != nil {
 			if turn == 1 {
@@ -821,7 +826,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 	if err := scanner.Err(); err != nil {
 		streamErr := fmt.Errorf("read upstream http bridge stream: %w", err)
 		if turn == 1 && !wroteDownstream {
-			return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, streamErr, true, safeUpstreamURL(upstreamReq.URL.String()))
+			return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, streamErr, true, safeUpstreamURL(upstreamRequestURL))
 		}
 		return resultWithUsage(), streamErr
 	}
@@ -830,7 +835,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 		terminalErr = errors.New("upstream http bridge stream sent [DONE] before terminal event")
 	}
 	if turn == 1 && !wroteDownstream {
-		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, terminalErr, true, safeUpstreamURL(upstreamReq.URL.String()))
+		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, terminalErr, true, safeUpstreamURL(upstreamRequestURL))
 	}
 	return resultWithUsage(), terminalErr
 }
