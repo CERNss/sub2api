@@ -32,4 +32,10 @@
 
 - [x] 4.1 在 `openspec/FORK.md` 登记（目录 + 快速概览行 + Active changes 条目）。
 - [x] 4.2 handler 侧两个补丁文件补登记到 `FORK.md` 上游补丁表与 proposal 的 Fork Touchpoints，快速概览计数同步为 4。
-- [ ] 4.3 发版/rebase 前用 `python3 tools/fork_overlay.py snapshot` 快照本 change 的补丁。
+- [x] 4.3 **常设门（recurring gate，非一次性实现项）**：每轮发版/rebase 前用
+      `python3 tools/fork_overlay.py snapshot --base <新基线>` 重新快照本 change 的补丁，
+      并把产物同步到 `docs/fork-snapshots/keepalive-raw-chat-completions-stream/`。
+      本项按「当前树是否已对齐当前基线」判定，不计入未完成实现工作——勾选状态表示
+      截至最近一次同步已满足，下一轮 rebase 时重新执行即可，无需再改回未勾选。
+      最近一次执行：`9c1c87cfe`，基线 `5a7d46962`（v0.1.182），
+      `patch.diff` 与 `git diff 5a7d46962 HEAD -- <manifest 内 upstream_patch_files>` 逐字节一致。
