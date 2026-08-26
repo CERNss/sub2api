@@ -163,7 +163,9 @@ describe('UseKeyModal', () => {
     await nextTick()
 
     const parsed = JSON.parse(wrapper.find('pre code').text())
-    expect(parsed.provider.grok.npm).toBe('@ai-sdk/openai-compatible')
+    // Responses API：只有 @ai-sdk/openai 工厂说 Responses，openai-compatible 会退回
+    // chat/completions 并让 grok 的 reasoning_effort 走不到 Responses 侧透传。
+    expect(parsed.provider.grok.npm).toBe('@ai-sdk/openai')
     expect(parsed.provider.grok.name).toBe('Grok via Sub2API')
     expect(parsed.provider.grok.options).toEqual({
       baseURL: 'https://example.com/v1',
@@ -175,6 +177,23 @@ describe('UseKeyModal', () => {
     expect(parsed.provider.grok.models['grok-4.20-multi-agent-0309']).toBeDefined()
     expect(parsed.provider.grok.models['grok-composer-2.5-fast']).toBeDefined()
     expect(parsed.provider.grok.models['gpt-5.6']).toBeUndefined()
+
+    // reasoning 标志：AI SDK 按已知模型名单门控 reasoning 参数，grok-4.6 不在名单，
+    // OpenCode 只对显式标了 reasoning 的模型注入 forceReasoning 绕过（opencode#20815）。
+    // 只标网关 grokSupportsReasoningEffort 认可的模型。
+    expect(parsed.provider.grok.models['grok-4.6'].reasoning).toBe(true)
+    expect(parsed.provider.grok.models['grok-4.5'].reasoning).toBe(true)
+    expect(parsed.provider.grok.models['grok-4.3'].reasoning).toBe(true)
+    expect(parsed.provider.grok.models['grok-4.20-multi-agent-0309'].reasoning).toBe(true)
+    expect(parsed.provider.grok.models['grok-build-0.1'].reasoning).toBeUndefined()
+    expect(parsed.provider.grok.models['grok-composer-2.5-fast'].reasoning).toBeUndefined()
+
+    // fork #8 xhigh 透传配套：网关认 camelCase reasoningEffort，xhigh 白名单只有 4.6。
+    expect(parsed.provider.grok.models['grok-4.6'].options).toEqual({ reasoningEffort: 'xhigh' })
+    expect(parsed.provider.grok.models['grok-4.6'].variants).toEqual({
+      xhigh: { reasoningEffort: 'xhigh' }
+    })
+    expect(parsed.provider.grok.models['grok-4.5'].options).toBeUndefined()
   })
 
   it('renders copyable Claude Code setup through the Grok Messages gateway', async () => {

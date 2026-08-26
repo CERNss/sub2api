@@ -1894,13 +1894,24 @@ function generateOpenCodeConfig(
   }
   // Align context_window with Grok Build official sample (docs.x.ai/build/settings) where known.
   // Image/video: grok-imagine-image / grok-imagine-video on media endpoints — not this list.
+  // `reasoning: true` 只标给网关 grokSupportsReasoningEffort 认可的模型。
+  // 该标志的作用是让 OpenCode 注入 forceReasoning 绕过 AI SDK 的已知模型名单
+  // （grok-4.6 不在名单里，不标就拿不到 reasoning 参数；见 opencode#20815）。
+  // 给不支持 effort 的模型（build-0.1 / composer）乱标只会让 OpenCode 发出
+  // 网关随后又删掉的 reasoning 字段，故意不标。
   const grokModels = {
     'grok-4.6': {
       name: 'Grok 4.6',
-      limit: { context: 500000, output: 64000 }
+      reasoning: true,
+      limit: { context: 500000, output: 64000 },
+      // 与 fork #8 的 xhigh 透传配套：网关 normalizeGrokResponsesReasoningEffort
+      // 认 camelCase reasoningEffort，且 xhigh 白名单当前只有 grok-4.6。
+      options: { reasoningEffort: 'xhigh' },
+      variants: { xhigh: { reasoningEffort: 'xhigh' } }
     },
     'grok-4.5': {
       name: 'Grok 4.5',
+      reasoning: true,
       limit: { context: 500000, output: 64000 }
     },
     'grok-build-0.1': {
@@ -1909,10 +1920,12 @@ function generateOpenCodeConfig(
     },
     'grok-4.20-multi-agent-0309': {
       name: 'Grok 4.20 Multi Agent (text / web_search)',
+      reasoning: true,
       limit: { context: 1000000, output: 64000 }
     },
     'grok-4.3': {
       name: 'Grok 4.3',
+      reasoning: true,
       limit: { context: 1000000, output: 64000 }
     },
     'grok-composer-2.5-fast': {
@@ -1955,8 +1968,13 @@ function generateOpenCodeConfig(
   } else if (platform === 'openai') {
     provider[platform].models = openaiModels
   } else if (platform === 'grok') {
-    // Custom provider pointing at Sub2API OpenAI-compatible Responses/Chat endpoints.
-    provider[platform].npm = '@ai-sdk/openai-compatible'
+    // Responses API：@ai-sdk/openai 会把 baseURL 拼成 <baseURL>/responses，而
+    // apiBase 已以 /v1 结尾，所以落到 /v1/responses（不会出现 /v1/v1）。
+    // 换成 @ai-sdk/openai-compatible 会退回 chat/completions，grok 的
+    // reasoning_effort 也就走不到 Responses 侧的 fork #8 透传。
+    // 注意 zhipu 分支有意保持 openai-compatible：走 chat/completions 才吃得到
+    // fork #10 的 raw keepalive 保护。
+    provider[platform].npm = '@ai-sdk/openai'
     provider[platform].name = 'Grok via Sub2API'
     provider[platform].models = grokModels
   } else if (platform === 'zhipu') {
