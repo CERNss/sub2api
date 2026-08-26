@@ -37,5 +37,5 @@
       并把产物同步到 `docs/fork-snapshots/keepalive-raw-chat-completions-stream/`。
       本项按「当前树是否已对齐当前基线」判定，不计入未完成实现工作——勾选状态表示
       截至最近一次同步已满足，下一轮 rebase 时重新执行即可，无需再改回未勾选。
-      最近一次执行：`9c1c87cfe`，基线 `5a7d46962`（v0.1.182），
-      `patch.diff` 与 `git diff 5a7d46962 HEAD -- <manifest 内 upstream_patch_files>` 逐字节一致。
+      最近一次执行：基线 `e8cb019fa`（v0.1.183），
+      `patch.diff` 与 `git diff e8cb019fa HEAD -- <manifest 内 upstream_patch_files>` 逐字节一致。

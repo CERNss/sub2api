@@ -2,10 +2,10 @@
   "change_id": "add-admin-user-api-key-creation",
   "status": "active",
   "proposal_path": "openspec/changes/add-admin-user-api-key-creation/proposal.md",
-  "captured_at": "2026-08-25T06:58:09+00:00",
-  "captured_at_commit": "d626cf6510c67b737db0f60eee1af46fd600ca86",
-  "base": "5a7d46962",
-  "base_commit": "5a7d469622911a6b1291a692376df5fa03f9ac2e",
+  "captured_at": "2026-08-26T08:19:57+00:00",
+  "captured_at_commit": "332206b44ac6c374600b42eaa71896be929a486e",
+  "base": "e8cb019fa",
+  "base_commit": "e8cb019fabf8b55199436229044cbf9aa7a82564",
   "new_files": [],
   "upstream_patch_files": [
     {
