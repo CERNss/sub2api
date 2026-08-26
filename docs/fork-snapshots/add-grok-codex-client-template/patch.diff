@@ -1,5 +1,5 @@
 diff --git a/frontend/src/components/keys/UseKeyModal.vue b/frontend/src/components/keys/UseKeyModal.vue
-index c8ae79d22..61cd00fc0 100644
+index c8ae79d22..0e16aa2f2 100644
 --- a/frontend/src/components/keys/UseKeyModal.vue
 +++ b/frontend/src/components/keys/UseKeyModal.vue
 @@ -201,7 +201,11 @@ import { useI18n } from 'vue-i18n'
@@ -184,18 +184,45 @@ index c8ae79d22..61cd00fc0 100644
    const provider: Record<string, any> = {
      [platform]: {
        options: {
-@@ -1480,6 +1597,10 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
+@@ -1479,9 +1596,24 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
+   }
    // Align context_window with Grok Build official sample (docs.x.ai/build/settings) where known.
    // Image/video: grok-imagine-image / grok-imagine-video on media endpoints — not this list.
++  // `reasoning: true` 只标给网关 grokSupportsReasoningEffort 认可的模型。
++  // 该标志的作用是让 OpenCode 注入 forceReasoning 绕过 AI SDK 的已知模型名单
++  // （grok-4.6 不在名单里，不标就拿不到 reasoning 参数；见 opencode#20815）。
++  // 给不支持 effort 的模型（build-0.1 / composer）乱标只会让 OpenCode 发出
++  // 网关随后又删掉的 reasoning 字段，故意不标。
    const grokModels = {
 +    'grok-4.6': {
 +      name: 'Grok 4.6',
-+      limit: { context: 500000, output: 64000 }
++      reasoning: true,
++      limit: { context: 500000, output: 64000 },
++      // 与 fork #8 的 xhigh 透传配套：网关 normalizeGrokResponsesReasoningEffort
++      // 认 camelCase reasoningEffort，且 xhigh 白名单当前只有 grok-4.6。
++      options: { reasoningEffort: 'xhigh' },
++      variants: { xhigh: { reasoningEffort: 'xhigh' } }
 +    },
      'grok-4.5': {
        name: 'Grok 4.5',
++      reasoning: true,
        limit: { context: 500000, output: 64000 }
-@@ -1501,6 +1622,24 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
+     },
+     'grok-build-0.1': {
+@@ -1490,10 +1622,12 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
+     },
+     'grok-4.20-multi-agent-0309': {
+       name: 'Grok 4.20 Multi Agent (text / web_search)',
++      reasoning: true,
+       limit: { context: 1000000, output: 64000 }
+     },
+     'grok-4.3': {
+       name: 'Grok 4.3',
++      reasoning: true,
+       limit: { context: 1000000, output: 64000 }
+     },
+     'grok-composer-2.5-fast': {
+@@ -1501,6 +1635,24 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
        limit: { context: 500000, output: 64000 }
      }
    }
@@ -220,8 +247,19 @@ index c8ae79d22..61cd00fc0 100644
  
    if (platform === 'gemini') {
      provider[platform].npm = '@ai-sdk/google'
-@@ -1522,8 +1661,28 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
-     provider[platform].npm = '@ai-sdk/openai-compatible'
+@@ -1518,12 +1670,37 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
+   } else if (platform === 'openai') {
+     provider[platform].models = openaiModels
+   } else if (platform === 'grok') {
+-    // Custom provider pointing at Sub2API OpenAI-compatible Responses/Chat endpoints.
+-    provider[platform].npm = '@ai-sdk/openai-compatible'
++    // Responses API：@ai-sdk/openai 会把 baseURL 拼成 <baseURL>/responses，而
++    // apiBase 已以 /v1 结尾，所以落到 /v1/responses（不会出现 /v1/v1）。
++    // 换成 @ai-sdk/openai-compatible 会退回 chat/completions，grok 的
++    // reasoning_effort 也就走不到 Responses 侧的 fork #8 透传。
++    // 注意 zhipu 分支有意保持 openai-compatible：走 chat/completions 才吃得到
++    // fork #10 的 raw keepalive 保护。
++    provider[platform].npm = '@ai-sdk/openai'
      provider[platform].name = 'Grok via Sub2API'
      provider[platform].models = grokModels
 +  } else if (platform === 'zhipu') {
@@ -249,7 +287,7 @@ index c8ae79d22..61cd00fc0 100644
    const agent =
      platform === 'openai'
        ? {
-@@ -1542,6 +1701,7 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
+@@ -1542,6 +1719,7 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
  
    const content = JSON.stringify(
      {
@@ -258,10 +296,45 @@ index c8ae79d22..61cd00fc0 100644
        ...(agent ? { agent } : {}),
        $schema: 'https://opencode.ai/config.json'
 diff --git a/frontend/src/components/keys/__tests__/UseKeyModal.spec.ts b/frontend/src/components/keys/__tests__/UseKeyModal.spec.ts
-index 5313a9eb4..1132eb73f 100644
+index 5313a9eb4..8a1ca6aef 100644
 --- a/frontend/src/components/keys/__tests__/UseKeyModal.spec.ts
 +++ b/frontend/src/components/keys/__tests__/UseKeyModal.spec.ts
-@@ -263,6 +263,122 @@ describe('UseKeyModal', () => {
+@@ -99,7 +99,9 @@ describe('UseKeyModal', () => {
+     await nextTick()
+ 
+     const parsed = JSON.parse(wrapper.find('pre code').text())
+-    expect(parsed.provider.grok.npm).toBe('@ai-sdk/openai-compatible')
++    // Responses API：只有 @ai-sdk/openai 工厂说 Responses，openai-compatible 会退回
++    // chat/completions 并让 grok 的 reasoning_effort 走不到 Responses 侧透传。
++    expect(parsed.provider.grok.npm).toBe('@ai-sdk/openai')
+     expect(parsed.provider.grok.name).toBe('Grok via Sub2API')
+     expect(parsed.provider.grok.options).toEqual({
+       baseURL: 'https://example.com/v1',
+@@ -111,6 +113,23 @@ describe('UseKeyModal', () => {
+     expect(parsed.provider.grok.models['grok-4.20-multi-agent-0309']).toBeDefined()
+     expect(parsed.provider.grok.models['grok-composer-2.5-fast']).toBeDefined()
+     expect(parsed.provider.grok.models['gpt-5.6']).toBeUndefined()
++
++    // reasoning 标志：AI SDK 按已知模型名单门控 reasoning 参数，grok-4.6 不在名单，
++    // OpenCode 只对显式标了 reasoning 的模型注入 forceReasoning 绕过（opencode#20815）。
++    // 只标网关 grokSupportsReasoningEffort 认可的模型。
++    expect(parsed.provider.grok.models['grok-4.6'].reasoning).toBe(true)
++    expect(parsed.provider.grok.models['grok-4.5'].reasoning).toBe(true)
++    expect(parsed.provider.grok.models['grok-4.3'].reasoning).toBe(true)
++    expect(parsed.provider.grok.models['grok-4.20-multi-agent-0309'].reasoning).toBe(true)
++    expect(parsed.provider.grok.models['grok-build-0.1'].reasoning).toBeUndefined()
++    expect(parsed.provider.grok.models['grok-composer-2.5-fast'].reasoning).toBeUndefined()
++
++    // fork #8 xhigh 透传配套：网关认 camelCase reasoningEffort，xhigh 白名单只有 4.6。
++    expect(parsed.provider.grok.models['grok-4.6'].options).toEqual({ reasoningEffort: 'xhigh' })
++    expect(parsed.provider.grok.models['grok-4.6'].variants).toEqual({
++      xhigh: { reasoningEffort: 'xhigh' }
++    })
++    expect(parsed.provider.grok.models['grok-4.5'].options).toBeUndefined()
+   })
+ 
+   it('renders copyable Claude Code setup through the Grok Messages gateway', async () => {
+@@ -263,6 +282,122 @@ describe('UseKeyModal', () => {
      expect(codeBlocks.join('\n')).toContain('experimental_bearer_token = "sk-grok-codex-test"')
    })
  
@@ -384,7 +457,7 @@ index 5313a9eb4..1132eb73f 100644
    it('keeps legacy OpenAI Codex config as the default', () => {
      const wrapper = mount(UseKeyModal, {
        props: {
-@@ -594,4 +710,403 @@ describe('UseKeyModal', () => {
+@@ -594,4 +729,403 @@ describe('UseKeyModal', () => {
      expect(fable.options.thinking).toEqual({ type: 'adaptive' })
      expect(fable.options.thinking).not.toHaveProperty('budgetTokens')
    })
