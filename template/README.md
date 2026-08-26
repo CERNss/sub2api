@@ -75,6 +75,42 @@ Notes:
   Keep each platform's pinned model in its own section (one model per platform);
   the shared `opencode` section should stay model-free so it never leaks a model
   into another platform's tab.
+
+  **`grok_opencode` targets the Responses API.** Its provider declares
+  `"npm": "@ai-sdk/openai"` (not `@ai-sdk/openai-compatible`), because only the
+  `@ai-sdk/openai` factory talks Responses; the compatible factory would fall
+  back to `chat/completions`. `${endpoint}` already ends in `/v1`, and the
+  factory appends `/responses`, so requests land on `/v1/responses` — no `/v1/v1`.
+  Two requirements come with that shape:
+
+  - Every reasoning-capable model entry **must** carry `"reasoning": true`.
+    The AI SDK gates reasoning parameters behind a hardcoded list of known model
+    names, and `grok-4.6` is not on it; OpenCode only injects its `forceReasoning`
+    bypass for models explicitly flagged as reasoning models
+    (see opencode issue #20815). Drop the flag and reasoning silently stops being
+    sent. Only flag models the gateway actually accepts effort for
+    (`grokSupportsReasoningEffort`) — flagging `grok-build-0.1` or the composer
+    models just emits fields the gateway strips again.
+  - `grok-4.6` additionally pins `options.reasoningEffort: "xhigh"` plus an
+    `xhigh` variant. The gateway normalizes camelCase `reasoningEffort` into
+    `reasoning_effort`, and its `xhigh` whitelist currently covers `grok-4.6`
+    only.
+
+  This needs a reasonably recent OpenCode that honours per-provider `npm`.
+  `zhipu_opencode` deliberately stays on `@ai-sdk/openai-compatible`: its traffic
+  must keep flowing through `chat/completions` to retain the raw-stream keepalive
+  protection, and Codex templates are unaffected (they already use
+  `wire_api = "responses"`).
+
+  > ⚠️ **Known behaviour of the shared `opencode` section (unchanged for now,
+  > documented so it is not mistaken for a bug).** That section hardcodes the
+  > provider key `openai`. Because every platform without its own section falls
+  > back to it, mounting a shared `opencode` section silently pushes the fallback
+  > platforms (gemini, anthropic, antigravity, kimi, deepseek, composite, …) onto
+  > an OpenAI Responses provider, overriding the `@ai-sdk/anthropic` /
+  > `@ai-sdk/google` choices the built-in generator would have made for them. If
+  > you mount a shared section, give those platforms their own sections or accept
+  > the override.
 - `ccs_import.params.usageScript` is auto-base64 encoded by the frontend before opening the deeplink.
 - Avoid hardcoding `model` in `ccs_import.params`: the value overrides the
   per-platform default the frontend computes, so a fixed model leaks into every

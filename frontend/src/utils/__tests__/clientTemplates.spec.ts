@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -249,5 +252,48 @@ describe('clientTemplates', () => {
       }
     })
     expect(fetchImpl).not.toHaveBeenCalled()
+  })
+})
+
+// 挂载用模版文件（部署产物）的形态回归。前端单测平时只喂内联 fixture，
+// 真正发给运营方去挂的是 template/client-templates.json —— 它一旦和内置生成器
+// 走散，就会出现「挂了模版走 Responses、没挂走 chat」的分裂。这里直接读实文件钉死。
+describe('shipped template/client-templates.json', () => {
+  const shipped = JSON.parse(
+    // vitest 的 root 是 frontend/，模版文件在仓库根的 template/ 下。
+    readFileSync(resolve(process.cwd(), '..', 'template', 'client-templates.json'), 'utf-8')
+  ).client_templates
+
+  const grokOpenCode = JSON.parse(shipped.grok_opencode.files[0].content)
+
+  it('points grok_opencode at the Responses factory', () => {
+    // @ai-sdk/openai 才说 Responses；openai-compatible 会退回 chat/completions。
+    expect(grokOpenCode.provider.grok.npm).toBe('@ai-sdk/openai')
+    // ${endpoint} 已以 /v1 结尾，工厂再拼 /responses，落 /v1/responses，不重复 /v1。
+    expect(grokOpenCode.provider.grok.options.baseURL).toBe('${endpoint}')
+  })
+
+  it('flags grok_opencode reasoning models so OpenCode injects forceReasoning', () => {
+    // AI SDK 按已知模型名单门控 reasoning，grok-4.6 不在名单；不标就静默丢 reasoning。
+    for (const model of ['grok-4.6', 'grok-4.5']) {
+      expect(grokOpenCode.provider.grok.models[model].reasoning).toBe(true)
+    }
+  })
+
+  it('pins the xhigh effort variant on grok-4.6 only', () => {
+    // 与 fork #8 配套：网关认 camelCase reasoningEffort，xhigh 白名单只有 grok-4.6。
+    expect(grokOpenCode.provider.grok.models['grok-4.6'].options).toEqual({
+      reasoningEffort: 'xhigh'
+    })
+    expect(grokOpenCode.provider.grok.models['grok-4.6'].variants).toEqual({
+      xhigh: { reasoningEffort: 'xhigh' }
+    })
+    expect(grokOpenCode.provider.grok.models['grok-4.5'].options).toBeUndefined()
+  })
+
+  it('keeps zhipu_opencode on chat/completions for the raw keepalive path', () => {
+    // fork #10 的保活只在 raw chat/completions 直转路径上，换 Responses 会丢保护。
+    const zhipuOpenCode = JSON.parse(shipped.zhipu_opencode.files[0].content)
+    expect(zhipuOpenCode.provider.zhipu.npm).toBe('@ai-sdk/openai-compatible')
   })
 })

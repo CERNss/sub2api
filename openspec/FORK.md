@@ -359,6 +359,13 @@ _无。_ 这四个文件在本 change 之前与上游 `main` 零差异，也不�
 - **Capability:** `platform-opencode-client-templates`
 - **意图:** OpenCode tab 原本只有一个共享 `client_templates.opencode` 段，运营方一旦在其中钉 model，就会泄漏到所有平台的 tab（Grok 组的 `opencode.json` 广播 OpenAI 模型，反之亦然）。新增 `openai_opencode` / `grok_opencode` / `zhipu_opencode` 三个每平台段，查找顺序：平台段 → 共享 `opencode` 段 → 内置生成器。同时补齐 Zhipu 的两处空白：内置生成器此前无 GLM 分支（GLM 组落到通用 OpenAI 兼容形态、广播它根本路由不了的 OpenAI 目录），CCS deeplink 导入也没有 zhipu 分支。
 - **⚠ 关键不变量（回归易碎点）:** **只有 openai / grok / zhipu 三个平台查平台段**；其余平台（gemini/anthropic/antigravity/kimi/deepseek/composite…）必须直接读共享 `opencode` 段。`case 'openai'` 与 `default:` 一旦合并（WIP 阶段真的发生过），kimi/deepseek/composite 就会被喂上 `openai_opencode` 段并被内置回退钉上 `openai/gpt-5.5` —— 模型串台。同理，内置回退里复用 OpenAI 兼容形态的 `default:` 分支必须传 `pinDefaultModel: false`。由 `UseKeyModal.spec.ts` 的「keeps platforms without a dedicated section off the openai_opencode section and model pin」用例钉死。
+- **⚠ 关键不变量（每平台 wire 形态，2026-08-26 起）:** 三个平台段的 provider `npm` **不可互换**，各自绑死一条上游链路：
+  - `grok_opencode` = `@ai-sdk/openai`（Responses）。只有这个工厂说 Responses；换成 `@ai-sdk/openai-compatible` 会退回 `chat/completions`，grok 的 `reasoning_effort` 就走不到 Responses 侧、#8 的 xhigh 透传随之失效。`${endpoint}` 已以 `/v1` 结尾、工厂再拼 `/responses`，落 `/v1/responses`，不会 `/v1/v1`。**每个 reasoning 模型条目必须带 `"reasoning": true`**——AI SDK 按硬编码的已知模型名单门控 reasoning 参数，`grok-4.6` 不在名单，OpenCode 只对显式标了 reasoning 的模型注入 `forceReasoning` 绕过（opencode#20815）；漏标即静默丢 reasoning。只标网关 `grokSupportsReasoningEffort` 认可的模型（4.6/4.5/4.3/4.20-multi-agent），给 `grok-build-0.1`/composer 乱标只会发出网关随后又删掉的字段。`grok-4.6` 另钉 `options.reasoningEffort: "xhigh"` 与 `xhigh` variant（网关认 camelCase，xhigh 白名单当前只有 4.6）。需较新版 OpenCode 才认 per-provider `npm`。
+  - `zhipu_opencode` = `@ai-sdk/openai-compatible`（chat/completions）**故意不改**：走 raw chat/completions 直转才吃得到 #10 的 keepalive 保护，换 Responses 会把这层保护丢掉。
+  - `openai_opencode`：不写 `npm`，OpenCode 对 provider key `openai` 走内置 Responses 工厂。
+  - Codex 侧模版（#9）全线 `wire_api = "responses"`，不受本条影响。
+  由 `clientTemplates.spec.ts` 的 `shipped template/client-templates.json` 用例组直接读实文件钉死（模版与内置生成器一旦走散，就会出现「挂了模版走 Responses、没挂走 chat」的分裂），内置生成器侧由 `UseKeyModal.spec.ts` 钉死。
+- **⚠ 已知行为（本轮只记录不改）:** 共享 `opencode` 段的 provider key 硬写 `openai`。回退平台（gemini/anthropic/antigravity/kimi/deepseek/composite…）读的正是这一段，所以运营方一旦挂载共享段，这些平台会被静默推上 OpenAI Responses provider，推翻内置生成器为它们选的 `@ai-sdk/anthropic` / `@ai-sdk/google`。已在 `template/README.md` 记为警告。
 - **依赖:** 归档 #6（模版加载与渲染管线全部来自它）；与 #9 同构（#9 对 Codex tab 做的事，本 change 对 OpenCode tab 做）。部署侧模版文件可提前加三个新段，旧前端忽略未知段无副作用。
 - **Spec 路径:** `openspec/changes/add-platform-opencode-templates/`
 
