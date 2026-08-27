@@ -1601,11 +1601,25 @@ function generateOpenCodeConfig(
   // （grok-4.6 不在名单里，不标就拿不到 reasoning 参数；见 opencode#20815）。
   // 给不支持 effort 的模型（build-0.1 / composer）乱标只会让 OpenCode 发出
   // 网关随后又删掉的 reasoning 字段，故意不标。
+  // `attachment` + `modalities` 每个型号都要显式声明：OpenCode 解析图像能力时走
+  // `model.modalities?.input?.includes('image') ?? base?.capabilities.input.image ?? false`，
+  // 而 base 取自 models.dev —— 那边根本没有 `grok` 这个 provider（grok 系列挂在 `xai` 下），
+  // 所以不声明就落到 false，OpenCode 的 stripMedia 会把图片换成
+  // `[Attached image/png: xxx.png]` 一行文本再发出去，网关侧根本收不到图。
+  // 只写 `attachment: true` 不够——门控读的是 modalities。
+  // 取值依据 models.dev 的 xai 目录（grok-4.x / build-0.1 均为 text+image+pdf）。
+  // pdf 有个前提：xAI 对 ZDR 账号（Grok 订阅 OAuth 号）关掉了文件通道，直转 input_file 会吃
+  // 400 invalid-argument "File content is currently unsupported for ZDR customers."
+  // 网关侧 sanitizeGrokMessageContent 已经把文件部件降级成一行文字备注，所以这里放 pdf 不会
+  // 让整轮请求挂掉——但附件内容确实到不了模型，别指望它真能读 PDF。
+  const grokVision = { input: ['text', 'image', 'pdf'], output: ['text'] }
   const grokModels = {
     'grok-4.6': {
       name: 'Grok 4.6',
       reasoning: true,
+      attachment: true,
       limit: { context: 500000, output: 64000 },
+      modalities: grokVision,
       // 与 fork #8 的 xhigh 透传配套：网关 normalizeGrokResponsesReasoningEffort
       // 认 camelCase reasoningEffort，且 xhigh 白名单当前只有 grok-4.6。
       options: { reasoningEffort: 'xhigh' },
@@ -1614,47 +1628,69 @@ function generateOpenCodeConfig(
     'grok-4.5': {
       name: 'Grok 4.5',
       reasoning: true,
-      limit: { context: 500000, output: 64000 }
+      attachment: true,
+      limit: { context: 500000, output: 64000 },
+      modalities: grokVision
     },
     'grok-build-0.1': {
       name: 'Grok Build 0.1',
-      limit: { context: 256000, output: 64000 }
+      attachment: true,
+      limit: { context: 256000, output: 64000 },
+      modalities: grokVision
     },
     'grok-4.20-multi-agent-0309': {
       name: 'Grok 4.20 Multi Agent (text / web_search)',
       reasoning: true,
-      limit: { context: 1000000, output: 64000 }
+      attachment: true,
+      limit: { context: 1000000, output: 64000 },
+      modalities: grokVision
     },
     'grok-4.3': {
       name: 'Grok 4.3',
       reasoning: true,
-      limit: { context: 1000000, output: 64000 }
+      attachment: true,
+      limit: { context: 1000000, output: 64000 },
+      modalities: grokVision
     },
     'grok-composer-2.5-fast': {
       name: 'Grok Composer 2.5 Fast',
-      limit: { context: 500000, output: 64000 }
+      // composer 本身没有原生 vision，但网关有 image bridge
+      // （openai_gateway_grok.go 的 grokComposerImageBridge：先让别的模型把图转成文字描述
+      // 再喂给 composer），所以客户端侧照样要放行图片，否则连 bridge 都进不去。
+      attachment: true,
+      limit: { context: 500000, output: 64000 },
+      modalities: grokVision
     }
   }
   // GLM catalog (z.ai / bigmodel): declared explicitly because the gateway's
   // GLM group serves none of the builtin "openai" catalog models.
   // glm-5.1 limits come from the pricing catalog entry (max_input/output_tokens);
   // the other rows have no catalog entry yet and keep the vendor-published window.
+  // modalities 同样要显式写（models.dev 的 provider id 是 `zhipuai`，不是这里的 `zhipu`，
+  // base 查不到）——但 GLM-5.x 文本档在 models.dev/z.ai 上都是 input:["text"]，
+  // 会看图的是 glm-5v-turbo / glm-5.3-flash / glm-4.6v 那几个 vision 型号，本清单里没有。
+  // 所以这里声明的是"确认只吃文本"，不是漏声明；真要给 GLM 开图得先加 vision 型号。
+  const zhipuTextOnly = { input: ['text'], output: ['text'] }
   const zhipuModels = {
     'glm-5.3': {
       name: 'GLM-5.3',
-      limit: { context: 200000, output: 128000 }
+      limit: { context: 200000, output: 128000 },
+      modalities: zhipuTextOnly
     },
     'glm-5.2': {
       name: 'GLM-5.2',
-      limit: { context: 200000, output: 128000 }
+      limit: { context: 200000, output: 128000 },
+      modalities: zhipuTextOnly
     },
     'glm-5.1': {
       name: 'GLM-5.1',
-      limit: { context: 81920, output: 81920 }
+      limit: { context: 81920, output: 81920 },
+      modalities: zhipuTextOnly
     },
     'glm-5-turbo': {
       name: 'GLM-5-Turbo',
-      limit: { context: 200000, output: 128000 }
+      limit: { context: 200000, output: 128000 },
+      modalities: zhipuTextOnly
     }
   }
 

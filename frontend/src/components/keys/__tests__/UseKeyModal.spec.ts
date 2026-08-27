@@ -130,6 +130,23 @@ describe('UseKeyModal', () => {
       xhigh: { reasoningEffort: 'xhigh' }
     })
     expect(parsed.provider.grok.models['grok-4.5'].options).toBeUndefined()
+
+    // 图片输入：OpenCode 的门控是
+    // model.modalities?.input?.includes('image') ?? base?.capabilities.input.image ?? false，
+    // base 取自 models.dev —— 那边没有 `grok` provider（grok 系列挂 `xai` 下），
+    // 不显式声明就落 false，stripMedia 会把图换成 `[Attached image/png: …]` 一行文本，
+    // 网关端连图都收不到。只写 attachment:true 不管用，门控读的是 modalities。
+    for (const id of [
+      'grok-4.6',
+      'grok-4.5',
+      'grok-4.3',
+      'grok-build-0.1',
+      'grok-4.20-multi-agent-0309',
+      'grok-composer-2.5-fast'
+    ]) {
+      expect(parsed.provider.grok.models[id].attachment).toBe(true)
+      expect(parsed.provider.grok.models[id].modalities.input).toContain('image')
+    }
   })
 
   it('renders copyable Claude Code setup through the Grok Messages gateway', async () => {
@@ -969,6 +986,12 @@ describe('UseKeyModal', () => {
     expect(parsed.provider.zhipu.models['glm-5.2']).toBeDefined()
     expect(parsed.provider.zhipu.models['glm-5.1']).toBeDefined()
     expect(parsed.provider.zhipu.models['glm-5-turbo']).toBeDefined()
+    // GLM-5.x 文本档在 z.ai / models.dev(zhipuai) 上都是 input:["text"]；会看图的是
+    // glm-5v-turbo / glm-5.3-flash / glm-4.6v 那几个 vision 型号，本清单没有收。
+    // 这里写死 text-only 是"确认过"，不是漏声明——别照着 grok 顺手加 image。
+    for (const id of ['glm-5.3', 'glm-5.2', 'glm-5.1', 'glm-5-turbo']) {
+      expect(parsed.provider.zhipu.models[id].modalities.input).toEqual(['text'])
+    }
     expect(parsed.provider.openai).toBeUndefined()
     expect(JSON.stringify(parsed)).not.toContain('gpt-')
   })

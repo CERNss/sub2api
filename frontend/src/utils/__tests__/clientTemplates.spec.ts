@@ -265,6 +265,7 @@ describe('shipped template/client-templates.json', () => {
   ).client_templates
 
   const grokOpenCode = JSON.parse(shipped.grok_opencode.files[0].content)
+  const zhipuOpenCode = JSON.parse(shipped.zhipu_opencode.files[0].content)
 
   it('points grok_opencode at the Responses factory', () => {
     // @ai-sdk/openai 才说 Responses；openai-compatible 会退回 chat/completions。
@@ -291,9 +292,33 @@ describe('shipped template/client-templates.json', () => {
     expect(grokOpenCode.provider.grok.models['grok-4.5'].options).toBeUndefined()
   })
 
+  it('declares image input on every grok_opencode model', () => {
+    // OpenCode 门控：model.modalities?.input?.includes('image') ?? base?.capabilities.input.image。
+    // base 来自 models.dev，那边没有 `grok` provider（grok 系列挂在 `xai` 下），所以漏声明就是
+    // 默认 false —— stripMedia 把图片换成 `[Attached image/png: …]` 一行文本，网关根本收不到图。
+    // 只写 attachment:true 不够，门控读的是 modalities。
+    const models = Object.entries(grokOpenCode.provider.grok.models)
+    expect(models.length).toBeGreaterThan(0)
+    for (const [id, model] of models) {
+      expect(`${id}:${model.attachment}`).toBe(`${id}:true`)
+      expect(model.modalities.input).toContain('image')
+      // pdf 靠网关兜底：xAI 对 ZDR 号（本站 grok 全是订阅 OAuth 号）关了文件通道，
+      // 直转 input_file 会 400；sanitizeGrokMessageContent 已把文件部件降级成文字备注，
+      // 所以声明 pdf 只是让 OpenCode 别在客户端就把它剁成 [Attached …] 再发。
+      expect(model.modalities.input).toContain('pdf')
+    }
+  })
+
   it('keeps zhipu_opencode on chat/completions for the raw keepalive path', () => {
     // fork #10 的保活只在 raw chat/completions 直转路径上，换 Responses 会丢保护。
-    const zhipuOpenCode = JSON.parse(shipped.zhipu_opencode.files[0].content)
     expect(zhipuOpenCode.provider.zhipu.npm).toBe('@ai-sdk/openai-compatible')
+  })
+
+  it('keeps zhipu_opencode text-only on purpose', () => {
+    // GLM-5.x 文本档在 z.ai / models.dev(zhipuai) 上都是 input:["text"]；vision 走的是
+    // glm-5v-turbo / glm-5.3-flash / glm-4.6v，本模版没收。显式写死免得被"照 grok 补齐"。
+    for (const [, model] of Object.entries(zhipuOpenCode.provider.zhipu.models)) {
+      expect(model.modalities.input).toEqual(['text'])
+    }
   })
 })
