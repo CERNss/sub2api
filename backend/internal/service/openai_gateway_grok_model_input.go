@@ -483,12 +483,37 @@ func sanitizeGrokMessageContent(content any) (any, bool) {
 				if !grokContentPartHasImageURL(part) {
 					continue
 				}
+			case "input_file", "file":
+				// xAI 对 ZDR 账号（Grok 订阅的 OAuth 号，本站 grok 账号全是这一类）
+				// 整个关掉了文件通道，原样转发必得
+				// 400 invalid-argument: "File content is currently unsupported for ZDR customers."
+				// 图片走的是 input_image，是另一条路，不受影响。
+				// 这里降级成一行文字备注：附件内容确实拿不到，但请求不会整轮 400，
+				// 而且模型知道有个附件没送到，不会把它当成用户没给。
+				filtered = append(filtered, grokUnsupportedFilePlaceholder(part))
+				continue
 			}
 			filtered = append(filtered, part)
 		}
 		return filtered, len(filtered) > 0
 	default:
 		return content, true
+	}
+}
+
+// grokUnsupportedFilePlaceholder 把一个文件类 content part 换成 xAI 收得下的文字备注。
+// 文案走英文：它是喂给模型读的，和 grokComposerImageBridge 的 bridge prompt 保持一致。
+func grokUnsupportedFilePlaceholder(part map[string]any) map[string]any {
+	name := firstNonEmptyGrokString(part["filename"], part["file_id"], part["name"])
+	if nested, ok := part["file"].(map[string]any); ok && name == "" {
+		name = firstNonEmptyGrokString(nested["filename"], nested["file_id"], nested["name"])
+	}
+	if name == "" {
+		name = "file"
+	}
+	return map[string]any{
+		"type": "input_text",
+		"text": fmt.Sprintf("[Attachment %s was not uploaded: this Grok account cannot accept file content. Ask the user to paste the relevant text or send the pages as images.]", name),
 	}
 }
 

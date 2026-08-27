@@ -230,3 +230,71 @@ func TestGrokDecoderCompatibility422FailsOverWithoutCooldown(t *testing.T) {
 	require.False(t, isGrokDecoderCompatibilityError(http.StatusUnprocessableEntity, []byte(`{"error":"messages[1].content is required"}`)))
 	require.False(t, isGrokDecoderCompatibilityError(http.StatusBadRequest, body))
 }
+
+// xAI 对 ZDR 账号（Grok 订阅 OAuth 号）关闭了文件通道，原样转发 input_file 必得
+// 400 invalid-argument: "File content is currently unsupported for ZDR customers."
+// 实测：2026-08-27 直接 curl /v1/responses 打 input_file，3/3 全 400（account=41 platform=grok）。
+// 降级成文字备注后整轮请求还能跑完，模型也知道附件没送到。
+func TestSanitizeGrokResponsesModelInputDowngradesFileParts(t *testing.T) {
+	body := []byte(`{"input":[
+		{"type":"message","role":"user","content":[
+			{"type":"input_text","text":"read this"},
+			{"type":"input_file","filename":"probe.pdf","file_data":"data:application/pdf;base64,JVBERi0="},
+			{"type":"input_image","image_url":{"url":"data:image/png;base64,iVBORw0="}}
+		]}
+	]}`)
+
+	patched, err := sanitizeGrokResponsesModelInput(body)
+	require.NoError(t, err)
+
+	parts := gjson.GetBytes(patched, "input.0.content").Array()
+	require.Len(t, parts, 3)
+	require.Equal(t, "read this", parts[0].Get("text").String())
+
+	// 文件部件换成 input_text，且不能再残留任何文件字段——留着就还是 400。
+	require.Equal(t, "input_text", parts[1].Get("type").String())
+	require.Contains(t, parts[1].Get("text").String(), "probe.pdf")
+	require.False(t, parts[1].Get("file_data").Exists())
+	require.False(t, parts[1].Get("filename").Exists())
+
+	// 图片走 input_image，是另一条上游通道，必须原样留下。
+	require.Equal(t, "input_image", parts[2].Get("type").String())
+	require.Equal(t,
+		"data:image/png;base64,iVBORw0=",
+		parts[2].Get("image_url.url").String())
+}
+
+// Chat Completions 形状的 {"type":"file","file":{...}} 也要认，别只挡 Responses 那一种。
+func TestSanitizeGrokResponsesModelInputDowngradesChatShapedFileParts(t *testing.T) {
+	body := []byte(`{"input":[
+		{"type":"message","role":"user","content":[
+			{"type":"file","file":{"filename":"spec.pdf","file_data":"data:application/pdf;base64,JVBERi0="}}
+		]}
+	]}`)
+
+	patched, err := sanitizeGrokResponsesModelInput(body)
+	require.NoError(t, err)
+
+	parts := gjson.GetBytes(patched, "input.0.content").Array()
+	require.Len(t, parts, 1)
+	require.Equal(t, "input_text", parts[0].Get("type").String())
+	require.Contains(t, parts[0].Get("text").String(), "spec.pdf")
+	require.False(t, parts[0].Get("file").Exists())
+}
+
+// 没有 filename 时不能塞出个空名字，也不能整个部件消失。
+func TestSanitizeGrokResponsesModelInputDowngradesAnonymousFileParts(t *testing.T) {
+	body := []byte(`{"input":[
+		{"type":"message","role":"user","content":[
+			{"type":"input_file","file_data":"data:application/pdf;base64,JVBERi0="}
+		]}
+	]}`)
+
+	patched, err := sanitizeGrokResponsesModelInput(body)
+	require.NoError(t, err)
+
+	parts := gjson.GetBytes(patched, "input.0.content").Array()
+	require.Len(t, parts, 1)
+	require.Equal(t, "input_text", parts[0].Get("type").String())
+	require.Contains(t, parts[0].Get("text").String(), "file")
+}
