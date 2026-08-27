@@ -178,6 +178,28 @@ func TestGetModelPricing_GLM52UsesOwnPrice(t *testing.T) {
 	require.InDelta(t, 0.26e-6, got.CacheReadPricePerToken, 1e-12)
 }
 
+// 回归:glm-5.3 同理。2026-08-27 把 opencode GLM 模版的默认模型换成 glm-5.3 时发现,
+// 兜底表里没有它的条目,strings.Contains 会一路掉到裸 "glm-5" 档($1.00/$3.20),
+// 比 5.1/5.2 的 $1.40/$4.40 少收约 29%,而线上 channel_model_pricing 也没有覆盖价可兜。
+func TestGetModelPricing_GLM53UsesOwnPrice(t *testing.T) {
+	svc := newTestBillingService()
+
+	got, err := svc.GetModelPricing("glm-5.3")
+	require.NoError(t, err)
+	require.NotNil(t, got)
+
+	// 官方 z.ai 口径:与 glm-5.1 / glm-5.2 同价。
+	require.InDelta(t, 1.4e-6, got.InputPricePerToken, 1e-12)
+	require.InDelta(t, 4.4e-6, got.OutputPricePerToken, 1e-12)
+	require.InDelta(t, 0.26e-6, got.CacheReadPricePerToken, 1e-12)
+
+	// 别被裸 glm-5 抢走。
+	base, err := svc.GetModelPricing("glm-5")
+	require.NoError(t, err)
+	require.NotEqual(t, base.InputPricePerToken, got.InputPricePerToken)
+	require.InDelta(t, 1e-6, base.InputPricePerToken, 1e-12)
+}
+
 func TestGetModelPricing_UnknownClaudeModelFallsBackToSonnet(t *testing.T) {
 	svc := newTestBillingService()
 
@@ -550,6 +572,13 @@ func TestGetFallbackPricing_FamilyMatching(t *testing.T) {
 
 		// ---- 智谱 GLM（z.ai USD 口径）----
 		{
+			name:              "glm 5.3 flagship",
+			model:             "glm-5.3",
+			expectedInput:     1.4e-6,
+			expectedOutput:    floatPtr(4.4e-6),
+			expectedCacheRead: floatPtr(0.26e-6),
+		},
+		{
 			name:              "glm 5.2 flagship",
 			model:             "glm-5.2",
 			expectedInput:     1.4e-6,
@@ -639,7 +668,14 @@ func TestGetFallbackPricing_FamilyMatching(t *testing.T) {
 			expectedInput:  0.1e-6,
 			expectedOutput: floatPtr(0.1e-6),
 		},
-		// 关键：5.1 / 5.2 必须先于 5 匹配（避免被 glm-5 抢走）
+		// 关键：5.1 / 5.2 / 5.3 必须先于 5 匹配（避免被 glm-5 抢走）
+		{
+			name:              "glm 5.3 vs glm 5 ordering (verbatim 5.3)",
+			model:             "glm-5.3",
+			expectedInput:     1.4e-6, // = glm-5.3 价格（不是 glm-5 的 1e-6）
+			expectedOutput:    floatPtr(4.4e-6),
+			expectedCacheRead: floatPtr(0.26e-6),
+		},
 		{
 			name:              "glm 5.1 vs glm 5 ordering (verbatim 5.1)",
 			model:             "glm-5.1",
