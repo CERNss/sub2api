@@ -1277,16 +1277,17 @@ describe('UseKeyModal', () => {
     await openOpenCodeTab(wrapper)
 
     const parsed = JSON.parse(wrapper.find('pre code').text())
-    expect(parsed.model).toBe('zhipu/glm-5.1')
+    expect(parsed.model).toBe('zhipu/glm-5.3')
     expect(parsed.provider.zhipu.npm).toBe('@ai-sdk/openai-compatible')
     expect(parsed.provider.zhipu.name).toBe('GLM via Sub2API')
     expect(parsed.provider.zhipu.options).toEqual({
       baseURL: 'https://example.com/v1',
       apiKey: 'sk-glm-test'
     })
+    expect(parsed.provider.zhipu.models['glm-5.3']).toBeDefined()
+    expect(parsed.provider.zhipu.models['glm-5.2']).toBeDefined()
     expect(parsed.provider.zhipu.models['glm-5.1']).toBeDefined()
-    expect(parsed.provider.zhipu.models['glm-4.6']).toBeDefined()
-    expect(parsed.provider.zhipu.models['glm-4.7']).toBeDefined()
+    expect(parsed.provider.zhipu.models['glm-5-turbo']).toBeDefined()
     expect(parsed.provider.openai).toBeUndefined()
     expect(JSON.stringify(parsed)).not.toContain('gpt-')
   })
