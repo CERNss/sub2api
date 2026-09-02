@@ -98,7 +98,10 @@ describe('clientTemplates', () => {
         configFormat: 'json',
         usageEnabled: 'true',
         usageScript: 'console.log("default")',
-        usageAutoInterval: '30'
+        usageAutoInterval: '30',
+        // Already base64 (built by encodeCcSwitchInlineConfig); must pass
+        // through untouched — only usageScript gets encoded here.
+        config: 'eyJlbnYiOnt9fQ=='
       },
       {
         apiBase,
@@ -113,6 +116,7 @@ describe('clientTemplates', () => {
     const params = new URLSearchParams(deeplink.split('?')[1])
     expect(params.get('endpoint')).toBe('https://example.com/v1')
     expect(params.get('usageScript')).toBe('Y29uc29sZS5sb2coInNrLXRlc3QiKQ==')
+    expect(params.get('config')).toBe('eyJlbnYiOnt9fQ==')
   })
 
   it('normalizes nested client_templates payloads from static files', () => {

@@ -242,7 +242,7 @@ export function buildClientTemplateContext({
   }
 }
 
-function encodeBase64Utf8(value: string): string {
+export function encodeBase64Utf8(value: string): string {
   if (typeof btoa === 'function') {
     const bytes = new TextEncoder().encode(value)
     let binary = ''

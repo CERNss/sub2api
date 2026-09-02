@@ -214,6 +214,12 @@ export default {
         modelsCount: '{count} models ready to download',
         errorDescription: 'The catalog could not be fetched with this API key.',
       },
+      zhipu: {
+        claudeDescription:
+          'Configure Claude Code to send Messages API traffic through your Sub2API GLM group. Every model slot (including subagents) is pinned to glm-5.3 and the context window is declared as 1M (CLAUDE_CODE_MAX_CONTEXT_TOKENS), so Claude Code never asks for a Claude model this group cannot route and never auto-compacts at the 200k default.',
+        claudeNote:
+          'Choose one method: terminal env for this session, or ~/.claude/settings.json for persistence. Do not commit files that contain your API key.',
+      },
       opencode: {
         title: 'OpenCode Example',
         subtitle: 'opencode.json',
