@@ -3,7 +3,9 @@ import {
   GROK_CC_SWITCH_MODEL,
   OPENAI_CC_SWITCH_CODEX_MODEL,
   ZHIPU_CC_SWITCH_MODEL,
-  buildCcSwitchImportDeeplink
+  ZHIPU_CONTEXT_WINDOW_TOKENS,
+  buildCcSwitchImportDeeplink,
+  buildZhipuClaudeImportEnv
 } from '@/utils/ccswitchImport'
 import type { GroupPlatform } from '@/types'
 
@@ -23,6 +25,10 @@ describe('ccswitchImport utils', () => {
 
   it('defaults GLM imports to the current GLM model', () => {
     expect(ZHIPU_CC_SWITCH_MODEL).toBe('glm-5.3')
+  })
+
+  it('advertises the 1M GLM context window shared by every GLM import path', () => {
+    expect(ZHIPU_CONTEXT_WINDOW_TOKENS).toBe(1_000_000)
   })
 
   const baseInput = {
@@ -66,6 +72,7 @@ describe('ccswitchImport utils', () => {
     expect(params.get('app')).toBe('grokbuild')
     expect(params.get('endpoint')).toBe('https://api.example.com/v1')
     expect(params.get('model')).toBe(GROK_CC_SWITCH_MODEL)
+    expect(params.has('config')).toBe(false)
   })
 
   it('pins the GLM model on zhipu imports as a Claude-type provider', () => {
@@ -80,6 +87,25 @@ describe('ccswitchImport utils', () => {
     expect(params.get('app')).toBe('claude')
     expect(params.get('endpoint')).toBe(baseInput.baseUrl)
     expect(params.get('model')).toBe(ZHIPU_CC_SWITCH_MODEL)
+    expect(params.get('configFormat')).toBe('json')
+
+    // The inline config is what carries everything CC Switch has no URL param
+    // for: the 1M window, the fable/subagent pins and the two switches.
+    const inline = JSON.parse(atob(params.get('config') || ''))
+    expect(inline).toEqual({ env: buildZhipuClaudeImportEnv() })
+    expect(inline.env.CLAUDE_CODE_MAX_CONTEXT_TOKENS).toBe(String(ZHIPU_CONTEXT_WINDOW_TOKENS))
+    for (const name of [
+      'ANTHROPIC_MODEL',
+      'ANTHROPIC_DEFAULT_OPUS_MODEL',
+      'ANTHROPIC_DEFAULT_SONNET_MODEL',
+      'ANTHROPIC_DEFAULT_HAIKU_MODEL',
+      'ANTHROPIC_DEFAULT_FABLE_MODEL',
+      'CLAUDE_CODE_SUBAGENT_MODEL'
+    ]) {
+      expect(inline.env[name]).toBe(ZHIPU_CC_SWITCH_MODEL)
+    }
+    expect(inline.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC).toBe('1')
+    expect(inline.env.CLAUDE_CODE_ATTRIBUTION_HEADER).toBe('0')
   })
 
   it.each([
@@ -97,6 +123,7 @@ describe('ccswitchImport utils', () => {
     expect(params.get('app')).toBe(app)
     expect(params.get('endpoint')).toBe(baseInput.baseUrl)
     expect(params.has('model')).toBe(false)
+    expect(params.has('config')).toBe(false)
   })
 
   it('keeps Antigravity imports on the selected client endpoint without a model parameter', () => {

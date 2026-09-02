@@ -1148,6 +1148,7 @@ import { formatDateTime } from '@/utils/format'
 import { maskApiKey } from '@/utils/maskApiKey'
 import {
   buildCcSwitchImportDeeplink,
+  encodeCcSwitchInlineConfig,
   resolveCcSwitchImportConfig,
   type CcSwitchClientType
 } from '@/utils/ccswitchImport'
@@ -1943,6 +1944,10 @@ const executeCcsImport = (row: ApiKey, clientType: CcSwitchClientType) => {
         }
         if (config.model) {
           defaults.model = config.model
+        }
+        if (config.env) {
+          // Template params may still override it; defaults only fill the gap.
+          defaults.config = encodeCcSwitchInlineConfig(config.env)
         }
 
         return buildCcsImportDeeplink(

@@ -149,6 +149,80 @@ describe('UseKeyModal', () => {
     }
   })
 
+  it('pins every Claude Code model slot to glm-5.3 for zhipu groups', async () => {
+    const wrapper = mount(UseKeyModal, {
+      props: {
+        show: true,
+        apiKey: 'sk-zhipu-claude-test',
+        baseUrl: 'https://example.com/v1',
+        platform: 'zhipu'
+      },
+      global: {
+        stubs: {
+          BaseDialog: {
+            template: '<div><slot /><slot name="footer" /></div>'
+          },
+          Icon: {
+            template: '<span />'
+          }
+        }
+      }
+    })
+
+    // zhipu defaults to the Claude Code tab, so the unix shell config renders first.
+    let codeBlocks = wrapper.findAll('pre code').map((code) => code.text())
+    const unixConfig = codeBlocks.find((content) => content.startsWith('export ANTHROPIC_BASE_URL'))
+    expect(unixConfig).toBeDefined()
+    expect(unixConfig).toContain('export ANTHROPIC_BASE_URL="https://example.com"')
+    expect(unixConfig).toContain('export ANTHROPIC_AUTH_TOKEN="sk-zhipu-claude-test"')
+    for (const name of [
+      'ANTHROPIC_MODEL',
+      'ANTHROPIC_DEFAULT_OPUS_MODEL',
+      'ANTHROPIC_DEFAULT_SONNET_MODEL',
+      'ANTHROPIC_DEFAULT_HAIKU_MODEL',
+      'ANTHROPIC_DEFAULT_FABLE_MODEL',
+      'CLAUDE_CODE_SUBAGENT_MODEL'
+    ]) {
+      expect(unixConfig).toContain(`export ${name}="glm-5.3"`)
+    }
+    expect(unixConfig).toContain('export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC="1"')
+    expect(unixConfig).toContain('export CLAUDE_CODE_ATTRIBUTION_HEADER="0"')
+    expect(unixConfig).toContain('export CLAUDE_CODE_MAX_CONTEXT_TOKENS="1000000"')
+
+    const settingsConfig = codeBlocks.find((content) => content.includes('"$schema"'))
+    expect(settingsConfig).toBeDefined()
+    const parsedSettings = JSON.parse(settingsConfig!)
+    expect(parsedSettings.$schema).toBe('https://json.schemastore.org/claude-code-settings.json')
+    expect(parsedSettings.env.ANTHROPIC_BASE_URL).toBe('https://example.com')
+    expect(parsedSettings.env.ANTHROPIC_MODEL).toBe('glm-5.3')
+    expect(parsedSettings.env.ANTHROPIC_DEFAULT_HAIKU_MODEL).toBe('glm-5.3')
+    expect(parsedSettings.env.CLAUDE_CODE_SUBAGENT_MODEL).toBe('glm-5.3')
+    expect(parsedSettings.env.CLAUDE_CODE_MAX_CONTEXT_TOKENS).toBe('1000000')
+    expect(wrapper.text()).toContain('keys.useKeyModal.zhipu.claudeDescription')
+    expect(wrapper.text()).toContain('keys.useKeyModal.zhipu.claudeNote')
+
+    const cmdTab = wrapper.findAll('button').find(
+      (button) => button.text().trim() === 'Windows CMD'
+    )
+    expect(cmdTab).toBeDefined()
+    await cmdTab!.trigger('click')
+    await nextTick()
+    codeBlocks = wrapper.findAll('pre code').map((code) => code.text())
+    expect(codeBlocks.join('\n')).toContain('set ANTHROPIC_MODEL=glm-5.3')
+    expect(codeBlocks.join('\n')).toContain('set CLAUDE_CODE_SUBAGENT_MODEL=glm-5.3')
+
+    const powershellTab = wrapper.findAll('button').find(
+      (button) => button.text().trim() === 'PowerShell'
+    )
+    expect(powershellTab).toBeDefined()
+    await powershellTab!.trigger('click')
+    await nextTick()
+    codeBlocks = wrapper.findAll('pre code').map((code) => code.text())
+    expect(codeBlocks.join('\n')).toContain('$env:ANTHROPIC_MODEL="glm-5.3"')
+    expect(codeBlocks.join('\n')).toContain('$env:ANTHROPIC_DEFAULT_FABLE_MODEL="glm-5.3"')
+    expect(wrapper.text()).toContain('%USERPROFILE%\\.claude\\settings.json')
+  })
+
   it('renders copyable Claude Code setup through the Grok Messages gateway', async () => {
     copyToClipboardMock.mockClear()
     const wrapper = mount(UseKeyModal, {
@@ -197,6 +271,7 @@ describe('UseKeyModal', () => {
     const parsedSettings = JSON.parse(settingsConfig!)
     expect(parsedSettings.$schema).toBe('https://json.schemastore.org/claude-code-settings.json')
     expect(parsedSettings.env.ANTHROPIC_MODEL).toBe('grok-4.5')
+    expect(parsedSettings.env.CLAUDE_CODE_MAX_CONTEXT_TOKENS).toBeUndefined()
     expect(wrapper.text()).toContain('keys.useKeyModal.claudeSettingsHint')
     expect(wrapper.text()).toContain('keys.useKeyModal.grok.claudeNote')
     expect(wrapper.find('nav[aria-label="Client"]').classes()).toContain('min-w-max')
@@ -983,7 +1058,9 @@ describe('UseKeyModal', () => {
       apiKey: 'sk-glm-test'
     })
     expect(parsed.provider.zhipu.models['glm-5.3']).toBeDefined()
+    expect(parsed.provider.zhipu.models['glm-5.3'].limit.context).toBe(1000000)
     expect(parsed.provider.zhipu.models['glm-5.2']).toBeDefined()
+    expect(parsed.provider.zhipu.models['glm-5.2'].limit.context).toBe(200000)
     expect(parsed.provider.zhipu.models['glm-5.1']).toBeDefined()
     expect(parsed.provider.zhipu.models['glm-5-turbo']).toBeDefined()
     // GLM-5.x 文本档在 z.ai / models.dev(zhipuai) 上都是 input:["text"]；会看图的是

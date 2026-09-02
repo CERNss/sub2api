@@ -206,6 +206,7 @@ import {
   renderTemplateFiles
 } from '@/utils/clientTemplates'
 import type { ClientTemplateFile, ClientTemplatesConfig, GroupPlatform } from '@/types'
+import { ZHIPU_CC_SWITCH_MODEL, ZHIPU_CONTEXT_WINDOW_TOKENS } from '@/utils/ccswitchImport'
 
 interface Props {
   show: boolean
@@ -428,6 +429,11 @@ const platformDescription = computed(() => {
         return t('keys.useKeyModal.grok.codexDescription')
       }
       return t('keys.useKeyModal.grok.description')
+    case 'zhipu':
+      if (activeClientTab.value === 'claude') {
+        return t('keys.useKeyModal.zhipu.claudeDescription')
+      }
+      return t('keys.useKeyModal.description')
     default:
       return t('keys.useKeyModal.description')
   }
@@ -465,6 +471,11 @@ const platformNote = computed(() => {
         return t('keys.useKeyModal.grok.noteWindows')
       }
       return t('keys.useKeyModal.grok.note')
+    case 'zhipu':
+      if (activeClientTab.value === 'claude') {
+        return t('keys.useKeyModal.zhipu.claudeNote')
+      }
+      return t('keys.useKeyModal.note')
     default:
       return t('keys.useKeyModal.note')
   }
@@ -659,6 +670,11 @@ const currentFiles = computed((): FileConfig[] => {
         return generateGrokCodexFiles(apiBase, apiKey)
       }
       return generateGrokFiles(apiBase, apiKey)
+    case 'zhipu':
+      if (activeClientTab.value === 'claude') {
+        return generateZhipuClaudeFiles(baseRoot, apiKey)
+      }
+      return generateAnthropicFiles(baseUrl, apiKey)
     default:
       return generateAnthropicFiles(baseUrl, apiKey)
   }
@@ -719,18 +735,28 @@ $env:CLAUDE_CODE_ATTRIBUTION_HEADER=0`
   ]
 }
 
-function generateGrokClaudeFiles(baseUrl: string, apiKey: string): FileConfig[] {
+// Claude Code setup for groups that serve a single non-Anthropic model family
+// (Grok, GLM). Every slot Claude Code can pick from — the main model, the
+// opus/sonnet/haiku/fable aliases and subagents — is pinned to `model`, so no
+// request ever names a Claude model the group cannot route.
+function generatePinnedClaudeFiles(
+  baseUrl: string,
+  apiKey: string,
+  model: string,
+  extraEnv: Record<string, string> = {}
+): FileConfig[] {
   const environment = {
     ANTHROPIC_BASE_URL: baseUrl,
     ANTHROPIC_AUTH_TOKEN: apiKey,
-    ANTHROPIC_MODEL: 'grok-4.5',
-    ANTHROPIC_DEFAULT_OPUS_MODEL: 'grok-4.5',
-    ANTHROPIC_DEFAULT_SONNET_MODEL: 'grok-4.5',
-    ANTHROPIC_DEFAULT_HAIKU_MODEL: 'grok-4.5',
-    ANTHROPIC_DEFAULT_FABLE_MODEL: 'grok-4.5',
-    CLAUDE_CODE_SUBAGENT_MODEL: 'grok-4.5',
+    ANTHROPIC_MODEL: model,
+    ANTHROPIC_DEFAULT_OPUS_MODEL: model,
+    ANTHROPIC_DEFAULT_SONNET_MODEL: model,
+    ANTHROPIC_DEFAULT_HAIKU_MODEL: model,
+    ANTHROPIC_DEFAULT_FABLE_MODEL: model,
+    CLAUDE_CODE_SUBAGENT_MODEL: model,
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
-    CLAUDE_CODE_ATTRIBUTION_HEADER: '0'
+    CLAUDE_CODE_ATTRIBUTION_HEADER: '0',
+    ...extraEnv
   }
   let path: string
   let content: string
@@ -774,6 +800,21 @@ function generateGrokClaudeFiles(baseUrl: string, apiKey: string): FileConfig[] 
       hint: t('keys.useKeyModal.claudeSettingsHint')
     }
   ]
+}
+
+function generateGrokClaudeFiles(baseUrl: string, apiKey: string): FileConfig[] {
+  return generatePinnedClaudeFiles(baseUrl, apiKey, 'grok-4.5')
+}
+
+// GLM groups speak the Messages API natively, so Claude Code only needs the
+// pin plus the context window: without CLAUDE_CODE_MAX_CONTEXT_TOKENS Claude
+// Code assumes 200k and auto-compacts far below the GLM group's 1M window.
+// Model and window constants are shared with the CC Switch deeplink and the
+// OpenCode catalog so every GLM import path agrees.
+function generateZhipuClaudeFiles(baseUrl: string, apiKey: string): FileConfig[] {
+  return generatePinnedClaudeFiles(baseUrl, apiKey, ZHIPU_CC_SWITCH_MODEL, {
+    CLAUDE_CODE_MAX_CONTEXT_TOKENS: String(ZHIPU_CONTEXT_WINDOW_TOKENS)
+  })
 }
 
 function generateGeminiCliContent(baseUrl: string, apiKey: string): FileConfig {
@@ -1665,7 +1706,9 @@ function generateOpenCodeConfig(
   // GLM catalog (z.ai / bigmodel): declared explicitly because the gateway's
   // GLM group serves none of the builtin "openai" catalog models.
   // glm-5.1 limits come from the pricing catalog entry (max_input/output_tokens);
-  // the other rows have no catalog entry yet and keep the vendor-published window.
+  // glm-5.3 (the pinned default) advertises the GLM group's 1M window via the
+  // shared ZHIPU_CONTEXT_WINDOW_TOKENS constant; the other rows have no catalog
+  // entry yet and keep the vendor-published window.
   // modalities 同样要显式写（models.dev 的 provider id 是 `zhipuai`，不是这里的 `zhipu`，
   // base 查不到）——但 GLM-5.x 文本档在 models.dev/z.ai 上都是 input:["text"]，
   // 会看图的是 glm-5v-turbo / glm-5.3-flash / glm-4.6v 那几个 vision 型号，本清单里没有。
@@ -1674,7 +1717,7 @@ function generateOpenCodeConfig(
   const zhipuModels = {
     'glm-5.3': {
       name: 'GLM-5.3',
-      limit: { context: 200000, output: 128000 },
+      limit: { context: ZHIPU_CONTEXT_WINDOW_TOKENS, output: 128000 },
       modalities: zhipuTextOnly
     },
     'glm-5.2': {

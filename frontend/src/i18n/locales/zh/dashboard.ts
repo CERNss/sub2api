@@ -192,6 +192,12 @@ export default {
         codexNoteWindows:
           '设置 $env:SUB2API_API_KEY，将 config.toml 保存到 %USERPROFILE%\\.codex。优先 env_key，勿提交密钥。'
       },
+      zhipu: {
+        claudeDescription:
+          '配置 Claude Code，让 Messages API 请求通过当前 Sub2API GLM 分组发送。所有模型槽位（含子代理）已固定为 glm-5.3，并把上下文窗口声明为 1M（CLAUDE_CODE_MAX_CONTEXT_TOKENS），Claude Code 不会再请求本分组无法路由的 Claude 型号，也不会在 200k 就提前压缩。',
+        claudeNote:
+          '二选一：终端环境变量仅当前会话；~/.claude/settings.json 可持久化。请勿把含 API Key 的文件提交到仓库。'
+      },
       opencode: {
         title: 'OpenCode 配置示例',
         subtitle: 'opencode.json',
