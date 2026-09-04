@@ -1471,9 +1471,27 @@ function generateOpenCodeConfig(
     }
   }
   const openaiModels = {
-    // fork: the OpenAI template default. Declared explicitly (with reasoning)
-    // because neither models.dev nor the AI SDK's hardcoded reasoning list
-    // know this slug yet; without the entry OpenCode would refuse the pin.
+    // fork: both GPT-6 entries carry `reasoning: true` — neither models.dev nor the
+    // AI SDK's hardcoded reasoning list know these slugs yet, and OpenCode only
+    // forces reasoning for models that declare it (same mechanism as grok_opencode).
+    'gpt-6': {
+      name: 'GPT-6 (Astra)',
+      reasoning: true,
+      limit: {
+        context: 1050000,
+        output: 128000
+      },
+      options: {
+        store: false
+      },
+      variants: {
+        low: {},
+        medium: {},
+        high: {},
+        xhigh: {},
+        max: {}
+      }
+    },
     'gpt-6-astra': {
       name: 'GPT-6 Astra',
       reasoning: true,
