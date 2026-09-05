@@ -1,8 +1,8 @@
 diff --git a/backend/internal/service/openai_gateway_grok.go b/backend/internal/service/openai_gateway_grok.go
-index 21c734235..a49b9790d 100644
+index efcbaa8d4..3dfa80e81 100644
 --- a/backend/internal/service/openai_gateway_grok.go
 +++ b/backend/internal/service/openai_gateway_grok.go
-@@ -112,7 +112,7 @@ func (s *OpenAIGatewayService) forwardGrokResponses(
+@@ -118,7 +118,7 @@ func (s *OpenAIGatewayService) forwardGrokResponses(
  		resp, err = s.doOpenAIUpstream(upstreamReq, proxyURL, account)
  		SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
  		if err != nil {
@@ -11,7 +11,7 @@ index 21c734235..a49b9790d 100644
  		}
  
  		// xAI can reject encrypted reasoning or a compaction blob copied from a
-@@ -722,13 +722,16 @@ func normalizeGrokReasoningEffortValue(raw, model string) (string, bool) {
+@@ -728,13 +728,16 @@ func normalizeGrokReasoningEffortValue(raw, model string) (string, bool) {
  		return value, true
  	case "minimal":
  		return "low", true
@@ -22,7 +22,7 @@ index 21c734235..a49b9790d 100644
 +	// max/ultracode 当顶档。rebase 时勿按上游形态拆开（该差异不产生冲突，
 +	// 由 TestPatchGrokResponsesBodyKeepsXHighForGrok46 等用例兜底）。
 +	case "xhigh", "extrahigh", "max", "ultra":
- 		if grokSupportsXHighReasoningEffort(model) {
+ 		if GrokSupportsXHighReasoningEffort(model) {
  			return "xhigh", true
  		}
  		return "high", true
@@ -31,7 +31,7 @@ index 21c734235..a49b9790d 100644
  	default:
  		return "", false
  	}
-@@ -1352,7 +1355,7 @@ func (s *OpenAIGatewayService) describeGrokComposerImage(
+@@ -1397,7 +1400,7 @@ func (s *OpenAIGatewayService) describeGrokComposerImage(
  
  	resp, err := s.doOpenAIUpstream(upstreamReq, proxyURL, account)
  	if err != nil {
@@ -41,10 +41,10 @@ index 21c734235..a49b9790d 100644
  	defer func() { _ = resp.Body.Close() }()
  
 diff --git a/backend/internal/service/openai_gateway_grok_test.go b/backend/internal/service/openai_gateway_grok_test.go
-index d1c966ac0..339386b69 100644
+index cdd24b400..294ab68d3 100644
 --- a/backend/internal/service/openai_gateway_grok_test.go
 +++ b/backend/internal/service/openai_gateway_grok_test.go
-@@ -279,6 +279,33 @@ func TestPatchGrokResponsesBodyNormalizesReasoningEffortAliases(t *testing.T) {
+@@ -320,6 +320,33 @@ func TestPatchGrokResponsesBodyNormalizesReasoningEffortAliases(t *testing.T) {
  	}
  }
  
@@ -78,7 +78,7 @@ index d1c966ac0..339386b69 100644
  func TestPatchGrokResponsesBodyAddsDefaultFunctionParameters(t *testing.T) {
  	patched, err := patchGrokResponsesBody(
  		[]byte(`{"input":"hi","tools":[{"type":"function","name":"lookup","large_id":9007199254740993},{"type":"function","name":"wait","parameters":null}]}`),
-@@ -307,6 +334,29 @@ func TestNormalizeGrokChatReasoningEffort(t *testing.T) {
+@@ -348,6 +375,29 @@ func TestNormalizeGrokChatReasoningEffort(t *testing.T) {
  	require.False(t, gjson.GetBytes(patched, "reasoning_effort").Exists())
  }
  

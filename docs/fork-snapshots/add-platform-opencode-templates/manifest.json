@@ -2,29 +2,42 @@
   "change_id": "add-platform-opencode-templates",
   "status": "active",
   "proposal_path": "openspec/changes/add-platform-opencode-templates/proposal.md",
-  "captured_at": "2026-08-26T08:50:20+00:00",
-  "captured_at_commit": "d785960ce797055e020f265508eedc73f41a345c",
-  "base": "e8cb019fa",
-  "base_commit": "e8cb019fabf8b55199436229044cbf9aa7a82564",
+  "captured_at": "2026-09-05T04:24:44+00:00",
+  "captured_at_commit": "21b15bff70568439a17d656202801a03ae6be269",
+  "base": "aa236488351eb71e120fc2b6fb32e36b0374c918",
+  "base_commit": "aa236488351eb71e120fc2b6fb32e36b0374c918",
   "new_files": [],
   "upstream_patch_files": [
     {
       "path": "frontend/src/utils/ccswitchImport.ts",
-      "reason": "`ZHIPU_CC_SWITCH_MODEL` plus the `zhipu` branch of `resolveCcSwitchImportConfig`."
+      "reason": "`ZHIPU_CC_SWITCH_MODEL` / `ZHIPU_CONTEXT_WINDOW_TOKENS` plus the `zhipu` branch of `resolveCcSwitchImportConfig`; `buildZhipuClaudeImportEnv` + `encodeCcSwitchInlineConfig` carry the GLM Claude Code env (all model slots pinned, 1M window) through the deeplink's inline `config` payload. Does **not** set `CLAUDE_CODE_ATTRIBUTION_HEADER` — upstream v0.2.0 (`c03776604`) stopped disabling it and the import must match the modal."
     },
     {
       "path": "frontend/src/utils/__tests__/ccswitchImport.spec.ts",
-      "reason": "Zhipu import assertions."
+      "reason": "Zhipu import assertions (model pins, 1M window, no attribution-header override)."
     },
     {
       "path": "frontend/src/composables/useModelWhitelist.ts",
-      "reason": "`zhipuModels` gains `glm-4.7` so the recommended GLM model is whitelistable."
+      "reason": "`zhipuModels` tracks the glm-5 lineup so the recommended GLM models are whitelistable."
+    },
+    {
+      "path": "frontend/src/i18n/locales/en/dashboard.ts",
+      "reason": "`keys.useKeyModal.zhipu.claudeDescription` / `claudeNote` for the GLM Claude Code tab."
+    },
+    {
+      "path": "frontend/src/i18n/locales/zh/dashboard.ts",
+      "reason": "same keys, Chinese copy."
     }
   ],
   "shared_touchpoints": [
     {
       "path": "frontend/src/components/keys/UseKeyModal.vue",
-      "reason": "also owned by `2026-04-28-support-mounted-frontend-client-templates` — the OpenCode branch now resolves a per-platform section before the shared one for openai/grok/zhipu only, `default` must stay on the shared section, and `generateOpenCodeConfig` gained the `zhipu` branch plus the `pinDefaultModel` option.",
+      "reason": "also owned by `2026-04-28-support-mounted-frontend-client-templates` — the OpenCode branch now resolves a per-platform section before the shared one for openai/grok/zhipu only, `default` must stay on the shared section, and `generateOpenCodeConfig` gained the `zhipu` branch plus the `pinDefaultModel` option. The Claude Code tab for `zhipu` renders `generateZhipuClaudeFiles` (via the shared `generatePinnedClaudeFiles` helper that also backs the Grok Claude tab: every model slot pinned + `CLAUDE_CODE_MAX_CONTEXT_TOKENS`); the explicit `case 'zhipu'` in `currentFiles` **must keep forwarding the `codex` tab to `generateRoutedCodexFiles`** — upstream v0.2.0 routes every non-OpenAI group's Codex tab through the routed catalog in the `default:` arm, and the fork case shadows that arm (caught by upstream's \"offers Codex catalog configuration for the zhipu routed group\" test).",
+      "shared_with": "2026-04-28-support-mounted-frontend-client-templates"
+    },
+    {
+      "path": "frontend/src/views/user/KeysView.vue",
+      "reason": "also owned by `2026-04-28-support-mounted-frontend-client-templates` — `executeCcsImport` seeds the deeplink `config` default from `encodeCcSwitchInlineConfig(config.env)` when the platform import carries env.",
       "shared_with": "2026-04-28-support-mounted-frontend-client-templates"
     },
     {
@@ -39,7 +52,7 @@
     },
     {
       "path": "frontend/src/utils/clientTemplates.ts",
-      "reason": "also owned by `2026-04-28-support-mounted-frontend-client-templates` — the known-section whitelist gains the three new sections.",
+      "reason": "also owned by `2026-04-28-support-mounted-frontend-client-templates` — the known-section whitelist gains the three new sections; `encodeBase64Utf8` is exported for the CC Switch inline config.",
       "shared_with": "2026-04-28-support-mounted-frontend-client-templates"
     },
     {

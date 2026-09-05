@@ -1,29 +1,68 @@
 diff --git a/frontend/src/composables/useModelWhitelist.ts b/frontend/src/composables/useModelWhitelist.ts
-index 4b16d44b0..a0fbb9d29 100644
+index b17427a8a..b909edf6b 100644
 --- a/frontend/src/composables/useModelWhitelist.ts
 +++ b/frontend/src/composables/useModelWhitelist.ts
-@@ -90,7 +90,7 @@ const antigravityModels = [
+@@ -92,7 +92,8 @@ const antigravityModels = [
  const zhipuModels = [
    'glm-4', 'glm-4v', 'glm-4-plus', 'glm-4-0520',
    'glm-4-air', 'glm-4-airx', 'glm-4-long', 'glm-4-flash',
 -  'glm-4v-plus', 'glm-4.5', 'glm-4.6',
-+  'glm-4v-plus', 'glm-4.5', 'glm-4.6', 'glm-4.7', 'glm-5.1',
++  'glm-4v-plus', 'glm-4.5', 'glm-4.6', 'glm-4.7',
++  'glm-5-turbo', 'glm-5.1', 'glm-5.2', 'glm-5.3',
    'glm-3-turbo', 'glm-4-alltools',
    'chatglm_turbo', 'chatglm_pro', 'chatglm_std', 'chatglm_lite',
    'cogview-3', 'cogvideo'
+diff --git a/frontend/src/i18n/locales/en/dashboard.ts b/frontend/src/i18n/locales/en/dashboard.ts
+index 576067c6a..d157c6ade 100644
+--- a/frontend/src/i18n/locales/en/dashboard.ts
++++ b/frontend/src/i18n/locales/en/dashboard.ts
+@@ -214,6 +214,12 @@ export default {
+         modelsCount: '{count} models ready to download',
+         errorDescription: 'The catalog could not be fetched with this API key.',
+       },
++      zhipu: {
++        claudeDescription:
++          'Configure Claude Code to send Messages API traffic through your Sub2API GLM group. Every model slot (including subagents) is pinned to glm-5.3 and the context window is declared as 1M (CLAUDE_CODE_MAX_CONTEXT_TOKENS), so Claude Code never asks for a Claude model this group cannot route and never auto-compacts at the 200k default.',
++        claudeNote:
++          'Choose one method: terminal env for this session, or ~/.claude/settings.json for persistence. Do not commit files that contain your API key.',
++      },
+       opencode: {
+         title: 'OpenCode Example',
+         subtitle: 'opencode.json',
+diff --git a/frontend/src/i18n/locales/zh/dashboard.ts b/frontend/src/i18n/locales/zh/dashboard.ts
+index 60117abbb..182854f5f 100644
+--- a/frontend/src/i18n/locales/zh/dashboard.ts
++++ b/frontend/src/i18n/locales/zh/dashboard.ts
+@@ -218,6 +218,12 @@ export default {
+         modelsCount: '已获取 {count} 个模型',
+         errorDescription: '无法使用当前 API Key 获取模型目录。'
+       },
++      zhipu: {
++        claudeDescription:
++          '配置 Claude Code，让 Messages API 请求通过当前 Sub2API GLM 分组发送。所有模型槽位（含子代理）已固定为 glm-5.3，并把上下文窗口声明为 1M（CLAUDE_CODE_MAX_CONTEXT_TOKENS），Claude Code 不会再请求本分组无法路由的 Claude 型号，也不会在 200k 就提前压缩。',
++        claudeNote:
++          '二选一：终端环境变量仅当前会话；~/.claude/settings.json 可持久化。请勿把含 API Key 的文件提交到仓库。'
++      },
+       opencode: {
+         title: 'OpenCode 配置示例',
+         subtitle: 'opencode.json',
 diff --git a/frontend/src/utils/__tests__/ccswitchImport.spec.ts b/frontend/src/utils/__tests__/ccswitchImport.spec.ts
-index 50789b500..11885ea4c 100644
+index 50789b500..087046d28 100644
 --- a/frontend/src/utils/__tests__/ccswitchImport.spec.ts
 +++ b/frontend/src/utils/__tests__/ccswitchImport.spec.ts
-@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
+@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest'
  import {
    GROK_CC_SWITCH_MODEL,
    OPENAI_CC_SWITCH_CODEX_MODEL,
+-  buildCcSwitchImportDeeplink
 +  ZHIPU_CC_SWITCH_MODEL,
-   buildCcSwitchImportDeeplink
++  ZHIPU_CONTEXT_WINDOW_TOKENS,
++  buildCcSwitchImportDeeplink,
++  buildZhipuClaudeImportEnv
  } from '@/utils/ccswitchImport'
  import type { GroupPlatform } from '@/types'
-@@ -17,7 +18,11 @@ describe('ccswitchImport utils', () => {
+ 
+@@ -17,7 +20,15 @@ describe('ccswitchImport utils', () => {
    })
  
    it('defaults Grok Build imports to the current Grok model', () => {
@@ -32,14 +71,21 @@ index 50789b500..11885ea4c 100644
 +  })
 +
 +  it('defaults GLM imports to the current GLM model', () => {
-+    expect(ZHIPU_CC_SWITCH_MODEL).toBe('glm-5.1')
++    expect(ZHIPU_CC_SWITCH_MODEL).toBe('glm-5.3')
++  })
++
++  it('advertises the 1M GLM context window shared by every GLM import path', () => {
++    expect(ZHIPU_CONTEXT_WINDOW_TOKENS).toBe(1_000_000)
    })
  
    const baseInput = {
-@@ -63,6 +68,20 @@ describe('ccswitchImport utils', () => {
+@@ -61,6 +72,40 @@ describe('ccswitchImport utils', () => {
+     expect(params.get('app')).toBe('grokbuild')
+     expect(params.get('endpoint')).toBe('https://api.example.com/v1')
      expect(params.get('model')).toBe(GROK_CC_SWITCH_MODEL)
-   })
- 
++    expect(params.has('config')).toBe(false)
++  })
++
 +  it('pins the GLM model on zhipu imports as a Claude-type provider', () => {
 +    const params = paramsFromDeeplink(
 +      buildCcSwitchImportDeeplink({
@@ -52,26 +98,99 @@ index 50789b500..11885ea4c 100644
 +    expect(params.get('app')).toBe('claude')
 +    expect(params.get('endpoint')).toBe(baseInput.baseUrl)
 +    expect(params.get('model')).toBe(ZHIPU_CC_SWITCH_MODEL)
-+  })
++    expect(params.get('configFormat')).toBe('json')
 +
++    // The inline config is what carries everything CC Switch has no URL param
++    // for: the 1M window, the fable/subagent pins and the two switches.
++    const inline = JSON.parse(atob(params.get('config') || ''))
++    expect(inline).toEqual({ env: buildZhipuClaudeImportEnv() })
++    expect(inline.env.CLAUDE_CODE_MAX_CONTEXT_TOKENS).toBe(String(ZHIPU_CONTEXT_WINDOW_TOKENS))
++    for (const name of [
++      'ANTHROPIC_MODEL',
++      'ANTHROPIC_DEFAULT_OPUS_MODEL',
++      'ANTHROPIC_DEFAULT_SONNET_MODEL',
++      'ANTHROPIC_DEFAULT_HAIKU_MODEL',
++      'ANTHROPIC_DEFAULT_FABLE_MODEL',
++      'CLAUDE_CODE_SUBAGENT_MODEL'
++    ]) {
++      expect(inline.env[name]).toBe(ZHIPU_CC_SWITCH_MODEL)
++    }
++    expect(inline.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC).toBe('1')
++    expect(inline.env).not.toHaveProperty('CLAUDE_CODE_ATTRIBUTION_HEADER')
+   })
+ 
    it.each([
-     { platform: 'anthropic' as GroupPlatform, clientType: 'claude' as const, app: 'claude' },
-     { platform: 'gemini' as GroupPlatform, clientType: 'gemini' as const, app: 'gemini' }
+@@ -78,6 +123,7 @@ describe('ccswitchImport utils', () => {
+     expect(params.get('app')).toBe(app)
+     expect(params.get('endpoint')).toBe(baseInput.baseUrl)
+     expect(params.has('model')).toBe(false)
++    expect(params.has('config')).toBe(false)
+   })
+ 
+   it('keeps Antigravity imports on the selected client endpoint without a model parameter', () => {
 diff --git a/frontend/src/utils/ccswitchImport.ts b/frontend/src/utils/ccswitchImport.ts
-index d7858eab4..5fe3d6ec5 100644
+index d7858eab4..c85cf9bb1 100644
 --- a/frontend/src/utils/ccswitchImport.ts
 +++ b/frontend/src/utils/ccswitchImport.ts
-@@ -1,7 +1,8 @@
+@@ -1,7 +1,14 @@
  import type { GroupPlatform } from '@/types'
++import { encodeBase64Utf8 } from '@/utils/clientTemplates'
  
  export const OPENAI_CC_SWITCH_CODEX_MODEL = 'gpt-5.5'
 -export const GROK_CC_SWITCH_MODEL = 'grok-4.5'
 +export const GROK_CC_SWITCH_MODEL = 'grok-4.6'
-+export const ZHIPU_CC_SWITCH_MODEL = 'glm-5.1'
++export const ZHIPU_CC_SWITCH_MODEL = 'glm-5.3'
++// Context window advertised to every GLM client setup (Claude Code env,
++// OpenCode catalog, CC Switch import). Operator decision: the GLM group is
++// served with a 1M window, so all import paths must agree on it or Claude Code
++// will auto-compact at its 200k default long before the real limit.
++export const ZHIPU_CONTEXT_WINDOW_TOKENS = 1_000_000
  
  export type CcSwitchClientType = 'claude' | 'gemini'
  
-@@ -53,6 +54,14 @@ export function resolveCcSwitchImportConfig(
+@@ -9,6 +16,11 @@ export interface CcSwitchImportConfig {
+   app: string
+   endpoint: string
+   model?: string
++  // Extra Claude settings env carried through the deeplink's inline `config`
++  // payload (base64 JSON, `configFormat=json`). CC Switch merges it under the
++  // URL params and keeps non-standard keys as-is, which is the only way an
++  // import can set CLAUDE_CODE_MAX_CONTEXT_TOKENS or the subagent/fable pins.
++  env?: Record<string, string>
+ }
+ 
+ export interface CcSwitchImportDeeplinkInput {
+@@ -20,6 +32,29 @@ export interface CcSwitchImportDeeplinkInput {
+   usageScript: string
+ }
+ 
++// Same env the "use key" modal hands out for GLM Claude Code setups, so a
++// one-click import and a pasted settings.json land on identical behavior:
++// every model slot pinned to the GLM model, the 1M window, and the one
++// Claude Code switch that makes sense against a third-party gateway (upstream
++// v0.2.0 stopped disabling the attribution header, so the import follows).
++export function buildZhipuClaudeImportEnv(): Record<string, string> {
++  return {
++    ANTHROPIC_MODEL: ZHIPU_CC_SWITCH_MODEL,
++    ANTHROPIC_DEFAULT_OPUS_MODEL: ZHIPU_CC_SWITCH_MODEL,
++    ANTHROPIC_DEFAULT_SONNET_MODEL: ZHIPU_CC_SWITCH_MODEL,
++    ANTHROPIC_DEFAULT_HAIKU_MODEL: ZHIPU_CC_SWITCH_MODEL,
++    ANTHROPIC_DEFAULT_FABLE_MODEL: ZHIPU_CC_SWITCH_MODEL,
++    CLAUDE_CODE_SUBAGENT_MODEL: ZHIPU_CC_SWITCH_MODEL,
++    CLAUDE_CODE_MAX_CONTEXT_TOKENS: String(ZHIPU_CONTEXT_WINDOW_TOKENS),
++    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
++  }
++}
++
++// CC Switch reads `config` as base64 JSON shaped like Claude's settings.json.
++export function encodeCcSwitchInlineConfig(env: Record<string, string>): string {
++  return encodeBase64Utf8(JSON.stringify({ env }))
++}
++
+ function withV1Endpoint(baseUrl: string): string {
+   const normalizedBaseUrl = baseUrl.replace(/\/+$/, '')
+   return normalizedBaseUrl.endsWith('/v1') ? normalizedBaseUrl : `${normalizedBaseUrl}/v1`
+@@ -53,6 +88,15 @@ export function resolveCcSwitchImportConfig(
          endpoint: withV1Endpoint(baseUrl),
          model: GROK_CC_SWITCH_MODEL
        }
@@ -81,8 +200,19 @@ index d7858eab4..5fe3d6ec5 100644
 +      return {
 +        app: 'claude',
 +        endpoint: baseUrl,
-+        model: ZHIPU_CC_SWITCH_MODEL
++        model: ZHIPU_CC_SWITCH_MODEL,
++        env: buildZhipuClaudeImportEnv()
 +      }
      default:
        return {
          app: 'claude',
+@@ -79,6 +123,9 @@ export function buildCcSwitchImportDeeplink(input: CcSwitchImportDeeplinkInput):
+   if (config.model) {
+     entries.splice(2, 0, ['model', config.model])
+   }
++  if (config.env) {
++    entries.push(['config', encodeCcSwitchInlineConfig(config.env)])
++  }
+ 
+   return `ccswitch://v1/import?${new URLSearchParams(entries).toString()}`
+ }
