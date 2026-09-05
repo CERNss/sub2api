@@ -303,6 +303,39 @@ func openAIConfiguredCodexModelIDsForGroup(accounts []Account, group *Group) []s
 	return models
 }
 
+// fork: picker priorities of the official Codex catalog (ChatGPT
+// /backend-api/codex/models and the table bundled inside codex-cli 0.153.x).
+// Codex clients on API-key auth merge our manifest *over* their bundled table
+// by slug and then mark the lowest-priority visible entry as the default. If
+// every synthesized entry carries the generic priority 50, a bundled leftover
+// the group does not even serve (gpt-5.2 at 29) wins the picker default.
+var openaiCodexCatalogPriorities = map[string]int{
+	"gpt-6-astra":         1,
+	"gpt-6":               2,
+	"gpt-5.6-sol":         6,
+	"gpt-5.6-terra":       7,
+	"gpt-5.6-luna":        8,
+	"gpt-5.6":             9,
+	"gpt-5.5":             12,
+	"gpt-5.4":             16,
+	"gpt-5.4-mini":        23,
+	"gpt-5.3-codex-spark": 26,
+	"gpt-5.2":             29,
+	"codex-auto-review":   43,
+}
+
+// openaiCodexCatalogPriority returns the official picker priority for a known
+// OpenAI Codex slug (or its spelling variants); unknown models keep the generic
+// configuredCodexModelPriority.
+func openaiCodexCatalogPriority(modelID string) (int, bool) {
+	normalized := canonicalizeOpenAIModelAliasSpelling(modelID)
+	if normalized == "" {
+		return 0, false
+	}
+	priority, ok := openaiCodexCatalogPriorities[normalized]
+	return priority, ok
+}
+
 const (
 	configuredCodexModelPriority       = 50
 	configuredCodexCustomDescription   = "Custom model routed through Sub2API."
@@ -464,6 +497,10 @@ func newConfiguredCodexModelDescriptor(modelID string) configuredCodexModelDescr
 			descriptor.DefaultReasoningLevel = &defaultReasoningLevel
 			descriptor.SupportedReasoningLevels = levels
 		}
+	}
+
+	if priority, ok := openaiCodexCatalogPriority(modelID); ok {
+		descriptor.Priority = priority
 	}
 
 	if isOpenAICodexGPTModel(modelID) {

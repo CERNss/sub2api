@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   findCodexCatalogModel,
   formatCodexReasoningEffortTomlLine,
+  isCodexCatalogModelHidden,
   parseCodexCatalogModels,
   selectCodexConfigReasoningEffort
 } from '@/utils/codexCatalogConfig'
@@ -55,5 +56,14 @@ describe('codexCatalogConfig', () => {
       slug: 'custom',
       supported_reasoning_levels: [{ effort: 'none' }, { effort: 'high' }]
     })).toBe('high')
+  })
+})
+
+describe('isCodexCatalogModelHidden', () => {
+  it('flags visibility hide and nothing else', () => {
+    expect(isCodexCatalogModelHidden({ slug: 'gpt-reserve', visibility: 'hide' })).toBe(true)
+    expect(isCodexCatalogModelHidden({ slug: 'gpt-6-astra', visibility: 'list' })).toBe(false)
+    expect(isCodexCatalogModelHidden({ slug: 'legacy' })).toBe(false)
+    expect(isCodexCatalogModelHidden(undefined)).toBe(false)
   })
 })

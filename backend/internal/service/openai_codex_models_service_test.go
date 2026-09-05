@@ -3274,3 +3274,26 @@ func TestFetchCodexModelsManifestAPIKeyUsesOfficialOpenAIModelsEndpoint(t *testi
 		})
 	}
 }
+
+// fork: synthesized OpenAI entries must mirror the official picker priorities so
+// Codex clients on API-key auth (which merge our manifest over their bundled table
+// by slug) keep gpt-6-astra as the default instead of a bundled leftover.
+func TestNewConfiguredCodexModelDescriptorMirrorsOfficialCatalogPriority(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, 1, newConfiguredCodexModelDescriptor("gpt-6-astra").Priority)
+	require.Equal(t, 1, newConfiguredCodexModelDescriptor("openai/GPT-6-Astra").Priority)
+	require.Equal(t, 6, newConfiguredCodexModelDescriptor("gpt-5.6-sol").Priority)
+	require.Equal(t, 29, newConfiguredCodexModelDescriptor("gpt-5.2").Priority)
+	require.Equal(t, configuredCodexModelPriority, newConfiguredCodexModelDescriptor("my-coder").Priority)
+	require.Equal(t, configuredCodexModelPriority, newConfiguredCodexModelDescriptor("glm-5.3").Priority)
+
+	body, err := BuildCodexModelsManifest([]string{"gpt-5.5", "gpt-6-astra", "my-coder"})
+	require.NoError(t, err)
+	models := decodeCodexManifestModels(t, body)
+	priorities := map[string]float64{}
+	for _, model := range models {
+		priorities[model["slug"].(string)] = model["priority"].(float64)
+	}
+	require.Equal(t, map[string]float64{"gpt-5.5": 12, "gpt-6-astra": 1, "my-coder": 50}, priorities)
+}

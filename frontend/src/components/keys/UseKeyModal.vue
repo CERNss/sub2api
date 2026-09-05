@@ -265,6 +265,7 @@ import { fetchCodexModelsManifest } from '@/api/codex'
 import {
   findCodexCatalogModel,
   formatCodexReasoningEffortTomlLine,
+  isCodexCatalogModelHidden,
   parseCodexCatalogModels,
   selectCodexConfigReasoningEffort
 } from '@/utils/codexCatalogConfig'
@@ -667,7 +668,9 @@ function downloadCodexModelManifest() {
 }
 
 const codexCatalogModelSlugs = computed(() =>
-  parseCodexCatalogModels(codexModelManifestContent.value).map((model) => model.slug)
+  parseCodexCatalogModels(codexModelManifestContent.value)
+    .filter((model) => !isCodexCatalogModelHidden(model))
+    .map((model) => model.slug)
 )
 
 function selectCodexCatalogModel(preferredModel: string): string {

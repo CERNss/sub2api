@@ -4,8 +4,16 @@ export interface CodexCatalogReasoningLevel {
 
 export interface CodexCatalogModel {
   slug: string
+  visibility?: unknown
   default_reasoning_level?: unknown
   supported_reasoning_levels?: CodexCatalogReasoningLevel[]
+}
+
+// Catalog entries with `visibility: "hide"` exist for config-only models
+// (e.g. gpt-reserve, codex-auto-review); the config.toml generator must never
+// pick one of them as the fallback model.
+export function isCodexCatalogModelHidden(model: CodexCatalogModel | undefined): boolean {
+  return trimEffort(model?.visibility) === 'hide'
 }
 
 function trimEffort(value: unknown): string {

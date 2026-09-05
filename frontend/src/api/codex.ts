@@ -49,8 +49,12 @@ export async function fetchCodexModelsManifest(
     throw new Error('Codex models response is not a valid manifest')
   }
 
+  const visibleModels = payload.models.filter((model) => {
+    const visibility = (model as { visibility?: unknown } | null)?.visibility
+    return typeof visibility !== 'string' || visibility.trim() !== 'hide'
+  })
   return {
     content: JSON.stringify(payload, null, 2),
-    modelCount: payload.models.length
+    modelCount: visibleModels.length
   }
 }
