@@ -1,5 +1,5 @@
 diff --git a/frontend/src/components/keys/UseKeyModal.vue b/frontend/src/components/keys/UseKeyModal.vue
-index c6d009901..03df39045 100644
+index c6d009901..2e621fb47 100644
 --- a/frontend/src/components/keys/UseKeyModal.vue
 +++ b/frontend/src/components/keys/UseKeyModal.vue
 @@ -262,13 +262,18 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
@@ -144,7 +144,7 @@ index c6d009901..03df39045 100644
 -        return [generateOpenCodeConfig('openai', apiBase, apiKey)]
 +        // OpenAI-compatible shape for platforms we do not model explicitly, but
 +        // without the pinned `model`: their groups serve entirely different
-+        // model names, so claiming openai/gpt-5.5 would send every request to a
++        // model names, so claiming openai/gpt-6-astra would send every request to a
 +        // model the group cannot route.
 +        return [generateOpenCodeConfig('openai', apiBase, apiKey, undefined, { pinDefaultModel: false })]
      }
@@ -276,6 +276,42 @@ index c6d009901..03df39045 100644
  function generateGeminiCliContent(baseUrl: string, apiKey: string): FileConfig {
    const model = 'gemini-2.0-flash'
    const modelComment = t('keys.useKeyModal.gemini.modelComment')
+@@ -926,7 +1084,7 @@ function generateOpenAIFiles(baseUrl: string, apiKey: string): FileConfig[] {
+   const isWindows = activeTab.value === 'windows'
+   const configDir = isWindows ? '%userprofile%\\.codex' : '~/.codex'
+ 
+-  const model = selectCodexCatalogModel('gpt-5.5')
++  const model = selectCodexCatalogModel('gpt-6-astra')
+   const reasoningEffortLine = codexReasoningEffortTomlLine(model)
+ 
+   // config.toml content
+@@ -1211,7 +1369,7 @@ function generateRoutedCodexFiles(
+   const isWindows = activeTab.value === 'windows'
+   const configDir = isWindows ? '%userprofile%\\.codex' : '~/.codex'
+   const preferredModels: Partial<Record<GroupPlatform, string>> = {
+-    openai: 'gpt-5.5',
++    openai: 'gpt-6-astra',
+     anthropic: 'claude-sonnet-4-6',
+     gemini: 'gemini-2.5-pro',
+     antigravity: 'claude-sonnet-4-6',
+@@ -1219,7 +1377,7 @@ function generateRoutedCodexFiles(
+     kimi: 'kimi-k2.5',
+     zhipu: 'glm-4.7',
+     deepseek: 'deepseek-v4-pro',
+-    composite: 'gpt-5.5'
++    composite: 'gpt-6-astra'
+   }
+   const preferredModel = preferredModels[platform] || ''
+   const model = selectCodexCatalogModel(preferredModel)
+@@ -1271,7 +1429,7 @@ supports_websockets = false`
+ function generateOpenAIWsFiles(baseUrl: string, apiKey: string): FileConfig[] {
+   const isWindows = activeTab.value === 'windows'
+   const configDir = isWindows ? '%userprofile%\\.codex' : '~/.codex'
+-  const model = selectCodexCatalogModel('gpt-5.5')
++  const model = selectCodexCatalogModel('gpt-6-astra')
+   const reasoningEffortLine = codexReasoningEffortTomlLine(model)
+ 
+   // config.toml content with WebSocket v2
 @@ -1297,7 +1455,13 @@ goals = true`
    return buildOpenAICodexFileConfigs(configDir, configContent, apiKey)
  }
@@ -291,7 +327,35 @@ index c6d009901..03df39045 100644
    const provider: Record<string, any> = {
      [platform]: {
        options: {
-@@ -1777,26 +1941,103 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
+@@ -1307,6 +1471,27 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
+     }
+   }
+   const openaiModels = {
++    // fork: the OpenAI template default. Declared explicitly (with reasoning)
++    // because neither models.dev nor the AI SDK's hardcoded reasoning list
++    // know this slug yet; without the entry OpenCode would refuse the pin.
++    'gpt-6-astra': {
++      name: 'GPT-6 Astra',
++      reasoning: true,
++      limit: {
++        context: 1050000,
++        output: 128000
++      },
++      options: {
++        store: false
++      },
++      variants: {
++        low: {},
++        medium: {},
++        high: {},
++        xhigh: {},
++        max: {}
++      }
++    },
+     'gpt-5.2': {
+       name: 'GPT-5.2',
+       limit: {
+@@ -1777,26 +1962,103 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
    }
    // Align context_window with Grok Build official sample (docs.x.ai/build/settings) where known.
    // Image/video: grok-imagine-image / grok-imagine-video on media endpoints — not this list.
@@ -400,7 +464,7 @@ index c6d009901..03df39045 100644
      }
    }
  
-@@ -1816,12 +2057,37 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
+@@ -1816,12 +2078,37 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
    } else if (platform === 'openai') {
      provider[platform].models = openaiModels
    } else if (platform === 'grok') {
@@ -430,7 +494,7 @@ index c6d009901..03df39045 100644
 +    options?.pinDefaultModel === false
 +      ? undefined
 +      : platform === 'openai'
-+        ? 'openai/gpt-5.5'
++        ? 'openai/gpt-6-astra'
 +        : platform === 'grok'
 +          ? 'grok/grok-4.6'
 +          : platform === 'zhipu'
@@ -440,7 +504,7 @@ index c6d009901..03df39045 100644
    const agent =
      platform === 'openai'
        ? {
-@@ -1840,6 +2106,7 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
+@@ -1840,6 +2127,7 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
  
    const content = JSON.stringify(
      {
@@ -449,7 +513,7 @@ index c6d009901..03df39045 100644
        ...(agent ? { agent } : {}),
        $schema: 'https://opencode.ai/config.json'
 diff --git a/frontend/src/components/keys/__tests__/UseKeyModal.spec.ts b/frontend/src/components/keys/__tests__/UseKeyModal.spec.ts
-index 0a31031ee..4c2b1e43d 100644
+index 0a31031ee..7f98323b4 100644
 --- a/frontend/src/components/keys/__tests__/UseKeyModal.spec.ts
 +++ b/frontend/src/components/keys/__tests__/UseKeyModal.spec.ts
 @@ -163,7 +163,9 @@ describe('UseKeyModal', () => {
@@ -711,7 +775,71 @@ index 0a31031ee..4c2b1e43d 100644
    it('keeps legacy OpenAI Codex config as the default', () => {
      const wrapper = mount(UseKeyModal, {
        props: {
-@@ -913,4 +1142,412 @@ describe('UseKeyModal', () => {
+@@ -365,9 +594,9 @@ describe('UseKeyModal', () => {
+     const configToml = codeBlocks.find((content) => content.includes('model_provider = "OpenAI"'))
+ 
+     expect(configToml).toBeDefined()
+-    expect(configToml).toContain('model = "gpt-5.5"')
+-    expect(configToml).toContain('review_model = "gpt-5.5"')
+-    expect(configToml).not.toContain('model = "gpt-5.4"')
++    expect(configToml).toContain('model = "gpt-6-astra"')
++    expect(configToml).toContain('review_model = "gpt-6-astra"')
++    expect(configToml).not.toContain('model = "gpt-5.5"')
+     expect(configToml).not.toContain('model_context_window')
+     expect(configToml).not.toContain('model_auto_compact_token_limit')
+     expect(configToml).toContain('requires_openai_auth = true')
+@@ -467,9 +696,9 @@ describe('UseKeyModal', () => {
+     const configToml = codeBlocks.find((content) => content.includes('supports_websockets = true'))
+ 
+     expect(configToml).toBeDefined()
+-    expect(configToml).toContain('model = "gpt-5.5"')
+-    expect(configToml).toContain('review_model = "gpt-5.5"')
+-    expect(configToml).not.toContain('model = "gpt-5.4"')
++    expect(configToml).toContain('model = "gpt-6-astra"')
++    expect(configToml).toContain('review_model = "gpt-6-astra"')
++    expect(configToml).not.toContain('model = "gpt-5.5"')
+     expect(configToml).not.toContain('model_context_window')
+     expect(configToml).not.toContain('model_auto_compact_token_limit')
+     expect(configToml).toContain('requires_openai_auth = true')
+@@ -635,6 +864,8 @@ describe('UseKeyModal', () => {
+       expect(models[model].variants).toHaveProperty('xhigh')
+     }
+     expect(models['gpt-5.6'].name).toBe('GPT-5.6 (Sol)')
++    expect(models['gpt-6-astra'].name).toBe('GPT-6 Astra')
++    expect(models['gpt-6-astra'].reasoning).toBe(true)
+   })
+ 
+   it('renders Claude Fable 5 OpenCode config with adaptive thinking', async () => {
+@@ -760,7 +991,7 @@ describe('UseKeyModal', () => {
+       .find((content) => content.includes('[model_providers.sub2api]'))
+     expect(loadedUnixConfig).toContain('model = "claude-opus-4-8"')
+     expect(loadedUnixConfig).toContain('review_model = "claude-opus-4-8"')
+-    expect(loadedUnixConfig).not.toContain('model = "gpt-5.5"')
++    expect(loadedUnixConfig).not.toContain('model = "gpt-6-astra"')
+ 
+     const downloadButton = wrapper.findAll('button').find((button) =>
+       button.text().includes('keys.useKeyModal.codexModelCatalog.download')
+@@ -831,7 +1062,7 @@ describe('UseKeyModal', () => {
+       json: async () => ({
+         models: [
+           { slug: 'claude-opus-4-8' },
+-          { slug: 'gpt-5.5' }
++          { slug: 'gpt-6-astra' }
+         ]
+       })
+     }))
+@@ -866,8 +1097,8 @@ describe('UseKeyModal', () => {
+     const config = wrapper.findAll('pre code')
+       .map((code) => code.text())
+       .find((content) => content.includes('[model_providers.sub2api]'))
+-    expect(config).toContain('model = "gpt-5.5"')
+-    expect(config).toContain('review_model = "gpt-5.5"')
++    expect(config).toContain('model = "gpt-6-astra"')
++    expect(config).toContain('review_model = "gpt-6-astra"')
+   })
+ 
+   it('derives OpenAI Codex reasoning effort from the selected catalog descriptor', async () => {
+@@ -913,4 +1144,413 @@ describe('UseKeyModal', () => {
      expect(configToml).toContain('model = "glm-5.3"')
      expect(configToml).not.toContain('model_reasoning_effort')
    })
@@ -1011,7 +1139,8 @@ index 0a31031ee..4c2b1e43d 100644
 +    })
 +    await openOpenCodeTab(openaiWrapper)
 +    const openaiParsed = JSON.parse(openaiWrapper.find('pre code').text())
-+    expect(openaiParsed.model).toBe('openai/gpt-5.5')
++    expect(openaiParsed.model).toBe('openai/gpt-6-astra')
++    expect(openaiParsed.provider.openai.models['gpt-6-astra'].reasoning).toBe(true)
 +  })
 +
 +  it('prefers the openai_opencode template over the shared opencode template', async () => {
@@ -1058,7 +1187,7 @@ index 0a31031ee..4c2b1e43d 100644
 +
 +  // Regression guard: platforms without their own section must never inherit the
 +  // OpenAI one. `case 'openai'` and `default` were briefly merged, which pinned
-+  // kimi/deepseek/composite OpenCode configs to openai/gpt-5.5 — a model their
++  // kimi/deepseek/composite OpenCode configs to openai/gpt-6-astra — a model their
 +  // groups cannot route.
 +  it('keeps platforms without a dedicated section off the openai_opencode section and model pin', async () => {
 +    const withOpenAISection = mount(UseKeyModal, {
@@ -1091,7 +1220,7 @@ index 0a31031ee..4c2b1e43d 100644
 +    await openOpenCodeTab(withOpenAISection)
 +    const sharedText = withOpenAISection.find('pre code').text()
 +    expect(sharedText).toContain('"shared":"sk-kimi-oc-test"')
-+    expect(sharedText).not.toContain('openai/gpt-5.5')
++    expect(sharedText).not.toContain('openai/gpt-6-astra')
 +
 +    const builtinFallback = mount(UseKeyModal, {
 +      props: {
@@ -1115,7 +1244,7 @@ index 0a31031ee..4c2b1e43d 100644
 +    await openOpenCodeTab(builtinFallback)
 +    const parsed = JSON.parse(builtinFallback.find('pre code').text())
 +    expect(parsed.model).toBeUndefined()
-+    expect(JSON.stringify(parsed)).not.toContain('openai/gpt-5.5')
++    expect(JSON.stringify(parsed)).not.toContain('openai/gpt-6-astra')
 +    // The OpenAI-compatible provider shape itself is unchanged from before the
 +    // per-platform split — only the model pin is withheld.
 +    expect(parsed.provider.openai.options).toEqual({
@@ -1183,7 +1312,7 @@ index 1c2fcc6f1..ca88ca93e 100644
  
  export type GroupPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok' | 'kimi' | 'zhipu' | 'deepseek' | 'composite'
 diff --git a/frontend/src/utils/__tests__/ccswitchImport.spec.ts b/frontend/src/utils/__tests__/ccswitchImport.spec.ts
-index 50789b500..087046d28 100644
+index 50789b500..41c4dac72 100644
 --- a/frontend/src/utils/__tests__/ccswitchImport.spec.ts
 +++ b/frontend/src/utils/__tests__/ccswitchImport.spec.ts
 @@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest'
@@ -1198,7 +1327,12 @@ index 50789b500..087046d28 100644
  } from '@/utils/ccswitchImport'
  import type { GroupPlatform } from '@/types'
  
-@@ -17,7 +20,15 @@ describe('ccswitchImport utils', () => {
+@@ -13,11 +16,19 @@ function paramsFromDeeplink(deeplink: string): URLSearchParams {
+ 
+ describe('ccswitchImport utils', () => {
+   it('defaults OpenAI CC Switch imports to the current Codex model', () => {
+-    expect(OPENAI_CC_SWITCH_CODEX_MODEL).toBe('gpt-5.5')
++    expect(OPENAI_CC_SWITCH_CODEX_MODEL).toBe('gpt-6-astra')
    })
  
    it('defaults Grok Build imports to the current Grok model', () => {
@@ -1265,15 +1399,16 @@ index 50789b500..087046d28 100644
  
    it('keeps Antigravity imports on the selected client endpoint without a model parameter', () => {
 diff --git a/frontend/src/utils/ccswitchImport.ts b/frontend/src/utils/ccswitchImport.ts
-index d7858eab4..c85cf9bb1 100644
+index d7858eab4..02d8bca9a 100644
 --- a/frontend/src/utils/ccswitchImport.ts
 +++ b/frontend/src/utils/ccswitchImport.ts
 @@ -1,7 +1,14 @@
  import type { GroupPlatform } from '@/types'
 +import { encodeBase64Utf8 } from '@/utils/clientTemplates'
  
- export const OPENAI_CC_SWITCH_CODEX_MODEL = 'gpt-5.5'
+-export const OPENAI_CC_SWITCH_CODEX_MODEL = 'gpt-5.5'
 -export const GROK_CC_SWITCH_MODEL = 'grok-4.5'
++export const OPENAI_CC_SWITCH_CODEX_MODEL = 'gpt-6-astra'
 +export const GROK_CC_SWITCH_MODEL = 'grok-4.6'
 +export const ZHIPU_CC_SWITCH_MODEL = 'glm-5.3'
 +// Context window advertised to every GLM client setup (Claude Code env,

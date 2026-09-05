@@ -1,8 +1,17 @@
 diff --git a/frontend/src/composables/useModelWhitelist.ts b/frontend/src/composables/useModelWhitelist.ts
-index b17427a8a..b909edf6b 100644
+index b17427a8a..cf1de42a3 100644
 --- a/frontend/src/composables/useModelWhitelist.ts
 +++ b/frontend/src/composables/useModelWhitelist.ts
-@@ -92,7 +92,8 @@ const antigravityModels = [
+@@ -4,6 +4,8 @@
+ 
+ // OpenAI
+ const openaiModels = [
++  // GPT-6 系列（fork：OpenAI 模版默认型号）
++  'gpt-6-astra',
+   // GPT-5.2 系列
+   'gpt-5.2', 'gpt-5.2-2025-12-11', 'gpt-5.2-chat-latest',
+   'gpt-5.2-pro', 'gpt-5.2-pro-2025-12-11',
+@@ -92,7 +94,8 @@ const antigravityModels = [
  const zhipuModels = [
    'glm-4', 'glm-4v', 'glm-4-plus', 'glm-4-0520',
    'glm-4-air', 'glm-4-airx', 'glm-4-long', 'glm-4-flash',
@@ -12,6 +21,14 @@ index b17427a8a..b909edf6b 100644
    'glm-3-turbo', 'glm-4-alltools',
    'chatglm_turbo', 'chatglm_pro', 'chatglm_std', 'chatglm_lite',
    'cogview-3', 'cogvideo'
+@@ -290,6 +293,7 @@ const openaiPresetMappings = [
+   { label: 'o3', from: 'o3', to: 'o3', color: 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400' },
+   { label: 'GPT-5.3 Codex Spark', from: 'gpt-5.3-codex-spark', to: 'gpt-5.3-codex-spark', color: 'bg-teal-100 text-teal-700 hover:bg-teal-200 dark:bg-teal-900/30 dark:text-teal-400' },
+   { label: 'GPT-5.2', from: 'gpt-5.2', to: 'gpt-5.2', color: 'bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400' },
++  { label: 'GPT-6 Astra', from: 'gpt-6-astra', to: 'gpt-6-astra', color: 'bg-violet-100 text-violet-700 hover:bg-violet-200 dark:bg-violet-900/30 dark:text-violet-400' },
+   { label: 'GPT-5.6', from: 'gpt-5.6', to: 'gpt-5.6', color: 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400' },
+   { label: 'GPT-5.6 Sol', from: 'gpt-5.6-sol', to: 'gpt-5.6-sol', color: 'bg-orange-100 text-orange-700 hover:bg-orange-200 dark:bg-orange-900/30 dark:text-orange-400' },
+   { label: 'GPT-5.6 Terra', from: 'gpt-5.6-terra', to: 'gpt-5.6-terra', color: 'bg-lime-100 text-lime-700 hover:bg-lime-200 dark:bg-lime-900/30 dark:text-lime-400' },
 diff --git a/frontend/src/i18n/locales/en/dashboard.ts b/frontend/src/i18n/locales/en/dashboard.ts
 index 576067c6a..d157c6ade 100644
 --- a/frontend/src/i18n/locales/en/dashboard.ts
@@ -47,7 +64,7 @@ index 60117abbb..182854f5f 100644
          title: 'OpenCode 配置示例',
          subtitle: 'opencode.json',
 diff --git a/frontend/src/utils/__tests__/ccswitchImport.spec.ts b/frontend/src/utils/__tests__/ccswitchImport.spec.ts
-index 50789b500..087046d28 100644
+index 50789b500..41c4dac72 100644
 --- a/frontend/src/utils/__tests__/ccswitchImport.spec.ts
 +++ b/frontend/src/utils/__tests__/ccswitchImport.spec.ts
 @@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest'
@@ -62,7 +79,12 @@ index 50789b500..087046d28 100644
  } from '@/utils/ccswitchImport'
  import type { GroupPlatform } from '@/types'
  
-@@ -17,7 +20,15 @@ describe('ccswitchImport utils', () => {
+@@ -13,11 +16,19 @@ function paramsFromDeeplink(deeplink: string): URLSearchParams {
+ 
+ describe('ccswitchImport utils', () => {
+   it('defaults OpenAI CC Switch imports to the current Codex model', () => {
+-    expect(OPENAI_CC_SWITCH_CODEX_MODEL).toBe('gpt-5.5')
++    expect(OPENAI_CC_SWITCH_CODEX_MODEL).toBe('gpt-6-astra')
    })
  
    it('defaults Grok Build imports to the current Grok model', () => {
@@ -129,15 +151,16 @@ index 50789b500..087046d28 100644
  
    it('keeps Antigravity imports on the selected client endpoint without a model parameter', () => {
 diff --git a/frontend/src/utils/ccswitchImport.ts b/frontend/src/utils/ccswitchImport.ts
-index d7858eab4..c85cf9bb1 100644
+index d7858eab4..02d8bca9a 100644
 --- a/frontend/src/utils/ccswitchImport.ts
 +++ b/frontend/src/utils/ccswitchImport.ts
 @@ -1,7 +1,14 @@
  import type { GroupPlatform } from '@/types'
 +import { encodeBase64Utf8 } from '@/utils/clientTemplates'
  
- export const OPENAI_CC_SWITCH_CODEX_MODEL = 'gpt-5.5'
+-export const OPENAI_CC_SWITCH_CODEX_MODEL = 'gpt-5.5'
 -export const GROK_CC_SWITCH_MODEL = 'grok-4.5'
++export const OPENAI_CC_SWITCH_CODEX_MODEL = 'gpt-6-astra'
 +export const GROK_CC_SWITCH_MODEL = 'grok-4.6'
 +export const ZHIPU_CC_SWITCH_MODEL = 'glm-5.3'
 +// Context window advertised to every GLM client setup (Claude Code env,
