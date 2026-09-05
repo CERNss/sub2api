@@ -8,7 +8,7 @@
         "name": "${providerName}",
         "homepage": "${baseUrl}",
         "endpoint": "${endpoint}",
-        "model": "gpt-5.5",
+        "model": "gpt-6-astra",
         "apiKey": "${apiKey}",
         "configFormat": "json",
         "usageEnabled": "true",

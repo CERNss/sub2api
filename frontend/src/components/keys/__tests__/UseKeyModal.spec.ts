@@ -594,9 +594,9 @@ describe('UseKeyModal', () => {
     const configToml = codeBlocks.find((content) => content.includes('model_provider = "OpenAI"'))
 
     expect(configToml).toBeDefined()
-    expect(configToml).toContain('model = "gpt-5.5"')
-    expect(configToml).toContain('review_model = "gpt-5.5"')
-    expect(configToml).not.toContain('model = "gpt-5.4"')
+    expect(configToml).toContain('model = "gpt-6-astra"')
+    expect(configToml).toContain('review_model = "gpt-6-astra"')
+    expect(configToml).not.toContain('model = "gpt-5.5"')
     expect(configToml).not.toContain('model_context_window')
     expect(configToml).not.toContain('model_auto_compact_token_limit')
     expect(configToml).toContain('requires_openai_auth = true')
@@ -696,9 +696,9 @@ describe('UseKeyModal', () => {
     const configToml = codeBlocks.find((content) => content.includes('supports_websockets = true'))
 
     expect(configToml).toBeDefined()
-    expect(configToml).toContain('model = "gpt-5.5"')
-    expect(configToml).toContain('review_model = "gpt-5.5"')
-    expect(configToml).not.toContain('model = "gpt-5.4"')
+    expect(configToml).toContain('model = "gpt-6-astra"')
+    expect(configToml).toContain('review_model = "gpt-6-astra"')
+    expect(configToml).not.toContain('model = "gpt-5.5"')
     expect(configToml).not.toContain('model_context_window')
     expect(configToml).not.toContain('model_auto_compact_token_limit')
     expect(configToml).toContain('requires_openai_auth = true')
@@ -864,6 +864,8 @@ describe('UseKeyModal', () => {
       expect(models[model].variants).toHaveProperty('xhigh')
     }
     expect(models['gpt-5.6'].name).toBe('GPT-5.6 (Sol)')
+    expect(models['gpt-6-astra'].name).toBe('GPT-6 Astra')
+    expect(models['gpt-6-astra'].reasoning).toBe(true)
   })
 
   it('renders Claude Fable 5 OpenCode config with adaptive thinking', async () => {
@@ -989,7 +991,7 @@ describe('UseKeyModal', () => {
       .find((content) => content.includes('[model_providers.sub2api]'))
     expect(loadedUnixConfig).toContain('model = "claude-opus-4-8"')
     expect(loadedUnixConfig).toContain('review_model = "claude-opus-4-8"')
-    expect(loadedUnixConfig).not.toContain('model = "gpt-5.5"')
+    expect(loadedUnixConfig).not.toContain('model = "gpt-6-astra"')
 
     const downloadButton = wrapper.findAll('button').find((button) =>
       button.text().includes('keys.useKeyModal.codexModelCatalog.download')
@@ -1060,7 +1062,7 @@ describe('UseKeyModal', () => {
       json: async () => ({
         models: [
           { slug: 'claude-opus-4-8' },
-          { slug: 'gpt-5.5' }
+          { slug: 'gpt-6-astra' }
         ]
       })
     }))
@@ -1095,8 +1097,8 @@ describe('UseKeyModal', () => {
     const config = wrapper.findAll('pre code')
       .map((code) => code.text())
       .find((content) => content.includes('[model_providers.sub2api]'))
-    expect(config).toContain('model = "gpt-5.5"')
-    expect(config).toContain('review_model = "gpt-5.5"')
+    expect(config).toContain('model = "gpt-6-astra"')
+    expect(config).toContain('review_model = "gpt-6-astra"')
   })
 
   it('derives OpenAI Codex reasoning effort from the selected catalog descriptor', async () => {
@@ -1438,7 +1440,8 @@ describe('UseKeyModal', () => {
     })
     await openOpenCodeTab(openaiWrapper)
     const openaiParsed = JSON.parse(openaiWrapper.find('pre code').text())
-    expect(openaiParsed.model).toBe('openai/gpt-5.5')
+    expect(openaiParsed.model).toBe('openai/gpt-6-astra')
+    expect(openaiParsed.provider.openai.models['gpt-6-astra'].reasoning).toBe(true)
   })
 
   it('prefers the openai_opencode template over the shared opencode template', async () => {
@@ -1485,7 +1488,7 @@ describe('UseKeyModal', () => {
 
   // Regression guard: platforms without their own section must never inherit the
   // OpenAI one. `case 'openai'` and `default` were briefly merged, which pinned
-  // kimi/deepseek/composite OpenCode configs to openai/gpt-5.5 — a model their
+  // kimi/deepseek/composite OpenCode configs to openai/gpt-6-astra — a model their
   // groups cannot route.
   it('keeps platforms without a dedicated section off the openai_opencode section and model pin', async () => {
     const withOpenAISection = mount(UseKeyModal, {
@@ -1518,7 +1521,7 @@ describe('UseKeyModal', () => {
     await openOpenCodeTab(withOpenAISection)
     const sharedText = withOpenAISection.find('pre code').text()
     expect(sharedText).toContain('"shared":"sk-kimi-oc-test"')
-    expect(sharedText).not.toContain('openai/gpt-5.5')
+    expect(sharedText).not.toContain('openai/gpt-6-astra')
 
     const builtinFallback = mount(UseKeyModal, {
       props: {
@@ -1542,7 +1545,7 @@ describe('UseKeyModal', () => {
     await openOpenCodeTab(builtinFallback)
     const parsed = JSON.parse(builtinFallback.find('pre code').text())
     expect(parsed.model).toBeUndefined()
-    expect(JSON.stringify(parsed)).not.toContain('openai/gpt-5.5')
+    expect(JSON.stringify(parsed)).not.toContain('openai/gpt-6-astra')
     // The OpenAI-compatible provider shape itself is unchanged from before the
     // per-platform split — only the model pin is withheld.
     expect(parsed.provider.openai.options).toEqual({

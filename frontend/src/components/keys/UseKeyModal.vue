@@ -804,7 +804,7 @@ const currentFiles = computed((): FileConfig[] => {
       default:
         // OpenAI-compatible shape for platforms we do not model explicitly, but
         // without the pinned `model`: their groups serve entirely different
-        // model names, so claiming openai/gpt-5.5 would send every request to a
+        // model names, so claiming openai/gpt-6-astra would send every request to a
         // model the group cannot route.
         return [generateOpenCodeConfig('openai', apiBase, apiKey, undefined, { pinDefaultModel: false })]
     }
@@ -1084,7 +1084,7 @@ function generateOpenAIFiles(baseUrl: string, apiKey: string): FileConfig[] {
   const isWindows = activeTab.value === 'windows'
   const configDir = isWindows ? '%userprofile%\\.codex' : '~/.codex'
 
-  const model = selectCodexCatalogModel('gpt-5.5')
+  const model = selectCodexCatalogModel('gpt-6-astra')
   const reasoningEffortLine = codexReasoningEffortTomlLine(model)
 
   // config.toml content
@@ -1369,7 +1369,7 @@ function generateRoutedCodexFiles(
   const isWindows = activeTab.value === 'windows'
   const configDir = isWindows ? '%userprofile%\\.codex' : '~/.codex'
   const preferredModels: Partial<Record<GroupPlatform, string>> = {
-    openai: 'gpt-5.5',
+    openai: 'gpt-6-astra',
     anthropic: 'claude-sonnet-4-6',
     gemini: 'gemini-2.5-pro',
     antigravity: 'claude-sonnet-4-6',
@@ -1377,7 +1377,7 @@ function generateRoutedCodexFiles(
     kimi: 'kimi-k2.5',
     zhipu: 'glm-4.7',
     deepseek: 'deepseek-v4-pro',
-    composite: 'gpt-5.5'
+    composite: 'gpt-6-astra'
   }
   const preferredModel = preferredModels[platform] || ''
   const model = selectCodexCatalogModel(preferredModel)
@@ -1429,7 +1429,7 @@ supports_websockets = false`
 function generateOpenAIWsFiles(baseUrl: string, apiKey: string): FileConfig[] {
   const isWindows = activeTab.value === 'windows'
   const configDir = isWindows ? '%userprofile%\\.codex' : '~/.codex'
-  const model = selectCodexCatalogModel('gpt-5.5')
+  const model = selectCodexCatalogModel('gpt-6-astra')
   const reasoningEffortLine = codexReasoningEffortTomlLine(model)
 
   // config.toml content with WebSocket v2
@@ -1471,6 +1471,27 @@ function generateOpenCodeConfig(
     }
   }
   const openaiModels = {
+    // fork: the OpenAI template default. Declared explicitly (with reasoning)
+    // because neither models.dev nor the AI SDK's hardcoded reasoning list
+    // know this slug yet; without the entry OpenCode would refuse the pin.
+    'gpt-6-astra': {
+      name: 'GPT-6 Astra',
+      reasoning: true,
+      limit: {
+        context: 1050000,
+        output: 128000
+      },
+      options: {
+        store: false
+      },
+      variants: {
+        low: {},
+        medium: {},
+        high: {},
+        xhigh: {},
+        max: {}
+      }
+    },
     'gpt-5.2': {
       name: 'GPT-5.2',
       limit: {
@@ -2081,7 +2102,7 @@ function generateOpenCodeConfig(
     options?.pinDefaultModel === false
       ? undefined
       : platform === 'openai'
-        ? 'openai/gpt-5.5'
+        ? 'openai/gpt-6-astra'
         : platform === 'grok'
           ? 'grok/grok-4.6'
           : platform === 'zhipu'

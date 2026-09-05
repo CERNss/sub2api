@@ -1,7 +1,7 @@
 import type { GroupPlatform } from '@/types'
 import { encodeBase64Utf8 } from '@/utils/clientTemplates'
 
-export const OPENAI_CC_SWITCH_CODEX_MODEL = 'gpt-5.5'
+export const OPENAI_CC_SWITCH_CODEX_MODEL = 'gpt-6-astra'
 export const GROK_CC_SWITCH_MODEL = 'grok-4.6'
 export const ZHIPU_CC_SWITCH_MODEL = 'glm-5.3'
 // Context window advertised to every GLM client setup (Claude Code env,
