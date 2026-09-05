@@ -64,15 +64,18 @@ deeplink import had the same gap.
 - _None._ Every change is a patch into an existing upstream or fork-owned file.
 
 ### Upstream Patch Files
-- `frontend/src/utils/ccswitchImport.ts`: `ZHIPU_CC_SWITCH_MODEL` plus the `zhipu` branch of `resolveCcSwitchImportConfig`.
-- `frontend/src/utils/__tests__/ccswitchImport.spec.ts`: Zhipu import assertions.
-- `frontend/src/composables/useModelWhitelist.ts`: `zhipuModels` gains `glm-4.7` so the recommended GLM model is whitelistable.
+- `frontend/src/utils/ccswitchImport.ts`: `ZHIPU_CC_SWITCH_MODEL` / `ZHIPU_CONTEXT_WINDOW_TOKENS` plus the `zhipu` branch of `resolveCcSwitchImportConfig`; `buildZhipuClaudeImportEnv` + `encodeCcSwitchInlineConfig` carry the GLM Claude Code env (all model slots pinned, 1M window) through the deeplink's inline `config` payload. Does **not** set `CLAUDE_CODE_ATTRIBUTION_HEADER` — upstream v0.2.0 (`c03776604`) stopped disabling it and the import must match the modal.
+- `frontend/src/utils/__tests__/ccswitchImport.spec.ts`: Zhipu import assertions (model pins, 1M window, no attribution-header override).
+- `frontend/src/composables/useModelWhitelist.ts`: `zhipuModels` tracks the glm-5 lineup so the recommended GLM models are whitelistable.
+- `frontend/src/i18n/locales/en/dashboard.ts`: `keys.useKeyModal.zhipu.claudeDescription` / `claudeNote` for the GLM Claude Code tab.
+- `frontend/src/i18n/locales/zh/dashboard.ts`: same keys, Chinese copy.
 
 ### Shared Touchpoints
-- `frontend/src/components/keys/UseKeyModal.vue`: also owned by `2026-04-28-support-mounted-frontend-client-templates` — the OpenCode branch now resolves a per-platform section before the shared one for openai/grok/zhipu only, `default` must stay on the shared section, and `generateOpenCodeConfig` gained the `zhipu` branch plus the `pinDefaultModel` option.
+- `frontend/src/components/keys/UseKeyModal.vue`: also owned by `2026-04-28-support-mounted-frontend-client-templates` — the OpenCode branch now resolves a per-platform section before the shared one for openai/grok/zhipu only, `default` must stay on the shared section, and `generateOpenCodeConfig` gained the `zhipu` branch plus the `pinDefaultModel` option. The Claude Code tab for `zhipu` renders `generateZhipuClaudeFiles` (via the shared `generatePinnedClaudeFiles` helper that also backs the Grok Claude tab: every model slot pinned + `CLAUDE_CODE_MAX_CONTEXT_TOKENS`); the explicit `case 'zhipu'` in `currentFiles` **must keep forwarding the `codex` tab to `generateRoutedCodexFiles`** — upstream v0.2.0 routes every non-OpenAI group's Codex tab through the routed catalog in the `default:` arm, and the fork case shadows that arm (caught by upstream's "offers Codex catalog configuration for the zhipu routed group" test).
+- `frontend/src/views/user/KeysView.vue`: also owned by `2026-04-28-support-mounted-frontend-client-templates` — `executeCcsImport` seeds the deeplink `config` default from `encodeCcSwitchInlineConfig(config.env)` when the platform import carries env.
 - `frontend/src/components/keys/__tests__/UseKeyModal.spec.ts`: also owned by `2026-04-28-support-mounted-frontend-client-templates` — keeps the per-platform priority tests and the regression test that `default`-branch platforms never see `openai/gpt-5.5`.
 - `frontend/src/types/index.ts`: also owned by `2026-04-28-support-mounted-frontend-client-templates` — `ClientTemplatesConfig` gains the three per-platform OpenCode sections alongside the existing extensions.
-- `frontend/src/utils/clientTemplates.ts`: also owned by `2026-04-28-support-mounted-frontend-client-templates` — the known-section whitelist gains the three new sections.
+- `frontend/src/utils/clientTemplates.ts`: also owned by `2026-04-28-support-mounted-frontend-client-templates` — the known-section whitelist gains the three new sections; `encodeBase64Utf8` is exported for the CC Switch inline config.
 - `frontend/src/utils/__tests__/clientTemplates.spec.ts`: also owned by `2026-04-28-support-mounted-frontend-client-templates` — normalization coverage for payloads defining only a per-platform OpenCode section.
 - `template/client-templates.json`: also owned by `2026-04-28-support-mounted-frontend-client-templates` — bundled default gains the three sections.
 - `template/README.md`: also owned by `2026-04-28-support-mounted-frontend-client-templates` — documents the lookup order and that only openai/grok/zhipu consult a platform section.
