@@ -105,7 +105,7 @@ describe('ccswitchImport utils', () => {
       expect(inline.env[name]).toBe(ZHIPU_CC_SWITCH_MODEL)
     }
     expect(inline.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC).toBe('1')
-    expect(inline.env.CLAUDE_CODE_ATTRIBUTION_HEADER).toBe('0')
+    expect(inline.env).not.toHaveProperty('CLAUDE_CODE_ATTRIBUTION_HEADER')
   })
 
   it.each([

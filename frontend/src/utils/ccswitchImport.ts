@@ -34,8 +34,9 @@ export interface CcSwitchImportDeeplinkInput {
 
 // Same env the "use key" modal hands out for GLM Claude Code setups, so a
 // one-click import and a pasted settings.json land on identical behavior:
-// every model slot pinned to the GLM model, the 1M window, and the two
-// Claude Code switches that make sense against a third-party gateway.
+// every model slot pinned to the GLM model, the 1M window, and the one
+// Claude Code switch that makes sense against a third-party gateway (upstream
+// v0.2.0 stopped disabling the attribution header, so the import follows).
 export function buildZhipuClaudeImportEnv(): Record<string, string> {
   return {
     ANTHROPIC_MODEL: ZHIPU_CC_SWITCH_MODEL,
@@ -45,8 +46,7 @@ export function buildZhipuClaudeImportEnv(): Record<string, string> {
     ANTHROPIC_DEFAULT_FABLE_MODEL: ZHIPU_CC_SWITCH_MODEL,
     CLAUDE_CODE_SUBAGENT_MODEL: ZHIPU_CC_SWITCH_MODEL,
     CLAUDE_CODE_MAX_CONTEXT_TOKENS: String(ZHIPU_CONTEXT_WINDOW_TOKENS),
-    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
-    CLAUDE_CODE_ATTRIBUTION_HEADER: '0'
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
   }
 }
 

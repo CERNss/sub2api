@@ -250,7 +250,9 @@ describe('UseKeyModal', () => {
       expect(unixConfig).toContain(`export ${name}="glm-5.3"`)
     }
     expect(unixConfig).toContain('export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC="1"')
-    expect(unixConfig).toContain('export CLAUDE_CODE_ATTRIBUTION_HEADER="0"')
+    // Upstream v0.2.0 (c03776604) stopped disabling the attribution header for every
+    // Claude Code template; the pinned GLM template follows the same contract.
+    expect(unixConfig).not.toContain('CLAUDE_CODE_ATTRIBUTION_HEADER')
     expect(unixConfig).toContain('export CLAUDE_CODE_MAX_CONTEXT_TOKENS="1000000"')
 
     const settingsConfig = codeBlocks.find((content) => content.includes('"$schema"'))

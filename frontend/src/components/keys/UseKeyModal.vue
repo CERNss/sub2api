@@ -888,6 +888,12 @@ const currentFiles = computed((): FileConfig[] => {
       if (activeClientTab.value === 'claude') {
         return generateZhipuClaudeFiles(baseRoot, apiKey)
       }
+      // Upstream v0.2.0 routes every non-OpenAI group's Codex tab through the
+      // routed model catalog (the `default:` arm below); the GLM-specific Claude
+      // Code pin above must not shadow that path.
+      if (activeClientTab.value === 'codex') {
+        return generateRoutedCodexFiles(apiBase, apiKey, 'zhipu')
+      }
       return generateAnthropicFiles(baseUrl, apiKey)
     default:
       if (activeClientTab.value === 'codex' && props.platform) {
