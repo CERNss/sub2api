@@ -143,6 +143,10 @@ func (s *OpenAIGatewayService) BuildGroupConfiguredCodexModelsManifest(
 	if err != nil {
 		return nil, false, fmt.Errorf("build group configured Codex models: %w", err)
 	}
+	body, _, err = appendHiddenOfficialCodexModels(body)
+	if err != nil {
+		return nil, false, fmt.Errorf("shadow unserved official Codex models: %w", err)
+	}
 	manifest := &CodexModelsManifest{
 		Body: body,
 		ETag: codexModelsManifestBodyETag(body),
@@ -322,6 +326,87 @@ var openaiCodexCatalogPriorities = map[string]int{
 	"gpt-5.3-codex-spark": 26,
 	"gpt-5.2":             29,
 	"codex-auto-review":   43,
+}
+
+// appendHiddenOfficialCodexModels (fork) shadows official OpenAI picker models the
+// group does not serve. Codex clients on API-key auth keep every bundled entry
+// the gateway manifest does not mention, so a group that dropped gpt-5.2 would
+// still show it in the picker (and, before the priority patch, even pick it as
+// the default). Emitting the unserved slugs with `visibility: "hide"` overrides
+// the bundled entries by slug and removes them from the picker without making
+// them selectable through the gateway. Only manifests that already advertise at
+// least one official OpenAI slug are touched, so Ark/GLM-only OpenAI-platform
+// groups keep their upstream shape. Hidden fillers are appended after the
+// visible entries so first-entry fallbacks stay on a served model.
+func appendHiddenOfficialCodexModels(body []byte) ([]byte, bool, error) {
+	var envelope map[string]json.RawMessage
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		return nil, false, err
+	}
+	var rawModels []json.RawMessage
+	if err := json.Unmarshal(envelope["models"], &rawModels); err != nil {
+		return nil, false, err
+	}
+	present := make(map[string]struct{}, len(rawModels))
+	servesOfficial := false
+	for _, rawModel := range rawModels {
+		var descriptor struct {
+			Slug string `json:"slug"`
+		}
+		if err := json.Unmarshal(rawModel, &descriptor); err != nil {
+			continue
+		}
+		slug := strings.TrimSpace(descriptor.Slug)
+		if slug == "" {
+			continue
+		}
+		present[slug] = struct{}{}
+		if _, ok := openaiCodexCatalogPriority(slug); ok {
+			servesOfficial = true
+		}
+	}
+	if !servesOfficial {
+		return body, false, nil
+	}
+	fillers := make([]string, 0, len(openaiCodexCatalogPriorities))
+	for slug := range openaiCodexCatalogPriorities {
+		if _, ok := present[slug]; ok {
+			continue
+		}
+		if strings.HasPrefix(slug, codexAutoModelPrefix) || isCodexDedicatedMediaModel(slug) {
+			continue
+		}
+		fillers = append(fillers, slug)
+	}
+	if len(fillers) == 0 {
+		return body, false, nil
+	}
+	sort.Slice(fillers, func(i, j int) bool {
+		if openaiCodexCatalogPriorities[fillers[i]] != openaiCodexCatalogPriorities[fillers[j]] {
+			return openaiCodexCatalogPriorities[fillers[i]] < openaiCodexCatalogPriorities[fillers[j]]
+		}
+		return fillers[i] < fillers[j]
+	})
+	for _, slug := range fillers {
+		descriptor := newConfiguredCodexModelDescriptor(slug)
+		descriptor.Visibility = "hide"
+		descriptor.Description = "Not offered by this Sub2API group."
+		rawModel, err := json.Marshal(descriptor)
+		if err != nil {
+			return nil, false, err
+		}
+		rawModels = append(rawModels, rawModel)
+	}
+	encoded, err := json.Marshal(rawModels)
+	if err != nil {
+		return nil, false, err
+	}
+	envelope["models"] = encoded
+	merged, err := json.Marshal(envelope)
+	if err != nil {
+		return nil, false, err
+	}
+	return merged, true, nil
 }
 
 // openaiCodexCatalogPriority returns the official picker priority for a known

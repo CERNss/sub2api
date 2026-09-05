@@ -1164,7 +1164,9 @@ func TestBuildGroupConfiguredCodexModelsManifestExpandsSelectedModelCoveredByWil
 	manifest, configured, err := svc.BuildGroupConfiguredCodexModelsManifest(context.Background(), group, "")
 	require.NoError(t, err)
 	require.True(t, configured)
-	require.Equal(t, []string{"gpt-5.6"}, codexManifestModelSlugs(t, manifest.Body))
+	// fork: unserved official slugs are appended as hidden fillers; the wildcard
+	// expansion itself must still publish exactly the selected visible slug.
+	require.Equal(t, []string{"gpt-5.6"}, codexManifestVisibleModelSlugs(t, manifest.Body))
 	require.NotContains(t, string(manifest.Body), "gpt-*")
 }
 
@@ -3296,4 +3298,66 @@ func TestNewConfiguredCodexModelDescriptorMirrorsOfficialCatalogPriority(t *test
 		priorities[model["slug"].(string)] = model["priority"].(float64)
 	}
 	require.Equal(t, map[string]float64{"gpt-5.5": 12, "gpt-6-astra": 1, "my-coder": 50}, priorities)
+}
+
+// fork helper: slugs of picker-visible manifest entries only.
+func codexManifestVisibleModelSlugs(t *testing.T, body []byte) []string {
+	t.Helper()
+	slugs := make([]string, 0)
+	for _, model := range decodeCodexManifestModels(t, body) {
+		if visibility, _ := model["visibility"].(string); visibility == "hide" {
+			continue
+		}
+		slugs = append(slugs, model["slug"].(string))
+	}
+	return slugs
+}
+
+// fork: a group that serves a subset of the official OpenAI catalog shadows the
+// rest with hidden entries so Codex clients drop their bundled leftovers.
+func TestBuildGroupConfiguredCodexModelsManifestShadowsUnservedOfficialModels(t *testing.T) {
+	t.Parallel()
+
+	const groupID int64 = 78
+	svc := &OpenAIGatewayService{accountRepo: codexModelsVisibilityAccountRepo{
+		byGroup: map[int64][]Account{
+			groupID: {{
+				Platform: PlatformOpenAI,
+				Type:     AccountTypeOAuth,
+				Credentials: map[string]any{
+					"model_mapping": map[string]any{
+						"gpt-6-astra": "gpt-6-astra",
+						"gpt-5.5":     "gpt-5.5",
+					},
+				},
+			}},
+		},
+	}}
+	group := &Group{ID: groupID, Platform: PlatformOpenAI}
+
+	manifest, configured, err := svc.BuildGroupConfiguredCodexModelsManifest(context.Background(), group, "")
+	require.NoError(t, err)
+	require.True(t, configured)
+	require.Equal(t, []string{"gpt-5.5", "gpt-6-astra"}, codexManifestVisibleModelSlugs(t, manifest.Body))
+
+	hidden := map[string]float64{}
+	for _, model := range decodeCodexManifestModels(t, manifest.Body) {
+		if visibility, _ := model["visibility"].(string); visibility == "hide" {
+			hidden[model["slug"].(string)] = model["priority"].(float64)
+		}
+	}
+	require.Equal(t, 29.0, hidden["gpt-5.2"])
+	require.Equal(t, 16.0, hidden["gpt-5.4"])
+	require.Equal(t, 6.0, hidden["gpt-5.6-sol"])
+	require.NotContains(t, hidden, "gpt-6-astra")
+	require.NotContains(t, hidden, "gpt-5.5")
+	require.NotContains(t, hidden, "codex-auto-review")
+
+	// Ark/GLM-only OpenAI-platform groups keep the upstream shape untouched.
+	body, err := BuildCodexModelsManifest([]string{"glm-5.3"})
+	require.NoError(t, err)
+	shadowed, changed, err := appendHiddenOfficialCodexModels(body)
+	require.NoError(t, err)
+	require.False(t, changed)
+	require.Equal(t, body, shadowed)
 }
