@@ -1,8 +1,8 @@
 diff --git a/frontend/src/components/keys/UseKeyModal.vue b/frontend/src/components/keys/UseKeyModal.vue
-index c6d009901..60f75ab70 100644
+index c6d009901..6c3675323 100644
 --- a/frontend/src/components/keys/UseKeyModal.vue
 +++ b/frontend/src/components/keys/UseKeyModal.vue
-@@ -262,13 +262,18 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
+@@ -262,13 +262,19 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
  import Icon from '@/components/icons/Icon.vue'
  import { useClipboard } from '@/composables/useClipboard'
  import { fetchCodexModelsManifest } from '@/api/codex'
@@ -10,6 +10,7 @@ index c6d009901..60f75ab70 100644
  import {
    findCodexCatalogModel,
    formatCodexReasoningEffortTomlLine,
++  isCodexCatalogModelHidden,
    parseCodexCatalogModels,
    selectCodexConfigReasoningEffort
  } from '@/utils/codexCatalogConfig'
@@ -22,7 +23,7 @@ index c6d009901..60f75ab70 100644
  
  interface Props {
    show: boolean
-@@ -276,6 +281,7 @@ interface Props {
+@@ -276,6 +282,7 @@ interface Props {
    baseUrl: string
    platform: GroupPlatform | null
    allowMessagesDispatch?: boolean
@@ -30,7 +31,7 @@ index c6d009901..60f75ab70 100644
  }
  
  interface Emits {
-@@ -546,6 +552,11 @@ const platformDescription = computed(() => {
+@@ -546,6 +553,11 @@ const platformDescription = computed(() => {
        return activeClientTab.value === 'codex'
          ? t('keys.useKeyModal.composite.codexDescription')
          : t('keys.useKeyModal.composite.description')
@@ -42,7 +43,7 @@ index c6d009901..60f75ab70 100644
      default:
        return t('keys.useKeyModal.description')
    }
-@@ -598,6 +609,11 @@ const platformNote = computed(() => {
+@@ -598,6 +610,11 @@ const platformNote = computed(() => {
        return activeClientTab.value === 'codex'
          ? t('keys.useKeyModal.composite.codexNote')
          : t('keys.useKeyModal.note')
@@ -54,7 +55,18 @@ index c6d009901..60f75ab70 100644
      default:
        return t('keys.useKeyModal.note')
    }
-@@ -681,6 +697,36 @@ const operator = (value: string) => wrapToken('text-slate-400', value)
+@@ -651,7 +668,9 @@ function downloadCodexModelManifest() {
+ }
+ 
+ const codexCatalogModelSlugs = computed(() =>
+-  parseCodexCatalogModels(codexModelManifestContent.value).map((model) => model.slug)
++  parseCodexCatalogModels(codexModelManifestContent.value)
++    .filter((model) => !isCodexCatalogModelHidden(model))
++    .map((model) => model.slug)
+ )
+ 
+ function selectCodexCatalogModel(preferredModel: string): string {
+@@ -681,6 +700,36 @@ const operator = (value: string) => wrapToken('text-slate-400', value)
  const string = (value: string) => wrapToken('text-amber-200', value)
  const comment = (value: string) => wrapToken('text-slate-500', value)
  
@@ -91,7 +103,7 @@ index c6d009901..60f75ab70 100644
  // Syntax highlighting helpers
  // Generate file configs based on platform and active tab
  const currentFiles = computed((): FileConfig[] => {
-@@ -703,6 +749,42 @@ const currentFiles = computed((): FileConfig[] => {
+@@ -703,6 +752,42 @@ const currentFiles = computed((): FileConfig[] => {
    })()
  
    if (activeClientTab.value === 'opencode') {
@@ -134,7 +146,7 @@ index c6d009901..60f75ab70 100644
      switch (props.platform) {
        case 'anthropic':
          return [generateOpenCodeConfig('anthropic', apiBase, apiKey)]
-@@ -717,8 +799,14 @@ const currentFiles = computed((): FileConfig[] => {
+@@ -717,8 +802,14 @@ const currentFiles = computed((): FileConfig[] => {
          ]
        case 'grok':
          return [generateOpenCodeConfig('grok', apiBase, apiKey)]
@@ -150,7 +162,7 @@ index c6d009901..60f75ab70 100644
      }
    }
  
-@@ -728,8 +816,30 @@ const currentFiles = computed((): FileConfig[] => {
+@@ -728,8 +819,30 @@ const currentFiles = computed((): FileConfig[] => {
          return generateAnthropicFiles(baseUrl, apiKey)
        }
        if (activeClientTab.value === 'codex-ws') {
@@ -181,7 +193,7 @@ index c6d009901..60f75ab70 100644
        return generateOpenAIFiles(baseUrl, apiKey)
      case 'gemini':
        if (activeClientTab.value === 'codex') {
-@@ -749,6 +859,18 @@ const currentFiles = computed((): FileConfig[] => {
+@@ -749,6 +862,18 @@ const currentFiles = computed((): FileConfig[] => {
          return generateGrokClaudeFiles(baseRoot, apiKey)
        }
        if (activeClientTab.value === 'codex') {
@@ -200,7 +212,7 @@ index c6d009901..60f75ab70 100644
          return generateGrokCodexFiles(apiBase, apiKey)
        }
        return generateGrokFiles(apiBase, apiKey)
-@@ -762,6 +884,17 @@ const currentFiles = computed((): FileConfig[] => {
+@@ -762,6 +887,17 @@ const currentFiles = computed((): FileConfig[] => {
          return generateRoutedCodexFiles(apiBase, apiKey, 'composite')
        }
        return generateAnthropicFiles(baseRoot, apiKey)
@@ -218,7 +230,7 @@ index c6d009901..60f75ab70 100644
      default:
        if (activeClientTab.value === 'codex' && props.platform) {
          return generateRoutedCodexFiles(apiBase, apiKey, props.platform)
-@@ -821,17 +954,27 @@ $env:CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`
+@@ -821,17 +957,27 @@ $env:CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`
    ]
  }
  
@@ -254,7 +266,7 @@ index c6d009901..60f75ab70 100644
    }
    let path: string
    let content: string
-@@ -877,6 +1020,21 @@ function generateGrokClaudeFiles(baseUrl: string, apiKey: string): FileConfig[]
+@@ -877,6 +1023,21 @@ function generateGrokClaudeFiles(baseUrl: string, apiKey: string): FileConfig[]
    ]
  }
  
@@ -276,7 +288,7 @@ index c6d009901..60f75ab70 100644
  function generateGeminiCliContent(baseUrl: string, apiKey: string): FileConfig {
    const model = 'gemini-2.0-flash'
    const modelComment = t('keys.useKeyModal.gemini.modelComment')
-@@ -926,7 +1084,7 @@ function generateOpenAIFiles(baseUrl: string, apiKey: string): FileConfig[] {
+@@ -926,7 +1087,7 @@ function generateOpenAIFiles(baseUrl: string, apiKey: string): FileConfig[] {
    const isWindows = activeTab.value === 'windows'
    const configDir = isWindows ? '%userprofile%\\.codex' : '~/.codex'
  
@@ -285,7 +297,7 @@ index c6d009901..60f75ab70 100644
    const reasoningEffortLine = codexReasoningEffortTomlLine(model)
  
    // config.toml content
-@@ -1211,7 +1369,7 @@ function generateRoutedCodexFiles(
+@@ -1211,7 +1372,7 @@ function generateRoutedCodexFiles(
    const isWindows = activeTab.value === 'windows'
    const configDir = isWindows ? '%userprofile%\\.codex' : '~/.codex'
    const preferredModels: Partial<Record<GroupPlatform, string>> = {
@@ -294,7 +306,7 @@ index c6d009901..60f75ab70 100644
      anthropic: 'claude-sonnet-4-6',
      gemini: 'gemini-2.5-pro',
      antigravity: 'claude-sonnet-4-6',
-@@ -1219,7 +1377,7 @@ function generateRoutedCodexFiles(
+@@ -1219,7 +1380,7 @@ function generateRoutedCodexFiles(
      kimi: 'kimi-k2.5',
      zhipu: 'glm-4.7',
      deepseek: 'deepseek-v4-pro',
@@ -303,7 +315,7 @@ index c6d009901..60f75ab70 100644
    }
    const preferredModel = preferredModels[platform] || ''
    const model = selectCodexCatalogModel(preferredModel)
-@@ -1271,7 +1429,7 @@ supports_websockets = false`
+@@ -1271,7 +1432,7 @@ supports_websockets = false`
  function generateOpenAIWsFiles(baseUrl: string, apiKey: string): FileConfig[] {
    const isWindows = activeTab.value === 'windows'
    const configDir = isWindows ? '%userprofile%\\.codex' : '~/.codex'
@@ -312,7 +324,7 @@ index c6d009901..60f75ab70 100644
    const reasoningEffortLine = codexReasoningEffortTomlLine(model)
  
    // config.toml content with WebSocket v2
-@@ -1297,7 +1455,13 @@ goals = true`
+@@ -1297,7 +1458,13 @@ goals = true`
    return buildOpenAICodexFileConfigs(configDir, configContent, apiKey)
  }
  
@@ -327,7 +339,7 @@ index c6d009901..60f75ab70 100644
    const provider: Record<string, any> = {
      [platform]: {
        options: {
-@@ -1307,6 +1471,45 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
+@@ -1307,6 +1474,45 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
      }
    }
    const openaiModels = {
@@ -373,7 +385,7 @@ index c6d009901..60f75ab70 100644
      'gpt-5.2': {
        name: 'GPT-5.2',
        limit: {
-@@ -1777,26 +1980,103 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
+@@ -1777,26 +1983,103 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
    }
    // Align context_window with Grok Build official sample (docs.x.ai/build/settings) where known.
    // Image/video: grok-imagine-image / grok-imagine-video on media endpoints — not this list.
@@ -482,7 +494,7 @@ index c6d009901..60f75ab70 100644
      }
    }
  
-@@ -1816,12 +2096,37 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
+@@ -1816,12 +2099,37 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
    } else if (platform === 'openai') {
      provider[platform].models = openaiModels
    } else if (platform === 'grok') {
@@ -522,7 +534,7 @@ index c6d009901..60f75ab70 100644
    const agent =
      platform === 'openai'
        ? {
-@@ -1840,6 +2145,7 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
+@@ -1840,6 +2148,7 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
  
    const content = JSON.stringify(
      {

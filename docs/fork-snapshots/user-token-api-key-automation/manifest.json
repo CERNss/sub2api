@@ -2,8 +2,8 @@
   "change_id": "user-token-api-key-automation",
   "status": "active",
   "proposal_path": "openspec/changes/user-token-api-key-automation/proposal.md",
-  "captured_at": "2026-09-05T05:05:35+00:00",
-  "captured_at_commit": "e966f12d5b7dba011e4c1186c0389e3c07279138",
+  "captured_at": "2026-09-05T06:59:26+00:00",
+  "captured_at_commit": "b3d1bd92856bbc43a8287a0e60d29bc312ea2730",
   "base": "aa236488351eb71e120fc2b6fb32e36b0374c918",
   "base_commit": "aa236488351eb71e120fc2b6fb32e36b0374c918",
   "new_files": [
